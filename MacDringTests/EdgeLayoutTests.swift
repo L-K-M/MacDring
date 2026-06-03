@@ -133,4 +133,54 @@ final class EdgeLayoutTests: XCTestCase {
         XCTAssertEqual(frame.minX, secondary.minX, accuracy: 0.001)
         XCTAssertEqual(frame.midY, secondary.midY, accuracy: 0.001)
     }
+
+    // MARK: De-overlap
+
+    func testStackedVerticalTabsAreSpacedAlongEdge() {
+        // Two right-edge tabs at the same position would overlap exactly.
+        let f = EdgeLayout.tabFrame(edge: .right, position: 0.5, size: pill, in: visible)
+        let packed = EdgeLayout.packAlongEdge(frames: [f, f], edge: .right, gap: 6, in: visible)
+
+        XCTAssertEqual(packed[0], f)                                   // first stays put
+        XCTAssertEqual(packed[1].minX, f.minX, accuracy: 0.001)       // still flush right
+        // The second sits just below the first (lower y) with the gap between them.
+        XCTAssertEqual(packed[1].maxY, packed[0].minY - 6, accuracy: 0.001)
+        XCTAssertFalse(packed[0].intersects(packed[1]))
+    }
+
+    func testStackedHorizontalTabsAreSpacedAlongEdge() {
+        let wide = CGSize(width: 120, height: 40)
+        let f = EdgeLayout.tabFrame(edge: .bottom, position: 0.5, size: wide, in: visible)
+        let packed = EdgeLayout.packAlongEdge(frames: [f, f], edge: .bottom, gap: 6, in: visible)
+
+        XCTAssertEqual(packed[0], f)
+        XCTAssertEqual(packed[1].minY, f.minY, accuracy: 0.001)       // still flush bottom
+        XCTAssertEqual(packed[1].minX, packed[0].maxX + 6, accuracy: 0.001)
+        XCTAssertFalse(packed[0].intersects(packed[1]))
+    }
+
+    func testNonOverlappingFramesAreLeftAlone() {
+        let a = EdgeLayout.tabFrame(edge: .right, position: 0.1, size: pill, in: visible)
+        let b = EdgeLayout.tabFrame(edge: .right, position: 0.9, size: pill, in: visible)
+        let packed = EdgeLayout.packAlongEdge(frames: [a, b], edge: .right, gap: 6, in: visible)
+        XCTAssertEqual(packed[0], a)
+        XCTAssertEqual(packed[1], b)
+    }
+
+    func testOverflowingRunIsShiftedBackOnScreen() {
+        // Three tall pills can't all fit from the top without running off the bottom;
+        // the run is shifted up so the last one stays on screen.
+        let tall = CGSize(width: 40, height: 300)
+        let top = EdgeLayout.tabFrame(edge: .right, position: 0.0, size: tall, in: visible)
+        let packed = EdgeLayout.packAlongEdge(frames: [top, top, top], edge: .right, gap: 6, in: visible)
+        for frame in packed {
+            XCTAssertGreaterThanOrEqual(frame.minY, visible.minY - 0.001)
+            XCTAssertLessThanOrEqual(frame.maxY, visible.maxY + 0.001)
+        }
+    }
+
+    func testSingleFrameIsUnchanged() {
+        let f = EdgeLayout.tabFrame(edge: .left, position: 0.3, size: pill, in: visible)
+        XCTAssertEqual(EdgeLayout.packAlongEdge(frames: [f], edge: .left, gap: 6, in: visible), [f])
+    }
 }
