@@ -53,7 +53,9 @@ enum DrawerMetrics {
         case .list:
             let count = max(itemCount, 1)
             let rowHeight = max(iconSize, 22) + 12
-            let width: CGFloat = 300
+            // Width tracks the icon size (plus room for a label) instead of a fixed
+            // 300 pt, so large icons / long names aren't cramped. Clamped below.
+            let width = max(300, padding + iconSize + 220)
             let height = padding + headerHeight + CGFloat(count) * rowHeight
             size = CGSize(width: width, height: height)
         }
