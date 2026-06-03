@@ -203,11 +203,20 @@ must not steal focus or churn the active-app order).
 - `level` configurable: **Floating** (always on top, default) or **Normal** (sits with
   windows). A future "auto-hide / reveal on edge-hover" mode (§13) keeps tabs out of the
   way like the Dock.
-- **Content (SwiftUI in an `NSHostingView`):** a rounded "pill" flush to the edge — the
-  flat side kisses the screen edge, the rounded corners face inward. An
-  `NSVisualEffectView` blur tinted by the tab's `colorHex`, with the glyph and (optional)
-  vertical/horizontal label. Orientation follows the edge (vertical text/stack on
-  left/right, horizontal on top/bottom).
+- **Content (SwiftUI in an `NSHostingView`):** two looks, switchable globally via
+  `preferences.tabStyle`:
+  - **Modern** — a translucent rounded pill: the flat side kisses the screen edge,
+    the two inward corners are rounded (`edgeRoundedRect`, shared with the drawer),
+    an `NSVisualEffectView` blur tinted by the tab's `colorHex`.
+  - **Classic** — a skeuomorphic angled "folder tab" (`ClassicTabShape`): a
+    trapezoid full-width along the edge, narrowing with angled shoulders toward the
+    inward side, filled with the tab's color + a raised bevel, à la DragThing. Text
+    color auto-contrasts (`Color.readableForeground`).
+- **Label orientation follows the edge:** horizontal on top/bottom; on **left/right
+  edges the name is printed vertically** (a quarter turn) so long names fit along the
+  tab's length and the tab can stay thin. The rotated label's footprint is measured
+  synchronously from text metrics (not a GeometryReader round-trip) so the tab window,
+  which reads `fittingSize` once at placement, sizes to the full label immediately.
 - **Drag destination:** the tab accepts dropped file/app URLs (`NSDraggingDestination`)
   and adds them as items; dropping highlights the tab and, on drop, briefly opens the
   drawer so the user sees the result.
@@ -224,6 +233,9 @@ must not steal focus or churn the active-app order).
   pushed inward to ride on the drawer's inner face** (`EdgeLayout.openDrawerFrame` +
   `openedTabFrame`). A bottom-edge tab → drawer fills the bottom and the tab sits on
   top of it. Closing slides the tab back flush to the edge.
+- **Shape:** the two corners touching the screen edge are **sharp**; only the inward
+  corners are rounded (`edgeRoundedRect`, shared with the modern tab pill) — so the
+  drawer reads as one piece sliding flush out of the edge.
 - The drawer panel is **key but non-activating** (`KeyableDrawerPanel`,
   `canBecomeKey = true` + `.nonactivatingPanel`): it can receive keys and
   intra-window drag-and-drop (item reorder, Esc) **without activating the app**, so
@@ -237,11 +249,15 @@ must not steal focus or churn the active-app order).
   can be **placed freely with gaps** and every cell is a drop target. Header shows
   the tab title in the tab's color. Items launch via `ItemLauncher`.
 - **Spring-loaded file drops:** hovering a tab while dragging a file opens its
-  drawer (after ~0.5 s); dropping a file onto an **app** opens it with that app,
-  onto a **folder** files it into that folder, and onto an empty slot / background
-  adds it (items tab) or files it into the mirrored directory (folder tab). Folder
-  items are also draggable **out** to Finder/other apps. (Dropping onto a folder
-  **moves** the file, Finder-style.)
+  drawer (after ~0.5 s). A single **location-aware drop delegate** over the whole
+  grid (`ItemsDropDelegate`) highlights the **slot under the cursor** as you move and,
+  on release, files there — dropping onto an **app** opens it with that app, onto a
+  **folder** files it into that folder, and onto an empty slot / background adds it
+  (items tab, landing in that slot) or files it into the mirrored directory (folder
+  tab). The single delegate (vs. per-cell `.onDrop`, which fires unreliably in the
+  borderless panel) is what makes the highlight + slot placement robust. Folder items
+  are also draggable **out** to Finder/other apps. (Dropping onto a folder **moves**
+  the file, Finder-style.)
 - **Auto-hide:** closes on click-outside, `Esc`, re-click of its tab, selecting an item
   (unless "keep open"/pinned), or — optionally — when the pointer leaves (hover mode).
 - **Sizing:** deterministic via `DrawerMetrics` (item count + appearance), not SwiftUI
@@ -336,6 +352,7 @@ auto-hide, pinned-open, optional hotkey.
 | Default tab color | Color | system accent |
 | Icon size | Slider (32–128) | 64 |
 | Drawer layout | Grid / List | Grid |
+| Tab style | Modern / Classic | Modern |
 | New-tab grid columns / rows | Steppers | 4 × 2 (per-tab override in Tabs) |
 | Corner radius | Slider (0–24) | 14 |
 | Tab thickness | Slider (24–64) | 36 |
@@ -351,8 +368,8 @@ Colors persist as hex via a reused **`ColorHex`** helper (`NSColor(hex:)` / `.he
 
 **Settings window** (SwiftUI, opened from the menu bar) tabs:
 1. **General** — launch at login, open mode, animation, launch click, disconnect policy.
-2. **Appearance** — material, default color, icon size, layout, radius, thickness, with a
-   **live preview** of a sample tab + drawer.
+2. **Appearance** — **tab style (modern / classic)**, material, default color, icon size,
+   layout, radius, thickness. Side (left/right) tabs print their name vertically.
 3. **Tabs** — manage all tabs: list with color swatches, edge/screen pickers, per-tab
    color/glyph, and each tab's items (add/remove/reorder/relink). The home for keyboard-
    first management without dragging on screen.
@@ -434,7 +451,7 @@ MacDring/
 │   ├── Tabs/
 │   │   ├── TabController.swift     # reconciles model + displays → windows; the brain
 │   │   ├── TabWindowController.swift
-│   │   ├── TabStripView.swift      # SwiftUI tab pill (color + glyph + label)
+│   │   ├── TabStripView.swift      # SwiftUI tab pill: modern/classic styles, rotated side labels
 │   │   └── TabStripModel.swift     # observable pill state + interaction callbacks
 │   ├── Drawer/
 │   │   ├── DrawerWindowController.swift
@@ -461,7 +478,8 @@ MacDring/
 │   │   ├── NewTabWindowController.swift
 │   │   └── AboutView.swift
 │   ├── Common/
-│   │   └── VisualEffectView.swift   # NSVisualEffectView wrapper (reused from Zap)
+│   │   ├── VisualEffectView.swift   # NSVisualEffectView wrapper (reused from Zap)
+│   │   └── TabShapes.swift          # edgeRoundedRect + ClassicTabShape (tab/drawer shapes)
 │   └── Resources/
 │       └── Assets.xcassets          # Info.plist generated
 ├── MacDringTests/
@@ -486,10 +504,19 @@ MacDring/
 
 ## 12. Implementation Phases / Milestones
 
-> **Status:** Phases 1–9 implemented; the project **builds clean** and all **55
-> unit tests pass**. Several GUI test passes refined the behaviors below. Remaining
-> work is further hardware verification (release signing is out of scope per the
-> owner).
+> **Status:** Phases 1–9 implemented; at the last successful build the project
+> **built clean** with all **61 unit tests passing**. Several GUI test passes refined
+> the behaviors below. Release signing is out of scope per the owner.
+>
+> **⚠️ Build-environment note (2026-06):** Xcode 26.5's build service
+> (`SWBBuildService`) currently **deadlocks on the initial `clang -v -E -dM`
+> compiler-info probe** on this machine — it spawns the probe but never drains its
+> output pipe, so every `xcodebuild`/test run hangs at `CreateBuildDescription`. This
+> is not the project: the probe runs in <0.1 s by hand, and the whole module
+> **type-checks clean via `swiftc -typecheck`**. The fix is on the Xcode install
+> (`sudo xcodebuild -runFirstLaunch`, then reinstall Xcode if needed). The newest GUI
+> changes are therefore verified by type-check + icon render, with on-screen
+> verification pending the Xcode repair.
 >
 > **GUI behavior (refined over two test passes):**
 > - **Drawer open** — **slides** out flush against the screen edge (sized by
@@ -507,6 +534,9 @@ MacDring/
 >   moves it there, swapping if that slot is occupied, on release). SwiftUI's
 >   `.onDrop` is **not** used for reorder — its drop callbacks don't fire inside a
 >   borderless panel's grid. (External file drops to *add* items still use `.onDrop`.)
+>   Because cells are keyed by slot index (reused on swap), `ItemView` reloads its
+>   cached icon via `.task(id: item.id)` so the **icon follows the item** on a swap
+>   (otherwise names swap but icons stay put).
 > - **Lost-tab defense** — each tab panel is non-movable and **snaps back to its
 >   intended frame** if an external tool (a tiling / window manager) moves or
 >   resizes it, so a tab can't be dragged off to an odd place.
@@ -523,8 +553,11 @@ MacDring/
 > - **Dragged item z-order** — the dragged drawer item is drawn in an overlay above
 >   the grid (a per-cell `zIndex` is ignored inside a `LazyVGrid`).
 > - App items drop the **`.app`** extension from their display name.
-> - **Icons** — the **About** pane shows the real app icon; the **menu-bar** glyph is
->   a custom template echoing the edge-tab + drawer motif.
+> - **Icons** — the **app icon** (generated by `Tools/GenerateAppIcon.swift`) is a
+>   blue "screen" squircle with **three flush colored edge tabs**, the middle one
+>   opened into a white drawer of app icons. The **menu-bar** glyph is a template
+>   "screen" outline with **two tabs** protruding from its right edge. The **About**
+>   pane shows the real app icon.
 > - **Tab types** (`TabKind`) — besides the default **items** tab, a **notes** tab
 >   (drawer is a text editor; edits persist via `setNotes` without reconciling the
 >   open drawer) and a **folder** tab (drawer shows a directory's live contents,
@@ -532,11 +565,25 @@ MacDring/
 > - **New Tab modal** — the menu bar has **New Items / Notes / Folder Tab…**
 >   entries; each opens a small dialog (`NewTabView`) to set the name, color, type,
 >   and (for a folder) the directory, then creates the tab.
-> - **Spring-loaded file drops** — hovering a tab while dragging opens its drawer;
->   dropping onto an app opens-with, onto a folder moves the file in, onto a slot
->   adds it (items) or files it into the mirrored directory (folder). Folder items
->   drag **out** to Finder. The open/close animation nudges **inward** + fades, so
->   it never bleeds onto an adjacent display at a shared edge.
+> - **Spring-loaded file drops** — hovering a tab while dragging opens its drawer; a
+>   single **location-aware drop delegate** (`ItemsDropDelegate`) then **highlights the
+>   slot under the cursor** as you move and files there on release — onto an app
+>   opens-with, onto a folder moves the file in, onto a slot adds it (items, landing
+>   in that slot) or files it into the mirrored directory (folder). The delegate reads
+>   the grid frames **live from the model** (`DrawerModel.slotFrames`), so a drawer
+>   that springs open *mid-drag* maps correctly the instant its grid lays out (a
+>   captured snapshot would be empty → drop falls through to the tab). A **folder/app**
+>   target shows a distinct ring (file-into / open-with) vs. an empty slot's fill.
+>   Folder items drag **out** to Finder. The open/close animation nudges **inward** +
+>   fades, so it never bleeds onto an adjacent display at a shared edge.
+> - **Tab styles** — a global **Modern / Classic** toggle (Appearance): modern is the
+>   translucent rounded pill; classic is an angled DragThing-style **folder tab**
+>   (`ClassicTabShape`) filled with the tab color + a raised bevel, auto-contrasting text.
+> - **Vertical side labels** — tabs on the **left/right** edges print their name
+>   **rotated a quarter turn** along the tab's length, so long names fit and the tab
+>   can stay thin (footprint measured synchronously from text metrics).
+> - **Drawer shape** — the drawer's two corners touching the screen edge are **sharp**;
+>   only its inward corners are rounded, so it reads as sliding flush out of the edge.
 
 1. **Skeleton** ✅ — Xcode project (synchronized groups, `.accessory`, `LSUIElement`),
    menu-bar `NSStatusItem`, Settings window, `Preferences` + `ColorHex`.

@@ -144,6 +144,8 @@ final class DrawerWindowController {
     }
 
     private func apply(tab: Tab) {
+        model.fileDropSlot = nil
+        model.slotFrames = [:]
         model.title = tab.title
         model.colorHex = tab.colorHex
         model.columns = max(1, tab.gridColumns)

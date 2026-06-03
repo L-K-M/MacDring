@@ -19,6 +19,9 @@ them after a restart.
   click opens them.
 - **Drag-and-drop to add.** Drop files or apps from Finder onto a tab or its open
   drawer.
+- **Spring-loaded drops.** Drag a file onto a tab and its drawer springs open; the
+  slot under your cursor **highlights**, and dropping there files the item into that
+  slot — onto an app to open it with, onto a folder to move it in.
 - **Per-tab color, name, and glyph** (SF Symbol or letters) — DragThing-style
   customization, modernized.
 - **Multi-monitor from the start.** Tabs live on a specific display + edge and
@@ -28,6 +31,9 @@ them after a restart.
   a fractional edge position, never raw pixels.
 - **Optional per-tab hotkey** to toggle a drawer from anywhere — and it needs
   **no Accessibility permission**.
+- **Two tab looks** — a **Modern** translucent rounded pill, or a **Classic** angled
+  "folder tab" à la DragThing (**Settings → Appearance**). Tabs on the left/right
+  edges print their name **vertically**, so long names fit and the tab stays thin.
 - **Modern, native look** — translucent materials, rounded corners, a quick
   open/close animation; light/dark adaptive.
 - **Menu-bar agent** — no Dock icon. Launch at login via `SMAppService`.
@@ -66,10 +72,10 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 - **Per tab** (right-click → *Configure Tab…*, or **Settings → Tabs**): name,
   color, glyph, edge, display, position, open-on-hover/auto-hide/keep-open, and an
   optional hotkey.
-- **Global** (**Settings → Appearance / General**): drawer material, grid vs. list
-  layout, icon size, corner radius, tab thickness, labels, single vs. double-click
-  to open, animation speed, the multi-display disconnect policy, and launch at
-  login.
+- **Global** (**Settings → Appearance / General**): **tab style (modern/classic)**,
+  drawer material, grid vs. list layout, icon size, corner radius, tab thickness,
+  labels, single vs. double-click to open, animation speed, the multi-display
+  disconnect policy, and launch at login.
 
 ## Permissions & Distribution
 

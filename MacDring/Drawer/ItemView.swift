@@ -31,7 +31,10 @@ struct ItemView: View {
                     Button("Remove", role: .destructive, action: onRemove)
                 }
             }
-            .onAppear { if icon == nil { icon = ItemView.resolveIcon(item) } }
+            // Keyed by `item.id`: loads on appear AND reloads when a *different*
+            // item lands in this (slot-keyed, reused) cell — e.g. a reorder swap —
+            // so the icon follows the item instead of staying stale.
+            .task(id: item.id) { icon = ItemView.resolveIcon(item) }
     }
 
     @ViewBuilder

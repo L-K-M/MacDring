@@ -41,19 +41,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// A template menu-bar glyph that echoes the app's motif: a "screen" outline
-    /// with a filled tab on its right edge (an edge tab → drawer).
+    /// with two filled tabs riding on its right edge — color-per-tab edge tabs.
     private static func statusBarImage() -> NSImage {
         let size = NSSize(width: 18, height: 16)
         let image = NSImage(size: size, flipped: false) { _ in
-            let body = NSRect(x: 1.5, y: 2.5, width: 10.5, height: 11)
-            let bodyPath = NSBezierPath(roundedRect: body, xRadius: 2.5, yRadius: 2.5)
-            bodyPath.lineWidth = 1.4
+            // The screen.
+            let body = NSRect(x: 2, y: 2.5, width: 9, height: 11)
+            let bodyPath = NSBezierPath(roundedRect: body, xRadius: 2.3, yRadius: 2.3)
+            bodyPath.lineWidth = 1.3
             NSColor.black.setStroke()
             bodyPath.stroke()
 
-            let tab = NSRect(x: body.maxX - 1, y: 5, width: 4.5, height: 6)
+            // Two tabs protruding from the right edge.
             NSColor.black.setFill()
-            NSBezierPath(roundedRect: tab, xRadius: 1.8, yRadius: 1.8).fill()
+            for y in [body.midY + 0.6, body.midY - 4.0] {
+                let tab = NSRect(x: body.maxX - 1.4, y: y, width: 5.2, height: 3.4)
+                NSBezierPath(roundedRect: tab, xRadius: 1.4, yRadius: 1.4).fill()
+            }
             return true
         }
         image.isTemplate = true

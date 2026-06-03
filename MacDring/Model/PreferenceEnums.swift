@@ -33,6 +33,14 @@ enum DrawerLayout: String, Codable, CaseIterable, Identifiable {
     var displayName: String { self == .grid ? "Grid" : "List" }
 }
 
+/// The visual treatment of tab pills: a sleek translucent rounded pill, or the
+/// skeuomorphic angled "folder tab" reminiscent of classic DragThing.
+enum TabStyle: String, Codable, CaseIterable, Identifiable {
+    case modern, classic
+    var id: String { rawValue }
+    var displayName: String { self == .modern ? "Modern" : "Classic" }
+}
+
 /// What happens to a tab when its display is disconnected (see PLAN.md §6).
 enum DisconnectPolicy: String, Codable, CaseIterable, Identifiable {
     /// Hide the tab and keep its anchor; restore it exactly when the display returns.

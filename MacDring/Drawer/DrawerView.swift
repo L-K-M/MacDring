@@ -19,7 +19,8 @@ struct DrawerView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var slotFrames: [Int: CGRect] = [:]
     @State private var dropTargetSlot: Int?      // internal reorder target
-    @State private var fileDropSlot: Int?         // external file-drop target
+    // The external file-drop target slot lives on the model (`model.fileDropSlot`)
+    // so the AppKit-driven drop delegate can update it during a drag.
 
     private let contentSpace = "macdring.drawer.content"
     private var columns: Int { max(1, model.columns) }
@@ -35,8 +36,9 @@ struct DrawerView: View {
     private var acceptsFileDrops: Bool { model.kind != .notes }
 
     var body: some View {
-        let radius = CGFloat(preferences.cornerRadius)
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        // The two corners touching the screen edge stay sharp; the inward corners
+        // are rounded — so the drawer reads as sliding flush out of the edge.
+        let shape = edgeRoundedRect(edge: model.edge, radius: CGFloat(preferences.cornerRadius))
 
         VStack(alignment: .leading, spacing: 10) {
             header
@@ -134,7 +136,13 @@ struct DrawerView: View {
             itemsLayout
                 .coordinateSpace(name: contentSpace)
                 .overlay(alignment: .topLeading) { draggedOverlay }
-                .onPreferenceChange(SlotFramesKey.self) { slotFrames = $0 }
+                .onPreferenceChange(SlotFramesKey.self) { slotFrames = $0; model.slotFrames = $0 }
+                // A single location-aware drop target over the whole grid: it
+                // highlights and files into the slot under the cursor. (Per-cell
+                // `.onDrop` targets fire unreliably inside the borderless panel,
+                // and don't give us the hovered location.)
+                .onDrop(of: [UTType.fileURL],
+                        delegate: ItemsDropDelegate(accepts: acceptsFileDrops, model: model))
         }
     }
 
@@ -150,13 +158,12 @@ struct DrawerView: View {
         } else {
             VStack(spacing: 2) {
                 ForEach(model.items.sorted { $0.slot < $1.slot }) { item in
-                    fileDropTarget(
-                        inCellItem(item)
-                            .padding(.vertical, 3)
-                            .padding(.horizontal, 4)
-                            .background(slotFrameReporter(item.slot)),
-                        slot: item.slot
-                    )
+                    inCellItem(item)
+                        .padding(.vertical, 3)
+                        .padding(.horizontal, 4)
+                        .background(RoundedRectangle(cornerRadius: 8)
+                            .fill(.white.opacity(model.fileDropSlot == item.slot ? 0.16 : 0)))
+                        .background(slotFrameReporter(item.slot))
                 }
             }
         }
@@ -164,18 +171,25 @@ struct DrawerView: View {
 
     private func gridSlot(_ slot: Int) -> some View {
         let item = model.item(atSlot: slot)
-        let highlighted = (dropTargetSlot == slot && dragging?.slot != slot) || fileDropSlot == slot
-        return fileDropTarget(
-            ZStack {
+        let reorderHere = dropTargetSlot == slot && dragging?.slot != slot
+        let fileDropHere = model.fileDropSlot == slot
+        // A file dragged onto a folder/app is a "file into / open with" target, not a
+        // plain slot drop — give it a distinct ring so the difference is obvious.
+        let intoTarget = fileDropHere && (item?.kind == .folder || item?.kind == .application)
+        return ZStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.white.opacity((reorderHere || fileDropHere) ? 0.16 : 0))
+            if let item { inCellItem(item) }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: cellHeight)
+        .overlay {
+            if intoTarget {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(.white.opacity(highlighted ? 0.16 : 0))
-                if let item { inCellItem(item) }
+                    .strokeBorder(Color(hexString: model.colorHex), lineWidth: 2)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: cellHeight)
-            .background(slotFrameReporter(slot)),
-            slot: slot
-        )
+        }
+        .background(slotFrameReporter(slot))
     }
 
     /// An item in its home cell. `.items` tabs reorder by dragging; `.folder`
@@ -187,17 +201,6 @@ struct DrawerView: View {
             cell.gesture(reorderGesture(item))
         } else {
             cell.onDrag { dragProvider(item) }
-        }
-    }
-
-    /// Wraps a cell so a file dragged from elsewhere can be dropped on it.
-    private func fileDropTarget(_ view: some View, slot: Int) -> some View {
-        view.onDrop(of: [UTType.fileURL], isTargeted: fileDropBinding(slot)) { providers in
-            guard acceptsFileDrops else { return false }
-            loadFileURLs(from: providers) { urls in
-                if !urls.isEmpty { model.onDropFiles?(urls, slot) }
-            }
-            return true
         }
     }
 
@@ -299,12 +302,56 @@ struct DrawerView: View {
     private var dropBinding: Binding<Bool> {
         Binding(get: { model.isDropTargeted }, set: { model.isDropTargeted = acceptsFileDrops && $0 })
     }
+}
 
-    private func fileDropBinding(_ slot: Int) -> Binding<Bool> {
-        Binding(
-            get: { fileDropSlot == slot },
-            set: { fileDropSlot = $0 ? slot : (fileDropSlot == slot ? nil : fileDropSlot) }
-        )
+/// A whole-grid drop target that tracks the hovered location, highlights the slot
+/// under the cursor (via `model.fileDropSlot`), and on drop files into it. Driven
+/// by AppKit's drag session, so it works reliably inside the borderless drawer
+/// panel where per-cell SwiftUI `.onDrop` targets are flaky.
+private struct ItemsDropDelegate: DropDelegate {
+    let accepts: Bool
+    let model: DrawerModel
+
+    /// The slot under `point`: the one whose frame contains it, else the nearest.
+    /// Reads `model.slotFrames` **live** (matching `DropInfo.location`'s content
+    /// coordinate space) so a drawer that springs open mid-drag maps correctly once
+    /// its grid has laid out — a captured snapshot would be stale and empty.
+    private func slot(at point: CGPoint) -> Int? {
+        let frames = model.slotFrames
+        if let hit = frames.first(where: { $0.value.contains(point) })?.key { return hit }
+        return frames.min { sq($0.value, point) < sq($1.value, point) }?.key
+    }
+
+    private func sq(_ rect: CGRect, _ p: CGPoint) -> CGFloat {
+        let dx = p.x - rect.midX, dy = p.y - rect.midY
+        return dx * dx + dy * dy
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        accepts && info.hasItemsConforming(to: [UTType.fileURL])
+    }
+
+    func dropEntered(info: DropInfo) {
+        model.fileDropSlot = slot(at: info.location)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        model.fileDropSlot = slot(at: info.location)
+        return DropProposal(operation: .copy)
+    }
+
+    func dropExited(info: DropInfo) {
+        model.fileDropSlot = nil
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard accepts else { return false }
+        let target = slot(at: info.location) ?? -1
+        loadFileURLs(from: info.itemProviders(for: [UTType.fileURL])) { urls in
+            if !urls.isEmpty { model.onDropFiles?(urls, target) }
+        }
+        model.fileDropSlot = nil
+        return true
     }
 }
 

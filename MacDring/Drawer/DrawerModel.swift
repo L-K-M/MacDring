@@ -9,6 +9,14 @@ final class DrawerModel: ObservableObject {
     @Published var edge: Edge = .right
     @Published var items: [DrawerItem] = []
     @Published var isDropTargeted: Bool = false
+    /// The grid slot a file drag is currently hovering over (drives the per-slot
+    /// drop highlight while spring-loaded). `nil` when no slot is targeted.
+    @Published var fileDropSlot: Int?
+    /// Slot → cell frame (in the drawer's content coordinate space), mirrored from
+    /// the view so the file-drop delegate can map a drag location to a slot **live**.
+    /// (The delegate's own captured copy is stale when a drawer springs open
+    /// mid-drag, before the grid has reported its frames.)
+    var slotFrames: [Int: CGRect] = [:]
 
     /// The tab's grid size (width = columns, height = rows).
     @Published var columns: Int = 4

@@ -60,11 +60,14 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
 - `Store/` — `TabStore` (JSON load/save) and `BookmarkResolver`.
 - `Screens/` — `DisplayRegistry` (UUID mapping) and the pure `EdgeLayout` math.
 - `Tabs/` — `TabController` (the orchestrator), `TabWindowController`,
-  `TabStripView`, `TabStripModel`.
-- `Drawer/` — `DrawerWindowController`, `DrawerView`, `DrawerModel`, `ItemView`.
+  `TabStripView` (modern pill / classic folder tab; vertical side labels),
+  `TabStripModel`.
+- `Drawer/` — `DrawerWindowController`, `DrawerView` (incl. `ItemsDropDelegate` for
+  spring-loaded per-slot file drops), `DrawerModel`, `ItemView`.
 - `Launch/` — `ItemLauncher`. `Hotkeys/` — `CarbonHotkey`, `KeyCodes`.
 - `Settings/` — the SwiftUI settings window and panes.
-- `Common/` — `VisualEffectView`.
+- `Common/` — `VisualEffectView`; `TabShapes` (`edgeRoundedRect` for the
+  inward-rounded/edge-sharp tab pill + drawer, and `ClassicTabShape`).
 
 ## Conventions
 
@@ -105,6 +108,12 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
   the test host doesn't spin up windows.
 - Window placement, multi-monitor, Spaces, fullscreen, drag-to-reposition, and
   drag-and-drop need a **real GUI session** and are verified manually.
+- **When `xcodebuild` hangs** at the `clang -v -E -dM` probe (a known Xcode 26.5
+  `SWBBuildService` deadlock — see `PLAN.md §12`), you can still: **type-check** the
+  whole module with `xcrun --sdk macosx swiftc -typecheck -target arm64-apple-macos13.0
+  $(find MacDring -name '*.swift')`, and **regenerate the app icon** with `swift
+  Tools/GenerateAppIcon.swift` — both invoke the compiler directly and don't touch the
+  wedged build service. Fix the build service with `sudo xcodebuild -runFirstLaunch`.
 
 ## Do / Don't
 
@@ -115,3 +124,8 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
   sandbox/security-scoped-bookmark path is a documented future change.
 - **Don't** add heavy dependencies; prefer system frameworks.
 - **Don't** persist absolute window frames, or let a tab/drawer activate the app.
+- **Don't** rely on per-cell SwiftUI `.onDrop` inside the borderless drawer/tab
+  panels — its callbacks fire unreliably there. For **internal reorder** use a
+  `DragGesture` + reported cell frames; for **external file drops** use a single
+  location-aware `DropDelegate` over the whole grid (`ItemsDropDelegate`) and map
+  `info.location` to a slot via the same reported frames.

@@ -25,11 +25,18 @@ struct AppearanceView: View {
             }
 
             Section("Tabs") {
+                Picker("Style", selection: $preferences.tabStyle) {
+                    ForEach(TabStyle.allCases) { Text($0.displayName).tag($0) }
+                }
+                .pickerStyle(.segmented)
                 VStack(alignment: .leading) {
                     Text("Tab thickness: \(Int(preferences.tabThickness)) pt")
                     Slider(value: $preferences.tabThickness, in: 24...64, step: 1)
                 }
                 Toggle("Show tab labels", isOn: $preferences.showTabLabels)
+                Text("Side tabs (left/right edges) print their name vertically, so longer names fit.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 ColorPicker("Default color for new tabs", selection: defaultColorBinding, supportsOpacity: false)
             }
         }

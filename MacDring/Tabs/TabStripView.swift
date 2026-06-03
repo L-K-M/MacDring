@@ -1,36 +1,30 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The colored pill that sits flush against a screen edge. Click toggles the
+/// The colored tab that sits flush against a screen edge. Click toggles the
 /// drawer; hovering can open it; dragging repositions it; dropping files adds
-/// items. The two corners facing *into* the screen are rounded, so the pill
-/// reads as emerging from the edge.
+/// items. Two looks (`preferences.tabStyle`):
+/// - **modern**: a translucent rounded pill, with the two corners facing *into*
+///   the screen rounded so it reads as emerging from the edge.
+/// - **classic**: a skeuomorphic angled "folder tab" reminiscent of DragThing.
+///
+/// On the left/right edges the label is printed vertically (a quarter turn) so
+/// long names fit along the tab's length and the tab can stay thin.
 struct TabStripView: View {
     @ObservedObject var model: TabStripModel
     @ObservedObject var preferences: Preferences
 
     @State private var isDragging = false
 
-    var body: some View {
-        let radius = CGFloat(preferences.cornerRadius)
-        let shape = pillShape(radius: radius)
+    private var isVertical: Bool { model.edge.isVertical }
+    private var thickness: CGFloat { CGFloat(preferences.tabThickness) }
 
-        contentStack
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.35), radius: 1, y: 0.5)
-            .padding(.vertical, model.edge.isVertical ? 9 : 4)
-            .padding(.horizontal, model.edge.isVertical ? 4 : 11)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(background(shape: shape))
-            .overlay(
-                shape.stroke(
-                    .white.opacity(model.isDropTargeted ? 0.95 : (model.isOpen ? 0.5 : 0.18)),
-                    lineWidth: model.isDropTargeted ? 2 : 1
-                )
-            )
+    var body: some View {
+        styledTab
             .frame(
-                width: model.edge.isVertical ? CGFloat(preferences.tabThickness) : nil,
-                height: model.edge.isVertical ? nil : CGFloat(preferences.tabThickness)
+                width: isVertical ? thickness : nil,
+                height: isVertical ? nil : thickness
             )
             .contentShape(Rectangle())
             .onTapGesture { model.onTap?() }
@@ -47,14 +41,73 @@ struct TabStripView: View {
             }
     }
 
-    // MARK: Content
+    @ViewBuilder
+    private var styledTab: some View {
+        switch preferences.tabStyle {
+        case .modern:  modernTab
+        case .classic: classicTab
+        }
+    }
+
+    // MARK: Modern pill
+
+    private var modernTab: some View {
+        let shape = edgeRoundedRect(edge: model.edge, radius: CGFloat(preferences.cornerRadius))
+        return contentStack
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.35), radius: 1, y: 0.5)
+            .padding(.vertical, isVertical ? 9 : 4)
+            .padding(.horizontal, isVertical ? 4 : 11)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                ZStack {
+                    VisualEffectBlur(material: preferences.drawerMaterial.nsMaterial, blendingMode: .behindWindow)
+                    Color(hexString: model.colorHex).opacity(model.isOpen ? 0.88 : 0.62)
+                }
+                .clipShape(shape)
+            )
+            .overlay(
+                shape.stroke(
+                    .white.opacity(model.isDropTargeted ? 0.95 : (model.isOpen ? 0.5 : 0.18)),
+                    lineWidth: model.isDropTargeted ? 2 : 1
+                )
+            )
+    }
+
+    // MARK: Classic folder tab
+
+    private var classicTab: some View {
+        let base = Color(hexString: model.colorHex)
+        let shape = ClassicTabShape(edge: model.edge)
+        return contentStack
+            .foregroundStyle(base.readableForeground)
+            .padding(.vertical, isVertical ? 12 : 5)
+            .padding(.horizontal, isVertical ? 5 : 15)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                shape.fill(
+                    LinearGradient(
+                        colors: [base.opacity(model.isOpen ? 1.0 : 0.95),
+                                 base.opacity(model.isOpen ? 0.80 : 0.72)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+            )
+            .overlay(shape.strokeBorder(.white.opacity(0.4), lineWidth: 1))   // raised bevel
+            .overlay(shape.stroke(.black.opacity(0.3), lineWidth: 1))          // outline
+            .overlay {
+                if model.isDropTargeted { shape.stroke(.white, lineWidth: 2) }
+            }
+    }
+
+    // MARK: Content (glyph + label)
 
     @ViewBuilder
     private var contentStack: some View {
-        if model.edge.isVertical {
-            VStack(spacing: 3) {
+        if isVertical {
+            VStack(spacing: 5) {
                 glyphView
-                labelView
+                rotatedLabel
             }
         } else {
             HStack(spacing: 6) {
@@ -69,43 +122,43 @@ struct TabStripView: View {
         switch model.glyph {
         case .symbol(let name):
             Image(systemName: name)
-                .font(.system(size: CGFloat(preferences.tabThickness) * 0.42, weight: .semibold))
+                .font(.system(size: thickness * 0.42, weight: .semibold))
         case .monogram(let text):
             Text(text.prefix(2))
-                .font(.system(size: CGFloat(preferences.tabThickness) * 0.40, weight: .bold))
+                .font(.system(size: thickness * 0.40, weight: .bold))
         }
     }
 
+    /// Horizontal-edge (top/bottom) label: plain text alongside the glyph.
     @ViewBuilder
     private var labelView: some View {
         if preferences.showTabLabels && !model.title.isEmpty {
             Text(model.title)
                 .font(.caption.weight(.medium))
                 .lineLimit(1)
-                .fixedSize(horizontal: !model.edge.isVertical, vertical: false)
+                .fixedSize()
         }
     }
 
-    // MARK: Background
-
-    private func background(shape: some Shape) -> some View {
-        ZStack {
-            VisualEffectBlur(material: preferences.drawerMaterial.nsMaterial, blendingMode: .behindWindow)
-            Color(hexString: model.colorHex).opacity(model.isOpen ? 0.88 : 0.62)
-        }
-        .clipShape(shape)
-    }
-
-    private func pillShape(radius r: CGFloat) -> UnevenRoundedRectangle {
-        switch model.edge {
-        case .right:
-            return UnevenRoundedRectangle(topLeadingRadius: r, bottomLeadingRadius: r)
-        case .left:
-            return UnevenRoundedRectangle(bottomTrailingRadius: r, topTrailingRadius: r)
-        case .top:
-            return UnevenRoundedRectangle(bottomLeadingRadius: r, bottomTrailingRadius: r)
-        case .bottom:
-            return UnevenRoundedRectangle(topLeadingRadius: r, topTrailingRadius: r)
+    /// Vertical-edge (left/right) label: the name printed along the tab's length
+    /// (a quarter turn), so long names fit without widening the tab.
+    ///
+    /// The footprint is computed *synchronously* from the text metrics (rather than
+    /// a GeometryReader/preference round-trip) so the tab window — which measures
+    /// `fittingSize` once at placement — sizes to the full label on first render.
+    /// `rotationEffect` doesn't change a view's layout bounds, so we transpose the
+    /// frame by hand. A small slack avoids truncation if SwiftUI's metrics differ.
+    @ViewBuilder
+    private var rotatedLabel: some View {
+        if preferences.showTabLabels && !model.title.isEmpty {
+            let measured = (model.title as NSString)
+                .size(withAttributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium)])
+            Text(model.title)
+                .font(.caption.weight(.medium))
+                .lineLimit(1)
+                .fixedSize()
+                .rotationEffect(.degrees(-90))
+                .frame(width: ceil(measured.height), height: ceil(measured.width) + 6)
         }
     }
 
