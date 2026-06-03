@@ -1,10 +1,79 @@
 import AppKit
 import SwiftUI
 
-/// An `NSHostingView` that accepts the first mouse click even when its panel
-/// isn't key, so the first click on a drawer item registers immediately.
-private final class FirstMouseDrawerHostingView: NSHostingView<DrawerView> {
+/// The drawer's hosting view, which also serves as the AppKit **drag destination**
+/// for file drops. SwiftUI's `.onDrop` is unreliable inside this borderless panel
+/// (especially nested in a `ScrollView`) and gives no hovered location — the same
+/// reason reordering uses a `DragGesture` instead. So drops are handled here at the
+/// AppKit level: the drag location is mapped to a grid slot via `model.slotFrames`
+/// (which the SwiftUI content reports in this view's coordinate space) and routed
+/// through `model.onDropFiles`. Also accepts the first mouse click while non-key.
+private final class DrawerHostingView: NSHostingView<DrawerView> {
+    /// Wired by the controller right after construction (the same model the
+    /// SwiftUI `DrawerView` observes), used to read slot frames + the tab kind and
+    /// to route drops. The controller also calls `registerForDraggedTypes`.
+    var model: DrawerModel?
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// The grid slot under a window-space drag `location` (nearest if none contains
+    /// it). Converts to this view's top-left coordinate space to match the frames
+    /// the SwiftUI content reports into `model.slotFrames`.
+    private func slot(at location: NSPoint, _ model: DrawerModel) -> Int? {
+        var p = convert(location, from: nil)            // window → this view
+        if !isFlipped { p.y = bounds.height - p.y }      // normalize to top-left (SwiftUI)
+        let point = CGPoint(x: p.x, y: p.y)
+        let frames = model.slotFrames
+        guard !frames.isEmpty else { return nil }
+        if let hit = frames.first(where: { $0.value.contains(point) })?.key { return hit }
+        // Only snap to the nearest slot when within (or just outside) the grid; a
+        // drop on the header/margins returns nil → slot -1 (generic add to the tab),
+        // so it can't accidentally land "inside" the nearest folder.
+        let grid = frames.values.reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -24, dy: -24)
+        guard grid.contains(point) else { return nil }
+        return frames.min { sqDist($0.value, point) < sqDist($1.value, point) }?.key
+    }
+
+    private func sqDist(_ r: CGRect, _ p: CGPoint) -> CGFloat {
+        let dx = p.x - r.midX, dy = p.y - r.midY
+        return dx * dx + dy * dy
+    }
+
+    /// The model iff this drag is acceptable here (items/folder tab + has file URLs).
+    private func droppableModel(_ sender: NSDraggingInfo) -> DrawerModel? {
+        guard let model, model.kind != .notes,
+              sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self],
+                                                      options: [.urlReadingFileURLsOnly: true])
+        else { return nil }
+        return model
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { updateDrag(sender) }
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { updateDrag(sender) }
+
+    private func updateDrag(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard let model = droppableModel(sender) else { return [] }
+        model.fileDropSlot = slot(at: sender.draggingLocation, model)   // drives the per-slot highlight
+        return .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) { model?.fileDropSlot = nil }
+    override func draggingEnded(_ sender: NSDraggingInfo) { model?.fileDropSlot = nil }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        droppableModel(sender) != nil
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let model = droppableModel(sender) else { return false }
+        let target = slot(at: sender.draggingLocation, model) ?? -1
+        let urls = (sender.draggingPasteboard.readObjects(forClasses: [NSURL.self],
+                                                          options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+        model.fileDropSlot = nil
+        guard !urls.isEmpty else { return false }
+        model.onDropFiles?(urls, target)   // routed by TabController (open-with / move-in / add)
+        return true
+    }
 }
 
 /// A borderless panel that is still allowed to become key. Becoming key (while
@@ -22,7 +91,7 @@ final class DrawerWindowController {
     let model = DrawerModel()
     private let preferences: Preferences
     private let panel: NSPanel
-    private let hostingView: FirstMouseDrawerHostingView
+    private let hostingView: DrawerHostingView
 
     private(set) var isVisible = false
     /// The drawer's fully-open (flush-to-edge) frame for the current tab. The tab
@@ -35,7 +104,9 @@ final class DrawerWindowController {
     init(preferences: Preferences) {
         self.preferences = preferences
 
-        let hosting = FirstMouseDrawerHostingView(rootView: DrawerView(model: model, preferences: preferences))
+        let hosting = DrawerHostingView(rootView: DrawerView(model: model, preferences: preferences))
+        hosting.model = model
+        hosting.registerForDraggedTypes([.fileURL])
         hosting.translatesAutoresizingMaskIntoConstraints = true
         hosting.autoresizingMask = [.width, .height]
         self.hostingView = hosting

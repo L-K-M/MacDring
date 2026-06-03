@@ -62,8 +62,9 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
 - `Tabs/` — `TabController` (the orchestrator), `TabWindowController`,
   `TabStripView` (modern pill / classic folder tab; vertical side labels),
   `TabStripModel`.
-- `Drawer/` — `DrawerWindowController`, `DrawerView` (incl. `ItemsDropDelegate` for
-  spring-loaded per-slot file drops), `DrawerModel`, `ItemView`.
+- `Drawer/` — `DrawerWindowController` (incl. `DrawerHostingView`, the AppKit
+  `NSDraggingDestination` that handles spring-loaded per-slot file drops),
+  `DrawerView`, `DrawerModel`, `ItemView`.
 - `Launch/` — `ItemLauncher`. `Hotkeys/` — `CarbonHotkey`, `KeyCodes`.
 - `Settings/` — the SwiftUI settings window and panes.
 - `Common/` — `VisualEffectView`; `TabShapes` (`edgeRoundedRect` for the
@@ -124,8 +125,10 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
   sandbox/security-scoped-bookmark path is a documented future change.
 - **Don't** add heavy dependencies; prefer system frameworks.
 - **Don't** persist absolute window frames, or let a tab/drawer activate the app.
-- **Don't** rely on per-cell SwiftUI `.onDrop` inside the borderless drawer/tab
-  panels — its callbacks fire unreliably there. For **internal reorder** use a
-  `DragGesture` + reported cell frames; for **external file drops** use a single
-  location-aware `DropDelegate` over the whole grid (`ItemsDropDelegate`) and map
-  `info.location` to a slot via the same reported frames.
+- **Don't** rely on SwiftUI `.onDrop` for drops *into the drawer* — its callbacks
+  fire unreliably in the borderless panel (more so nested in a `ScrollView`) and give
+  no hovered location. For **internal reorder** use a `DragGesture` + reported cell
+  frames; for **external file drops** use the AppKit `NSDraggingDestination` on the
+  drawer's hosting view (`DrawerHostingView`), mapping the converted drag location to
+  a slot via `DrawerModel.slotFrames`. (The tab *pill* still uses `.onDrop` — that one
+  works, and it's only used to add-to-tab / trigger the spring-open hover.)

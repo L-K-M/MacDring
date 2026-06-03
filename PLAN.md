@@ -249,13 +249,16 @@ must not steal focus or churn the active-app order).
   can be **placed freely with gaps** and every cell is a drop target. Header shows
   the tab title in the tab's color. Items launch via `ItemLauncher`.
 - **Spring-loaded file drops:** hovering a tab while dragging a file opens its
-  drawer (after ~0.5 s). A single **location-aware drop delegate** over the whole
-  grid (`ItemsDropDelegate`) highlights the **slot under the cursor** as you move and,
-  on release, files there — dropping onto an **app** opens it with that app, onto a
-  **folder** files it into that folder, and onto an empty slot / background adds it
-  (items tab, landing in that slot) or files it into the mirrored directory (folder
-  tab). The single delegate (vs. per-cell `.onDrop`, which fires unreliably in the
-  borderless panel) is what makes the highlight + slot placement robust. Folder items
+  drawer (after ~0.5 s). File drops onto the drawer are handled at the **AppKit
+  level** — the hosting view (`DrawerHostingView`) is an `NSDraggingDestination` that
+  maps the drag location to a **slot under the cursor** (via `DrawerModel.slotFrames`,
+  reported by the SwiftUI content in the hosting view's coordinate space), highlights
+  it, and on release files there — dropping onto an **app** opens it with that app,
+  onto a **folder** files it into that folder, and onto an empty slot / outside the
+  grid adds it (items tab, landing in that slot) or files it into the mirrored
+  directory (folder tab). SwiftUI's `.onDrop` is **not** used here: it fires
+  unreliably in the borderless panel (especially nested in a `ScrollView`) and gives
+  no hovered location — the same reason reordering uses a `DragGesture`. Folder items
   are also draggable **out** to Finder/other apps. (Dropping onto a folder **moves**
   the file, Finder-style.)
 - **Auto-hide:** closes on click-outside, `Esc`, re-click of its tab, selecting an item
@@ -565,17 +568,19 @@ MacDring/
 > - **New Tab modal** — the menu bar has **New Items / Notes / Folder Tab…**
 >   entries; each opens a small dialog (`NewTabView`) to set the name, color, type,
 >   and (for a folder) the directory, then creates the tab.
-> - **Spring-loaded file drops** — hovering a tab while dragging opens its drawer; a
->   single **location-aware drop delegate** (`ItemsDropDelegate`) then **highlights the
->   slot under the cursor** as you move and files there on release — onto an app
->   opens-with, onto a folder moves the file in, onto a slot adds it (items, landing
->   in that slot) or files it into the mirrored directory (folder). The delegate reads
->   the grid frames **live from the model** (`DrawerModel.slotFrames`), so a drawer
->   that springs open *mid-drag* maps correctly the instant its grid lays out (a
->   captured snapshot would be empty → drop falls through to the tab). A **folder/app**
->   target shows a distinct ring (file-into / open-with) vs. an empty slot's fill.
->   Folder items drag **out** to Finder. The open/close animation nudges **inward** +
->   fades, so it never bleeds onto an adjacent display at a shared edge.
+> - **Spring-loaded file drops** — hovering a tab while dragging opens its drawer;
+>   the drawer's hosting view (`DrawerHostingView`, an **AppKit `NSDraggingDestination`**)
+>   then **highlights the slot under the cursor** as you move and files there on
+>   release — onto an app opens-with, onto a folder moves the file in, onto a slot adds
+>   it (items, landing in that slot) or files it into the mirrored directory (folder).
+>   It maps the drag location to a slot via `DrawerModel.slotFrames` (reported by the
+>   SwiftUI content in the hosting view's coordinate space). **Why AppKit, not
+>   SwiftUI `.onDrop`:** in this borderless panel (especially nested in a `ScrollView`)
+>   `.onDrop` fires unreliably and gives no hovered location — the same lesson as
+>   reordering (which uses a `DragGesture`). A **folder/app** target shows a distinct
+>   ring (file-into / open-with) vs. an empty slot's fill. Folder items drag **out** to
+>   Finder. The open/close animation nudges **inward** + fades, so it never bleeds onto
+>   an adjacent display at a shared edge.
 > - **Tab styles** — a global **Modern / Classic** toggle (Appearance): modern is the
 >   translucent rounded pill; classic is an angled DragThing-style **folder tab**
 >   (`ClassicTabShape`) filled with the tab color + a raised bevel, auto-contrasting text.

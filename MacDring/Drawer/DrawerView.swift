@@ -32,8 +32,6 @@ struct DrawerView: View {
     private var cellHeight: CGFloat { CGFloat(preferences.iconSize) + 26 }
     /// Only `.items` tabs support internal reorder / remove.
     private var editable: Bool { model.kind == .items }
-    /// Items and folder tabs accept dropped files (routed); notes tabs don't.
-    private var acceptsFileDrops: Bool { model.kind != .notes }
 
     var body: some View {
         // The two corners touching the screen edge stay sharp; the inward corners
@@ -60,13 +58,14 @@ struct DrawerView: View {
         .onHover { inside in
             if inside { model.onMouseEntered?() } else { model.onMouseExited?() }
         }
-        .onDrop(of: [UTType.fileURL], isTargeted: dropBinding) { providers in
-            guard acceptsFileDrops else { return false }
-            loadFileURLs(from: providers) { urls in
-                if !urls.isEmpty { model.onDropFiles?(urls, -1) }   // -1 = drawer background
-            }
-            return true
-        }
+        // Report slot frames in this outermost coordinate space — which fills the
+        // hosting view — so the AppKit drag destination (`DrawerHostingView`) can map
+        // a window-space drop location to a slot. The dragged-item overlay and the
+        // reorder gesture share the same space. (File drops themselves are handled in
+        // AppKit, not via SwiftUI `.onDrop`, which is unreliable in this panel.)
+        .coordinateSpace(name: contentSpace)
+        .overlay(alignment: .topLeading) { draggedOverlay }
+        .onPreferenceChange(SlotFramesKey.self) { slotFrames = $0; model.slotFrames = $0 }
     }
 
     @ViewBuilder
@@ -132,18 +131,7 @@ struct DrawerView: View {
     // MARK: Items / folder grid
 
     private var content: some View {
-        ScrollView {
-            itemsLayout
-                .coordinateSpace(name: contentSpace)
-                .overlay(alignment: .topLeading) { draggedOverlay }
-                .onPreferenceChange(SlotFramesKey.self) { slotFrames = $0; model.slotFrames = $0 }
-                // A single location-aware drop target over the whole grid: it
-                // highlights and files into the slot under the cursor. (Per-cell
-                // `.onDrop` targets fire unreliably inside the borderless panel,
-                // and don't give us the hovered location.)
-                .onDrop(of: [UTType.fileURL],
-                        delegate: ItemsDropDelegate(accepts: acceptsFileDrops, model: model))
-        }
+        ScrollView { itemsLayout }
     }
 
     @ViewBuilder
@@ -296,67 +284,10 @@ struct DrawerView: View {
         }
         return "Drag apps & files here"
     }
-
-    // MARK: Drop highlight bindings
-
-    private var dropBinding: Binding<Bool> {
-        Binding(get: { model.isDropTargeted }, set: { model.isDropTargeted = acceptsFileDrops && $0 })
-    }
-}
-
-/// A whole-grid drop target that tracks the hovered location, highlights the slot
-/// under the cursor (via `model.fileDropSlot`), and on drop files into it. Driven
-/// by AppKit's drag session, so it works reliably inside the borderless drawer
-/// panel where per-cell SwiftUI `.onDrop` targets are flaky.
-private struct ItemsDropDelegate: DropDelegate {
-    let accepts: Bool
-    let model: DrawerModel
-
-    /// The slot under `point`: the one whose frame contains it, else the nearest.
-    /// Reads `model.slotFrames` **live** (matching `DropInfo.location`'s content
-    /// coordinate space) so a drawer that springs open mid-drag maps correctly once
-    /// its grid has laid out — a captured snapshot would be stale and empty.
-    private func slot(at point: CGPoint) -> Int? {
-        let frames = model.slotFrames
-        if let hit = frames.first(where: { $0.value.contains(point) })?.key { return hit }
-        return frames.min { sq($0.value, point) < sq($1.value, point) }?.key
-    }
-
-    private func sq(_ rect: CGRect, _ p: CGPoint) -> CGFloat {
-        let dx = p.x - rect.midX, dy = p.y - rect.midY
-        return dx * dx + dy * dy
-    }
-
-    func validateDrop(info: DropInfo) -> Bool {
-        accepts && info.hasItemsConforming(to: [UTType.fileURL])
-    }
-
-    func dropEntered(info: DropInfo) {
-        model.fileDropSlot = slot(at: info.location)
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        model.fileDropSlot = slot(at: info.location)
-        return DropProposal(operation: .copy)
-    }
-
-    func dropExited(info: DropInfo) {
-        model.fileDropSlot = nil
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard accepts else { return false }
-        let target = slot(at: info.location) ?? -1
-        loadFileURLs(from: info.itemProviders(for: [UTType.fileURL])) { urls in
-            if !urls.isEmpty { model.onDropFiles?(urls, target) }
-        }
-        model.fileDropSlot = nil
-        return true
-    }
 }
 
 /// Collects each slot's frame (in the drawer content space) so the reorder
-/// gesture can find the slot under the cursor.
+/// gesture and the AppKit drag destination can find the slot under a point.
 private struct SlotFramesKey: PreferenceKey {
     static var defaultValue: [Int: CGRect] = [:]
     static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
