@@ -110,6 +110,16 @@ extension DrawerItem {
         )
     }
 
+    /// Builds an item from a **dropped** URL: a file/app/folder item for file URLs,
+    /// or a `.url` link item for web (and other non-file) URLs — so dragging a link
+    /// out of a browser onto a tab/drawer adds it, just like dropping a file does.
+    static func fromDroppedURL(_ url: URL) -> DrawerItem {
+        guard url.isFileURL else {
+            return DrawerItem(kind: .url, displayName: url.host ?? url.absoluteString, url: url)
+        }
+        return fromFileURL(url)
+    }
+
     /// Builds a `.url` item from a typed link, defaulting a missing scheme to https.
     /// Returns `nil` if the string can't form a URL.
     static func fromLink(_ string: String) -> DrawerItem? {

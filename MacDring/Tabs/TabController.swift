@@ -240,21 +240,24 @@ final class TabController {
 
     // MARK: File drops & spring-loading
 
-    /// Routes files dropped on a tab/drawer. `slot` is the drawer slot they landed
-    /// on (or -1 for the tab pill / drawer background): dropping on an **app**
-    /// opens the files with it, on a **folder** files them into it, otherwise they
-    /// are added (items tab) or filed into the mirrored directory (folder tab).
+    /// Routes files **and web links** dropped on a tab/drawer. `slot` is the drawer
+    /// slot they landed on (or -1 for the tab pill / drawer background): dropping on
+    /// an **app** opens them with it, on a **folder** files the files into it,
+    /// otherwise they are added (items tab) or filed into the mirrored directory
+    /// (folder tab). Web links can't be moved on disk, so they're only *added* (and
+    /// only on an items tab); they can still be opened-with an app.
     private func handleFileDrop(_ urls: [URL], slot: Int, toTab id: UUID) {
         guard !urls.isEmpty, let tab = store.tab(id: id) else { return }
+        let fileURLs = urls.filter { $0.isFileURL }
         let liveItems = tab.kind == .folder ? FolderLister.contents(of: tab) : tab.items
         let target = slot >= 0 ? liveItems.first { $0.slot == slot } : nil
 
         if let target, target.kind == .application {
-            ItemLauncher.open(urls, withApp: target)
+            ItemLauncher.open(urls, withApp: target)   // files *or* links → open-with
             return
         }
         if let target, target.kind == .folder, let directory = BookmarkResolver.url(for: target) {
-            FileMover.move(urls, into: directory)
+            FileMover.move(fileURLs, into: directory)   // only files can be filed in
             if tab.kind == .folder { refreshOpenDrawer() }
             return
         }
@@ -264,10 +267,10 @@ final class TabController {
             return
         case .folder:
             guard let directory = FolderLister.resolveFolder(tab) else { return }
-            FileMover.move(urls, into: directory)
+            FileMover.move(fileURLs, into: directory)
             if openTabID == id { refreshOpenDrawer() } else { openDrawer(id) }
         case .items:
-            let newItems = urls.map { DrawerItem.fromFileURL($0) }
+            let newItems = urls.map { DrawerItem.fromDroppedURL($0) }   // files & links
             for item in newItems { store.addItem(item, toTab: id) }
             if slot >= 0, let first = newItems.first {
                 store.placeItem(first.id, atSlot: slot, inTab: id)   // drop into the targeted empty slot

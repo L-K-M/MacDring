@@ -30,7 +30,7 @@ struct TabStripView: View {
             .onTapGesture { model.onTap?() }
             .onHover { model.onHoverChanged?($0) }
             .gesture(dragGesture)
-            .onDrop(of: [UTType.fileURL], isTargeted: dropTargetBinding) { providers in
+            .onDrop(of: [UTType.fileURL, UTType.url], isTargeted: dropTargetBinding) { providers in
                 handleDrop(providers)
             }
             .help(model.title)
@@ -196,24 +196,26 @@ struct TabStripView: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        loadFileURLs(from: providers) { urls in
+        loadDroppedURLs(from: providers) { urls in
             if !urls.isEmpty { model.onDropURLs?(urls) }
         }
         return true
     }
 }
 
-/// Loads file URLs from drag-and-drop item providers, calling `completion` on the
-/// main thread once all have resolved. Shared by the tab pill and the drawer.
-func loadFileURLs(from providers: [NSItemProvider], completion: @escaping ([URL]) -> Void) {
+/// Loads dropped URLs — both file URLs and web links — from drag-and-drop item
+/// providers, calling `completion` on the main thread once all have resolved.
+/// `NSItemProvider`'s `URL` loader reads `public.file-url` and `public.url` alike,
+/// so a file dragged from Finder and a link dragged from a browser both arrive.
+func loadDroppedURLs(from providers: [NSItemProvider], completion: @escaping ([URL]) -> Void) {
     var urls: [URL] = []
     let lock = NSLock()
     let group = DispatchGroup()
 
     for provider in providers {
         group.enter()
-        provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
-            if let data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+        _ = provider.loadObject(ofClass: URL.self) { url, _ in
+            if let url {
                 lock.lock()
                 urls.append(url)
                 lock.unlock()

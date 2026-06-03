@@ -39,11 +39,12 @@ private final class DrawerHostingView: NSHostingView<DrawerView> {
         return dx * dx + dy * dy
     }
 
-    /// The model iff this drag is acceptable here (items/folder tab + has file URLs).
+    /// The model iff this drag is acceptable here (items/folder tab + has file URLs
+    /// or web links).
     private func droppableModel(_ sender: NSDraggingInfo) -> DrawerModel? {
         guard let model, model.kind != .notes,
               sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self],
-                                                      options: [.urlReadingFileURLsOnly: true])
+                                                      options: [.urlReadingFileURLsOnly: false])
         else { return nil }
         return model
     }
@@ -68,7 +69,7 @@ private final class DrawerHostingView: NSHostingView<DrawerView> {
         guard let model = droppableModel(sender) else { return false }
         let target = slot(at: sender.draggingLocation, model) ?? -1
         let urls = (sender.draggingPasteboard.readObjects(forClasses: [NSURL.self],
-                                                          options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+                                                          options: [.urlReadingFileURLsOnly: false]) as? [URL]) ?? []
         model.fileDropSlot = nil
         guard !urls.isEmpty else { return false }
         model.onDropFiles?(urls, target)   // routed by TabController (open-with / move-in / add)
@@ -106,7 +107,7 @@ final class DrawerWindowController {
 
         let hosting = DrawerHostingView(rootView: DrawerView(model: model, preferences: preferences))
         hosting.model = model
-        hosting.registerForDraggedTypes([.fileURL])
+        hosting.registerForDraggedTypes([.fileURL, .URL])
         hosting.translatesAutoresizingMaskIntoConstraints = true
         hosting.autoresizingMask = [.width, .height]
         self.hostingView = hosting
