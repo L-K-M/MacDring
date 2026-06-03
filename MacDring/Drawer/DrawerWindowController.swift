@@ -177,10 +177,14 @@ final class DrawerWindowController {
     }
 
     /// Refreshes content for the currently shown tab (e.g. after a drop / reorder)
-    /// and re-positions instantly (no animation).
+    /// and re-positions instantly (no animation). Live note text is preserved: a
+    /// refresh can be triggered by an *unrelated* reconcile (a screen or preference
+    /// change, or a mutation to another tab) while the user is typing, and the model
+    /// is the freshest source for an open notes drawer — overwriting it would reset
+    /// the editor's selection / in-flight input. See ANALYSIS.md B7.
     func refresh(tab: Tab, tabFrame: CGRect, edge: Edge, on screen: NSScreen) {
         guard isVisible else { return }
-        apply(tab: tab)
+        apply(tab: tab, preserveLiveNotes: true)
         model.edge = edge
         currentEdge = edge
         currentScreen = screen
@@ -214,7 +218,10 @@ final class DrawerWindowController {
         })
     }
 
-    private func apply(tab: Tab) {
+    /// Loads `tab` into the model. When `preserveLiveNotes` is true (a refresh of an
+    /// already-open drawer), a notes tab's live `model.notes` is left untouched so a
+    /// background reconcile can't clobber what the user is typing.
+    private func apply(tab: Tab, preserveLiveNotes: Bool = false) {
         model.fileDropSlot = nil
         model.slotFrames = [:]
         model.title = tab.title
@@ -234,7 +241,7 @@ final class DrawerWindowController {
             model.folderURL = FolderLister.resolveFolder(tab)
         case .notes:
             model.items = []
-            model.notes = tab.notes
+            if !preserveLiveNotes { model.notes = tab.notes }
             model.folderURL = nil
         }
     }
