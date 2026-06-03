@@ -72,6 +72,22 @@ final class LauncherDocumentCodableTests: XCTestCase {
         XCTAssertEqual(decoded.tabs[1].folderURL?.path, "/tmp/x")
     }
 
+    func testOneMalformedTabIsDroppedNotTheWholeDocument() throws {
+        // The first tab is missing its required `anchor`; the second is valid.
+        // The bad record should be skipped while the good one survives — losing a
+        // single tab must never wipe the whole arranged launcher.
+        let json = #"""
+        {"tabs":[
+          {"title":"Broken"},
+          {"title":"Good","anchor":{"displayUUID":"D","edge":"right","position":0.5}}
+        ]}
+        """#.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(LauncherDocument.self, from: json)
+        XCTAssertEqual(decoded.tabs.count, 1)
+        XCTAssertEqual(decoded.tabs.first?.title, "Good")
+    }
+
     func testEmptyDocumentDecodes() throws {
         let decoded = try JSONDecoder().decode(LauncherDocument.self, from: "{}".data(using: .utf8)!)
         XCTAssertTrue(decoded.tabs.isEmpty)
