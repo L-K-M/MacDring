@@ -35,6 +35,12 @@ final class DrawerModel: ObservableObject {
     var onLaunch: ((DrawerItem) -> Void)?
     var onRemoveItem: ((DrawerItem) -> Void)?
     var onRevealItem: ((DrawerItem) -> Void)?
+    /// Rename an item (drawer item context menu).
+    var onRenameItem: ((DrawerItem) -> Void)?
+    /// Choose a custom icon image for an item.
+    var onChangeItemIcon: ((DrawerItem) -> Void)?
+    /// Clear an item's custom icon, restoring its default.
+    var onResetItemIcon: ((DrawerItem) -> Void)?
     /// Files were dropped on the drawer: `slot` is the target slot, or -1 for the
     /// background. The controller routes (open-with / move-into / add).
     var onDropFiles: ((_ urls: [URL], _ slot: Int) -> Void)?
