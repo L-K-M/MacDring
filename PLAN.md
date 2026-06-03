@@ -1,0 +1,584 @@
+# MacDring — A Modern, Fast, Simple DragThing for macOS
+
+A clean reimagining of the classic **DragThing** utility: colored **tabs anchored to
+your screen edges** that slide open into **drawers** of your apps, files, folders, and
+links. Built for modern macOS, multi-monitor from day one, with tab positions that
+**restore stably across restarts**.
+
+> **Lineage.** DragThing (James Thomson / TLA Systems, 1995–2019) was a customizable
+> dock that held apps, documents, folders, and URLs across multiple floating docks you
+> could place anywhere — including secondary monitors. Its "drawer" mode (a dock that
+> collapses to a screen-edge tab and expands when clicked) came from absorbing *Drop
+> Drawers*. It was discontinued in 2019 when macOS Catalina dropped 32-bit Carbon. No
+> modern replacement has filled the gap. MacDring rebuilds the one feature people miss
+> most — **edge tabs → drawers** — in a small, fast, native app.
+
+---
+
+## 1. Goals & Non-Goals
+
+### Goals
+- **Screen-edge tabs → drawers.** Slim, colored tabs sit flush against any screen edge.
+  Click (or hover) a tab and a drawer expands out from the edge showing that tab's items.
+- **Holds anything launchable:** applications, files, folders, and URLs. Open with one
+  click (configurable single/double click).
+- **Drag-and-drop to add.** Drag a file or app from Finder onto a tab or open drawer to
+  add it — the gesture the app's namesake is built on.
+- **Per-tab customization, kept simple.** Each tab has its own **color**, name, and
+  glyph/icon. A handful of appearance knobs (icon size, drawer layout, material), not a
+  sprawling preferences panel.
+- **Multiple monitors from the start.** Tabs live on a specific display + edge; the app
+  reacts live to displays connecting, disconnecting, and changing resolution.
+- **Stable restore after restart.** Tabs return to the same display and edge position
+  even after reboot, resolution changes, or monitor reconnection — anchored by a stable
+  *display identity* and a *fractional edge position*, never raw pixels.
+- **Modern, native look.** Translucent materials, rounded (continuous) corners, a quick
+  spring open/close, SF Symbols, light/dark adaptive — tinted by each tab's color.
+- **Fast & lightweight.** A menu-bar agent with no Dock icon. Instant tab response, lazy
+  drawer rendering, no heavy dependencies, **no scary permissions** for core features.
+
+### Non-Goals (v1)
+- Replacing the macOS Dock wholesale, or a running-apps "Process dock" / app switcher
+  (that's [Zap](../Zap)'s job — MacDring is a *launcher*, not a switcher).
+- Legacy DragThing extras: clippings store, desktop Trash, sound effects, AppleScript
+  dictionary. (Clippings and per-tab hotkeys are noted as post-v1 candidates in §13.)
+- iCloud sync of tab layouts (local JSON first; sync is a later candidate).
+- App Store distribution in v1 (see §10 — Developer ID + notarization, like Zap).
+- Skins/themes beyond per-tab color + a global material choice.
+
+---
+
+## 2. Design Principles
+
+1. **Modernize the look, preserve the feel.** Old DragThing's *power* (place anything
+   anywhere, color-code it, one-click launch) with a 2026 visual language — not a
+   pixel-faithful retro clone.
+2. **Simple by default, deep on demand.** A new user gets one starter tab and obvious
+   drag-to-add. Power lives in right-click menus and a focused Settings window, not a
+   wall of checkboxes.
+3. **Positions are sacred.** A launcher you've arranged is muscle memory. Restoring it
+   *exactly* after a restart or a monitor change is a first-class feature, not an
+   afterthought — see §6.
+4. **No permission friction.** Core launching needs none. Optional global hotkeys use
+   Carbon (no Accessibility grant). The app should feel trustworthy and instant.
+5. **Borrow Zap's house style.** Same project shape and conventions as the sibling
+   [Zap](../Zap) app (see §9): agent app, `ObservableObject` preferences over
+   `UserDefaults`, AppKit windowing + SwiftUI content, Xcode-16 synchronized groups.
+
+---
+
+## 3. High-Level Architecture
+
+A background **menu-bar / agent app** (`LSUIElement = true`, activation policy
+`.accessory`, no Dock icon). It owns a set of always-present **tab windows** anchored to
+screen edges and a transient **drawer window** that expands from whichever tab is active.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ MacDring (LSUIElement agent app)                                       │
+│                                                                        │
+│  ┌─────────────────┐         ┌──────────────────────────────────────┐ │
+│  │ TabStore        │  load/  │ DisplayRegistry                      │ │
+│  │ (Codable JSON   │◀─save──▶│ - NSScreen ↔ CGDisplay UUID          │ │
+│  │  in App Support)│         │ - didChangeScreenParameters observer │ │
+│  └────────┬────────┘         └───────────────────┬──────────────────┘ │
+│           │  tabs + items                        │ screens changed     │
+│           ▼                                       ▼                     │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │ TabController  (the brain)                                        │ │
+│  │ - reconciles model + live displays → window set                  │ │
+│  │ - resolves each tab's anchor → on-screen frame (EdgeLayout)      │ │
+│  │ - opens/closes drawers, handles drops, launches items            │ │
+│  └───────┬───────────────────────────────────────────┬──────────────┘ │
+│          │ one per tab                                 │ one shared      │
+│          ▼                                              ▼                │
+│  ┌────────────────────┐                      ┌────────────────────────┐ │
+│  │ TabWindow (NSPanel │  click / hover       │ DrawerWindow (NSPanel  │ │
+│  │ borderless,        │ ───────────────────▶ │ borderless, non-       │ │
+│  │ non-activating)    │                      │ activating)            │ │
+│  │ SwiftUI TabStrip   │  ◀── anchored to ───  │ SwiftUI DrawerView     │ │
+│  │ - color pill+glyph │                      │ - grid/list of items   │ │
+│  │ - drag destination │                      │ - launch on click      │ │
+│  └────────────────────┘                      └────────────────────────┘ │
+│                                                                        │
+│  ┌─────────────────┐   ┌────────────────────┐   ┌───────────────────┐  │
+│  │ StatusItem      │──▶│ Settings (SwiftUI) │   │ ItemLauncher      │  │
+│  │ (menu bar)      │   │ General/Appearance/│   │ NSWorkspace open  │  │
+│  │ New Tab, Quit…  │   │ Tabs/About         │   │ app/file/url/dir  │  │
+│  └─────────────────┘   └────────────────────┘   └───────────────────┘  │
+│                                                                        │
+│  ┌────────────────────────────────────────────────────────────────┐   │
+│  │ Preferences (UserDefaults) — global appearance + behavior      │   │
+│  │ CarbonHotkey (optional per-tab hotkey, no Accessibility needed) │   │
+│  └────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Tech stack:** Swift; SwiftUI for tab/drawer/Settings content; AppKit for windowing
+(`NSPanel`, `NSStatusItem`, `NSVisualEffectView`); `NSWorkspace` for launching; Carbon
+`RegisterEventHotKey` for optional hotkeys; `SMAppService` for launch-at-login. Document
+persisted as Codable JSON in Application Support; global prefs in `UserDefaults`.
+**Targets macOS 13+.**
+
+---
+
+## 4. Domain Model
+
+The whole launcher is one small, `Codable` document. Identity is by `UUID` so tabs and
+items survive rename/move and reorder cleanly.
+
+```swift
+struct LauncherDocument: Codable {        // the persisted root
+    var version: Int                       // schema version for migrations
+    var tabs: [Tab]
+}
+
+struct Tab: Codable, Identifiable {
+    let id: UUID
+    var title: String
+    var colorHex: String                   // per-tab color (the marquee customization)
+    var glyph: TabGlyph                     // SF Symbol (visual picker) or letters/emoji
+    var anchor: ScreenAnchor               // where it lives — see §6
+    var items: [DrawerItem]
+    var behavior: TabBehavior              // open-on-hover vs click, auto-hide, pinned
+    var hotkey: HotkeySpec?                // optional, no Accessibility (Carbon)
+    var gridColumns: Int                   // drawer grid width
+    var gridRows: Int                      // drawer grid height (grows if items overflow)
+    var locked: Bool                       // if set, the tab can't be dragged to a new spot
+}
+
+struct DrawerItem: Codable, Identifiable {
+    let id: UUID
+    var kind: ItemKind                     // .application | .file | .folder | .url
+    var displayName: String                // overridable label
+    var bookmark: Data?                    // URL bookmark (survives moves/renames)
+    var url: URL?                          // for .url kind, or fallback path
+    var customIconBookmark: Data?          // optional icon override
+    var slot: Int                          // grid position (row-major); enables free placement + gaps
+}
+
+enum ItemKind: String, Codable { case application, file, folder, url }
+
+struct ScreenAnchor: Codable {             // see §6 — the stable-restore core
+    var displayUUID: String                // CGDisplayCreateUUIDFromDisplayID, stable across reboots
+    var edge: Edge                         // .left .right .top .bottom
+    var position: Double                   // 0…1 fraction along the edge (of visibleFrame)
+    var order: Int                         // tie-break / stack order for tabs sharing an edge
+}
+
+enum Edge: String, Codable { case left, right, top, bottom }
+```
+
+- **Files & folders** are stored as URL **bookmarks** (`URL.bookmarkData`), so an item
+  keeps working if the target is moved or renamed. (Security-scoped bookmarks only become
+  necessary under the App Store sandbox — see §10; the v1 non-sandboxed build resolves
+  plain bookmarks without entitlements.)
+- **Applications** can be stored by bookmark too, or by bundle identifier for
+  resilience across app updates (`NSWorkspace.urlForApplication(withBundleIdentifier:)`).
+- **A broken item** (target deleted) renders dimmed with a "relink…" affordance rather
+  than vanishing — never silently lose a user's arrangement.
+
+---
+
+## 5. Windows: Tabs & Drawers
+
+Tabs and drawers are **borderless, non-activating `NSPanel`s** so interacting with them
+never deactivates the user's frontmost app (critical: clicking a tab to launch something
+must not steal focus or churn the active-app order).
+
+### Tab window
+- `NSPanel`, `styleMask = [.borderless, .nonactivatingPanel]`,
+  `isOpaque = false`, `backgroundColor = .clear`, `hasShadow = true`,
+  `isFloatingPanel = true`, `becomesKeyOnlyIfNeeded = true`.
+- `collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]` so tabs
+  appear on every Space and alongside fullscreen apps.
+- `level` configurable: **Floating** (always on top, default) or **Normal** (sits with
+  windows). A future "auto-hide / reveal on edge-hover" mode (§13) keeps tabs out of the
+  way like the Dock.
+- **Content (SwiftUI in an `NSHostingView`):** a rounded "pill" flush to the edge — the
+  flat side kisses the screen edge, the rounded corners face inward. An
+  `NSVisualEffectView` blur tinted by the tab's `colorHex`, with the glyph and (optional)
+  vertical/horizontal label. Orientation follows the edge (vertical text/stack on
+  left/right, horizontal on top/bottom).
+- **Drag destination:** the tab accepts dropped file/app URLs (`NSDraggingDestination`)
+  and adds them as items; dropping highlights the tab and, on drop, briefly opens the
+  drawer so the user sees the result.
+- **Reposition:** drag the tab; during the drag it snaps to and slides along the
+  nearest edge as a live preview, committing the `ScreenAnchor` (edge + fraction)
+  on release. Also editable in Settings → Tabs.
+- **Lost-tab defense:** the panel is `isMovable = false` and observes
+  `didMove`/`didResize`; any frame change it didn't initiate (e.g. a tiling tool)
+  is reverted to the intended frame, so a tab can't be captured and lost.
+
+### Drawer window
+- One shared drawer `NSPanel`, which slides out **flush against the screen edge**
+  (like a physical drawer) centered along the edge on the tab, while the **tab is
+  pushed inward to ride on the drawer's inner face** (`EdgeLayout.openDrawerFrame` +
+  `openedTabFrame`). A bottom-edge tab → drawer fills the bottom and the tab sits on
+  top of it. Closing slides the tab back flush to the edge.
+- The drawer panel is **key but non-activating** (`KeyableDrawerPanel`,
+  `canBecomeKey = true` + `.nonactivatingPanel`): it can receive keys and
+  intra-window drag-and-drop (item reorder, Esc) **without activating the app**, so
+  the user's frontmost app is never disturbed.
+- **Open/close:** the drawer **slides out of / back into the screen edge** over
+  `animationMs` (a pure translation from an off-edge "tucked" frame to the flush
+  open frame, `EdgeLayout.tuckedDrawerFrame`), with the tab sliding in sync;
+  *Reduce Motion* makes it instant.
+- **Content:** SwiftUI grid (icon + label) or compact list. The grid renders one
+  cell per **slot** (`DrawerMetrics.gridRowCount` rows incl. a spare row), so items
+  can be **placed freely with gaps** and every cell is a drop target. Header shows
+  the tab title in the tab's color. Items launch via `ItemLauncher`.
+- **Auto-hide:** closes on click-outside, `Esc`, re-click of its tab, selecting an item
+  (unless "keep open"/pinned), or — optionally — when the pointer leaves (hover mode).
+- **Sizing:** deterministic via `DrawerMetrics` (item count + appearance), not SwiftUI
+  `fittingSize`, then clamped to the target screen's `visibleFrame`.
+
+### Multi-monitor & layout (`EdgeLayout`)
+- A pure, unit-testable function: given a `ScreenAnchor`, an `NSScreen.visibleFrame`, and
+  the tab's measured thickness/length, return the tab window frame (and the drawer frame
+  for a given content size). No global state → easy to test (§11).
+- Tabs sharing an edge on a screen are spaced by `order` + `position`, de-overlapped by a
+  layout pass. `visibleFrame` keeps tabs clear of the menu bar and the macOS Dock; if a
+  tab's edge collides with the Dock's edge, nudge inward and warn in Settings.
+
+---
+
+## 6. Stable Multi-Monitor Restore (the marquee feature)
+
+The hard requirement: **after a restart, monitor reconnection, or resolution change,
+every tab returns to the same display and the same spot on its edge.** Absolute pixel
+coordinates fail all three. The model instead stores a *stable display identity* + a
+*relative position*, mirroring how DragThing anchored docks to the nearest
+corner/midpoint so they survived resolution switches.
+
+### Stable display identity
+- macOS reassigns `CGDirectDisplayID`s across reboots/reconnections, and `NSScreen`
+  has no durable public ID. The durable key is the display's **UUID**:
+  - `NSScreen.deviceDescription[.init("NSScreenNumber")]` → `CGDirectDisplayID`.
+  - `CGDisplayCreateUUIDFromDisplayID(displayID)` → `CFUUID`, **stable across reboots and
+    reconnections** for the same physical display.
+- `DisplayRegistry` maintains a live two-way map (UUID ⇄ current `NSScreen`) and watches
+  `NSApplication.didChangeScreenParametersNotification` to rebuild it on any change.
+
+### Relative position
+- Store `edge` + `position` (a `0…1` fraction along that edge measured against
+  `visibleFrame`) + `order`. On resolve, multiply the fraction by the *current*
+  `visibleFrame` length → the tab stays proportionally placed when resolution changes.
+- Optional snapping to canonical anchors (corner / third / midpoint) gives the tactile
+  DragThing feel and makes "the tab is centered on the right edge" survive *exactly*.
+
+### Connect / disconnect policy
+On launch and on every screen-parameters change, `TabController` reconciles:
+- **Display present** → resolve UUID → place/refresh the tab window on that screen.
+- **Display absent** (unplugged) → **park** the tab: hide its window, keep its anchor.
+  When the display returns (same UUID), the tab reappears exactly where it was. This is
+  the default — positions are truly stable, nothing gets dumped onto the laptop screen.
+- A General setting offers the alternative *"When a display disconnects, move its tabs to
+  the main display"* for users who prefer always-visible tabs over exact restoration.
+- First run / unknown UUID (e.g. importing a layout on a new machine): fall back to the
+  main display, preserving edge + fraction.
+
+This makes restore correct by construction: nothing is stored that a resolution change or
+reconnection can invalidate.
+
+---
+
+## 7. Interaction Model
+
+| Action | Result |
+|---|---|
+| Click a tab | Toggle its drawer open/closed |
+| Hover a tab *(hover mode)* | Open the drawer; closes when the pointer leaves |
+| Click an item | Launch app / open file / open URL / reveal or expand folder |
+| Drop file(s)/app onto a tab or drawer | Add as item(s); brief drawer flash to confirm |
+| Drag a tab | Re-anchor it (edge / position / screen) with snapping |
+| Drag an item within/between drawers | Reorder / move it |
+| Right-click a tab | New Tab, Rename, Color…, Glyph…, Move to edge/screen, Delete |
+| Right-click an item | Rename, Change Icon…, Reveal in Finder, Remove |
+| `Esc` / click-outside | Close the open drawer |
+| Optional per-tab hotkey | Toggle that tab's drawer from anywhere (Carbon) |
+| Menu-bar item | New Tab…, Settings…, Manage Tabs, Launch at Login, Quit |
+
+**First-run onboarding:** create one starter tab on the right edge of the main display,
+pre-populated with a couple of common apps and a hint label ("Drag apps & files here"),
+so the core gesture is discoverable in seconds.
+
+---
+
+## 8. Customization & Settings
+
+Global appearance/behavior live in `UserDefaults` (Zap-style `Preferences`
+`ObservableObject` with validated defaults). Per-tab values live in the tab model.
+
+**Per-tab (model):** color, name, glyph (SF Symbol or letters/emoji), edge, screen,
+position, **drawer grid size (columns × rows)**, **locked**, open mode (click/hover),
+auto-hide, pinned-open, optional hotkey.
+
+**Global (`Preferences`):**
+
+| Setting | Type | Default |
+|---|---|---|
+| Drawer material | enum (sidebar/menu/popover/hud) | popover |
+| Default tab color | Color | system accent |
+| Icon size | Slider (32–128) | 64 |
+| Drawer layout | Grid / List | Grid |
+| New-tab grid columns / rows | Steppers | 4 × 2 (per-tab override in Tabs) |
+| Corner radius | Slider (0–24) | 14 |
+| Tab thickness | Slider (24–64) | 36 |
+| Open on | Click / Hover | Click |
+| Open animation | Slider (0–300 ms) | 140 |
+| Launch on | Single / double click | Single |
+| Tab window level | Floating / Normal | Floating |
+| Disconnect policy | Park / Move to main | Park |
+| Launch at login | Toggle (`SMAppService`) | Off |
+
+Colors persist as hex via a reused **`ColorHex`** helper (`NSColor(hex:)` / `.hexString`
++ SwiftUI `Color` bridging — lifted from Zap).
+
+**Settings window** (SwiftUI, opened from the menu bar) tabs:
+1. **General** — launch at login, open mode, animation, launch click, disconnect policy.
+2. **Appearance** — material, default color, icon size, layout, radius, thickness, with a
+   **live preview** of a sample tab + drawer.
+3. **Tabs** — manage all tabs: list with color swatches, edge/screen pickers, per-tab
+   color/glyph, and each tab's items (add/remove/reorder/relink). The home for keyboard-
+   first management without dragging on screen.
+4. **About** — version, lineage credit to DragThing, links.
+
+---
+
+## 9. Persistence
+
+- **Document** (`tabs` + items + anchors): `Codable` → JSON at
+  `~/Library/Application Support/MacDring/launcher.json`, written **atomically**
+  (`.atomic`) on change (debounced). Human-inspectable and easy to back up. A `version`
+  field drives forward migrations.
+- **Global prefs:** `UserDefaults` (small scalar/appearance values), same pattern as
+  Zap's `Preferences` — `@Published` with `didSet` persistence, range-clamped on read so
+  corrupted values can't crash the UI.
+- **Bookmarks** stored inside items as `Data`; resolved lazily by `BookmarkResolver`,
+  which refreshes stale bookmarks (`isStale`) and marks unresolvable ones broken.
+- **Crash/empty safety:** a missing/corrupt document loads as "no tabs" + offers to
+  restore from the most recent `.bak` (we keep one prior copy on each successful save).
+
+---
+
+## 10. Permissions, Signing & Distribution
+
+- **No special permissions for core features.** Launching apps/files/URLs uses
+  `NSWorkspace`; reading dropped files uses ordinary file access (non-sandboxed build).
+  This is a deliberate advantage over Zap (which needs Accessibility for its event tap).
+- **Optional global hotkeys** use Carbon `RegisterEventHotKey` — **no Accessibility
+  grant required** (the same no-permission path Zap uses only as a fallback).
+- **`LSUIElement = true`** / `.accessory` activation policy: no Dock icon, menu-bar only.
+- **Launch at login** via `SMAppService.mainApp` (macOS 13+).
+- **Distribution:** Developer ID signing + notarization for direct download (hardened
+  runtime). **App Store path (future):** enable the sandbox and switch file/folder items
+  to **security-scoped** bookmarks (`.withSecurityScope`) with the user-selected-files
+  entitlement; the model already carries bookmarks, so this is a localized change.
+- **Signing note (carried from Zap):** ad-hoc debug signatures change every rebuild, which
+  resets TCC-style grants. Not an issue for core MacDring (no TCC permission), but if
+  hotkeys ever migrate to an event tap, sign with a stable *Apple Development* identity so
+  grants persist.
+
+---
+
+## 11. Project Structure (proposed)
+
+Mirrors Zap's clean module layout and **Xcode 16 file-system-synchronized groups**
+(`PBXFileSystemSynchronizedRootGroup`), so new files under `MacDring/` and
+`MacDringTests/` are picked up automatically — no `project.pbxproj` edits. Build settings
+match Zap: `MACOSX_DEPLOYMENT_TARGET = 13.0`, `GENERATE_INFOPLIST_FILE = YES`,
+`INFOPLIST_KEY_LSUIElement = YES`, `SWIFT_VERSION = 5.0`,
+`PRODUCT_BUNDLE_IDENTIFIER = com.macdring.MacDring`.
+
+```
+MacDring/
+├── MacDring.xcodeproj
+├── MacDring/
+│   ├── MacDringApp.swift          # @main enum; NSApplication, .accessory policy
+│   ├── AppDelegate.swift          # status item, bootstraps controllers
+│   ├── Model/
+│   │   ├── LauncherDocument.swift # Codable root (+ schema version)
+│   │   ├── Tab.swift
+│   │   ├── DrawerItem.swift       # + fromFileURL/fromLink factory
+│   │   ├── ScreenAnchor.swift
+│   │   ├── Edge.swift
+│   │   ├── TabGlyph.swift         # SF Symbol or monogram
+│   │   ├── TabBehavior.swift      # per-tab open/hide/keep-open
+│   │   ├── HotkeySpec.swift       # keyCode + Carbon modifier mask
+│   │   ├── PreferenceEnums.swift  # material/layout/disconnect/level enums
+│   │   ├── ColorHex.swift         # reused from Zap
+│   │   └── Preferences.swift      # UserDefaults-backed global prefs
+│   ├── Store/
+│   │   ├── TabStore.swift         # load/save JSON, observable, debounced atomic write
+│   │   └── BookmarkResolver.swift # bookmark ⇄ URL, staleness, broken-item handling
+│   ├── Screens/
+│   │   ├── DisplayRegistry.swift  # NSScreen ⇄ CGDisplay UUID, change notifications
+│   │   └── EdgeLayout.swift       # pure anchor → frame math (unit-tested)
+│   ├── Tabs/
+│   │   ├── TabController.swift     # reconciles model + displays → windows; the brain
+│   │   ├── TabWindowController.swift
+│   │   ├── TabStripView.swift      # SwiftUI tab pill (color + glyph + label)
+│   │   └── TabStripModel.swift     # observable pill state + interaction callbacks
+│   ├── Drawer/
+│   │   ├── DrawerWindowController.swift
+│   │   ├── DrawerModel.swift
+│   │   ├── DrawerView.swift        # SwiftUI grid/list + drag-to-reorder
+│   │   ├── DrawerMetrics.swift     # deterministic drawer sizing (pure)
+│   │   └── ItemView.swift
+│   ├── Launch/
+│   │   └── ItemLauncher.swift      # NSWorkspace open app/file/url/folder
+│   ├── Hotkeys/
+│   │   ├── CarbonHotkey.swift       # optional per-tab hotkey (no Accessibility)
+│   │   └── KeyCodes.swift
+│   ├── Settings/
+│   │   ├── SettingsWindowController.swift
+│   │   ├── SettingsView.swift
+│   │   ├── GeneralView.swift
+│   │   ├── AppearanceView.swift
+│   │   ├── TabsView.swift          # tab list + per-tab editor (TabEditor)
+│   │   ├── HotkeyRecorderView.swift
+│   │   ├── SymbolPickerView.swift   # searchable SF Symbol grid for tab glyphs
+│   │   ├── SettingsRouter.swift     # deep-links Configure Tab → Tabs → [tab]
+│   │   └── AboutView.swift
+│   ├── Common/
+│   │   └── VisualEffectView.swift   # NSVisualEffectView wrapper (reused from Zap)
+│   └── Resources/
+│       └── Assets.xcassets          # Info.plist generated
+├── MacDringTests/
+│   ├── EdgeLayoutTests.swift        # anchor → frame across edges/resolutions
+│   ├── ScreenAnchorTests.swift      # fraction clamping + Codable
+│   ├── LauncherDocumentCodableTests.swift  # encode/decode + forward-compat
+│   ├── BookmarkResolverTests.swift  # bookmark round-trip, stale/broken handling
+│   ├── TabStoreTests.swift          # load/save/mutations/reorder + .bak recovery
+│   ├── DrawerMetricsTests.swift     # deterministic drawer sizing
+│   ├── DrawerModelTests.swift       # item reorder / move-up-down logic
+│   └── PreferencesTests.swift       # defaults, clamping
+├── Tools/
+│   └── GenerateAppIcon.swift        # renders AppIcon.appiconset at all sizes
+├── PLAN.md
+├── README.md
+└── AGENTS.md
+```
+
+---
+
+## 12. Implementation Phases / Milestones
+
+> **Status:** Phases 1–9 implemented; the project **builds clean** and all **55
+> unit tests pass**. Several GUI test passes refined the behaviors below. Remaining
+> work is further hardware verification (release signing is out of scope per the
+> owner).
+>
+> **GUI behavior (refined over two test passes):**
+> - **Drawer open** — **slides** out flush against the screen edge (sized by
+>   `DrawerMetrics`, animated over `animationMs`, *Reduce Motion* → instant); the
+>   **tab is pushed inward to ride on the drawer's inner face** (`openDrawerFrame`
+>   + `openedTabFrame`), e.g. a bottom-edge tab's drawer fills the bottom and the
+>   tab sits on top of it.
+> - **Tab drag** — snaps to and slides along the **nearest edge** as a live
+>   preview (driven by the global mouse location, accurate across monitors),
+>   committing the anchor on release.
+> - **Free arrangement** — items hold an explicit grid **`slot`**, so they can be
+>   placed anywhere with **gaps** (classic DragThing). Every slot — empty or not —
+>   is a drop target. Drag is a `DragGesture` (the dragged item follows the cursor;
+>   the slot under it is found from the cells' reported frames; `TabStore.placeItem`
+>   moves it there, swapping if that slot is occupied, on release). SwiftUI's
+>   `.onDrop` is **not** used for reorder — its drop callbacks don't fire inside a
+>   borderless panel's grid. (External file drops to *add* items still use `.onDrop`.)
+> - **Lost-tab defense** — each tab panel is non-movable and **snaps back to its
+>   intended frame** if an external tool (a tiling / window manager) moves or
+>   resizes it, so a tab can't be dragged off to an odd place.
+> - **Configure Tab…** opens Settings **directly to the Tabs pane with that tab
+>   selected** (`SettingsRouter`); **Settings** content fills/resizes with its window.
+> - **Per-tab drawer grid** — each tab sets its drawer's `gridColumns` × `gridRows`
+>   (Tabs editor); new tabs default from General → New tab defaults.
+> - **Locked tabs** — a `locked` tab ignores drag-to-reposition. The **open drawer's
+>   header** shows a **lock toggle** and a **gear** (Configure Tab…); the
+>   always-visible pill stays uncluttered.
+> - **Glyph picker** — SF Symbols are chosen from a **searchable** visual popover
+>   grid (`SymbolPickerView`); the Letters mode accepts **emoji** (with an Emoji &
+>   Symbols palette button).
+> - **Dragged item z-order** — the dragged drawer item is drawn in an overlay above
+>   the grid (a per-cell `zIndex` is ignored inside a `LazyVGrid`).
+> - App items drop the **`.app`** extension from their display name.
+> - **Icons** — the **About** pane shows the real app icon; the **menu-bar** glyph is
+>   a custom template echoing the edge-tab + drawer motif.
+
+1. **Skeleton** ✅ — Xcode project (synchronized groups, `.accessory`, `LSUIElement`),
+   menu-bar `NSStatusItem`, Settings window, `Preferences` + `ColorHex`.
+2. **Model & store** ✅ — `LauncherDocument`/`Tab`/`DrawerItem`/`ScreenAnchor` Codable
+   (forward-compatible decoders); `TabStore` JSON load/save (atomic, debounced, `.bak`
+   recovery); `BookmarkResolver`.
+3. **Displays & layout** ✅ — `DisplayRegistry` (UUID mapping + change notifications) and
+   pure, unit-tested `EdgeLayout` math.
+4. **Tab windows** ✅ — borderless non-activating panels; colored edge pill with
+   inner-rounded corners; multi-tab + multi-edge layout via `EdgeLayout`.
+5. **Drawer** ✅ — expand from edge; grid/list of items; `ItemLauncher` opening
+   apps/files/URLs/folders; click-outside / Esc / re-click / select dismissal; pinned
+   (`autoHide` off) and `keepOpenAfterLaunch` honored.
+6. **Drag-and-drop & editing** ✅ — drop-to-add on tabs/drawers; tab context menu
+   (Configure / Remove) + item context menu (Open / Reveal / Remove); drag-to-reposition
+   a tab (snaps to nearest edge + fractional position).
+7. **Stable restore** ✅ — anchors persisted/resolved across launches; connect/disconnect
+   handled via the park vs. move-to-main policy; resolution changes handled by fractions.
+   *(Hardware verification is phase 10.)*
+8. **Customization** ✅ — per-tab color/glyph/behavior/hotkey; global appearance settings
+   (material, sizes, layout, thickness); the Tabs management pane with a per-tab editor.
+9. **Optional hotkeys & login** ✅ — Carbon per-tab hotkeys with a recorder UI (no
+   Accessibility); `SMAppService` launch-at-login.
+10. **Polish & release** ◑ — app icon ✅ (generated by `Tools/GenerateAppIcon.swift`),
+    drawer open/close slide animation ✅ (Reduce-Motion aware). Remaining: real-hardware
+    GUI verification (multi-monitor, Spaces, fullscreen, drag) and Developer ID signing
+    + notarization.
+
+> Pure logic (layout math, anchor clamping/coding, Codable + forward-compat, bookmark
+> staleness, store load/save, prefs) is unit-tested. Windowing, multi-monitor, Spaces,
+> fullscreen, drag-to-reposition, and drag-and-drop need a real macOS GUI session and are
+> verified manually (see §14).
+
+> **One scoping note vs. the original design:** repositioning a tab is supported both by
+> dragging the pill on screen *and* via the Tabs pane (edge / display / position
+> controls); the optional corner/third/midpoint *snapping* during drag is reduced to
+> "snap to nearest edge + free position" in v1 (full canonical-anchor snapping is a
+> refinement). Drawer open/close currently orders in/out; the spring/slide animation in
+> §5 is a phase-10 polish item driven by the existing `animationMs` setting.
+
+---
+
+## 13. Post-v1 Candidates
+
+- **Auto-hide / reveal-on-edge-hover** tabs (Dock-style) so they never obstruct.
+- **Clippings** tab kind (store/paste text & image snippets) — a beloved DragThing extra.
+- **Folder-as-drawer**: a tab that mirrors a folder's contents live.
+- **Layout import/export** and optional **iCloud sync** of the document.
+- **Per-tab keyboard navigation** within an open drawer (type-to-select, arrows).
+- **Stage Manager / Mission Control** awareness and tuning.
+
+---
+
+## 14. Key Risks & Edge Cases
+
+- **Focus theft** — tabs/drawers must be **non-activating** panels; launching an item
+  keeps the previously-frontmost app's context. Verify clicking a tab never reorders the
+  user's app focus.
+- **Display disconnect/reconnect & resolution change** — the core of §6; park tabs by
+  UUID and restore exactly. Test: unplug/replug, change scaled resolution, swap main
+  display, laptop clamshell.
+- **Fullscreen apps** cover edges — `.fullScreenAuxiliary` lets tabs show; offer
+  auto-hide so they don't obstruct fullscreen video.
+- **macOS Dock collision** — if a tab shares the Dock's edge, `visibleFrame` already
+  excludes the Dock; nudge and warn if a chosen position would sit under it.
+- **Spaces** — `.canJoinAllSpaces` + `.stationary` so tabs appear on every Space.
+- **Broken / moved items** — bookmarks resolve with staleness refresh; unresolvable items
+  show dimmed with relink, never silently dropped.
+- **Many tabs / many items** — de-overlap layout along an edge; drawers scroll past a max
+  size; lazy-render drawer content; cache file/app icons.
+- **Performance** — pre-warm the shared drawer window; only the active drawer renders
+  content; move/show windows without rebuilding SwiftUI hosts unnecessarily (lesson from
+  Zap's overlay: reuse the model, avoid full view rebuilds on the hot path).
+- **Document corruption** — atomic writes + one `.bak`; load failure degrades to empty
+  with a restore offer, never a crash.
+- **Borderless-panel drawing stalls** after long compositor uptime — recycle the drawer
+  window when hidden if it ages out or disconnects (pattern proven in Zap).
+```

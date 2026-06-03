@@ -1,0 +1,138 @@
+import CoreGraphics
+
+/// Pure geometry: turns a tab's `ScreenAnchor` into on-screen frames, positions
+/// a drawer adjacent to its tab, and inverts a drag point back into a fractional
+/// position. All coordinates are AppKit/Cocoa screen coordinates (origin
+/// bottom-left, y grows upward). No global state, so it's fully unit-testable.
+/// See PLAN.md §5–6.
+enum EdgeLayout {
+
+    /// Gap between a tab pill and its drawer.
+    static let drawerGap: CGFloat = 8
+
+    // MARK: Tab placement
+
+    /// Frame for a tab pill of `size`, anchored to `edge` at fractional
+    /// `position` within `visibleFrame`.
+    static func tabFrame(edge: Edge, position: Double, size: CGSize, in visibleFrame: CGRect) -> CGRect {
+        let p = CGFloat(ScreenAnchor.clampPosition(position))
+        switch edge {
+        case .left:
+            return CGRect(x: visibleFrame.minX,
+                          y: yForVertical(position: p, height: size.height, in: visibleFrame),
+                          width: size.width, height: size.height)
+        case .right:
+            return CGRect(x: visibleFrame.maxX - size.width,
+                          y: yForVertical(position: p, height: size.height, in: visibleFrame),
+                          width: size.width, height: size.height)
+        case .top:
+            return CGRect(x: xForHorizontal(position: p, width: size.width, in: visibleFrame),
+                          y: visibleFrame.maxY - size.height,
+                          width: size.width, height: size.height)
+        case .bottom:
+            return CGRect(x: xForHorizontal(position: p, width: size.width, in: visibleFrame),
+                          y: visibleFrame.minY,
+                          width: size.width, height: size.height)
+        }
+    }
+
+    /// For left/right edges: `position` 0 = top, 1 = bottom. Returns the origin
+    /// (bottom) y for a window of `height`, clamped within `visibleFrame`.
+    private static func yForVertical(position p: CGFloat, height: CGFloat, in vf: CGRect) -> CGFloat {
+        let centerY = vf.maxY - p * vf.height
+        return clamp(centerY - height / 2, vf.minY, vf.maxY - height)
+    }
+
+    /// For top/bottom edges: `position` 0 = leading (left), 1 = trailing (right).
+    private static func xForHorizontal(position p: CGFloat, width: CGFloat, in vf: CGRect) -> CGFloat {
+        let centerX = vf.minX + p * vf.width
+        return clamp(centerX - width / 2, vf.minX, vf.maxX - width)
+    }
+
+    // MARK: Drawer placement
+
+    /// Frame for an opening drawer: it sits **flush against the screen edge**
+    /// (like a physical drawer sliding out), sized `contentSize` (capped to the
+    /// screen) and centered along the edge on the tab. The tab then rides on the
+    /// drawer's inner face — see `openedTabFrame`. This is the "drawer pushes the
+    /// tab inward" behavior.
+    static func openDrawerFrame(edge: Edge, tabFrame: CGRect, contentSize: CGSize, in visibleFrame: CGRect) -> CGRect {
+        let w = min(contentSize.width, visibleFrame.width)
+        let h = min(contentSize.height, visibleFrame.height)
+        switch edge {
+        case .left:
+            return CGRect(x: visibleFrame.minX,
+                          y: alignVertical(center: tabFrame.midY, height: h, in: visibleFrame),
+                          width: w, height: h)
+        case .right:
+            return CGRect(x: visibleFrame.maxX - w,
+                          y: alignVertical(center: tabFrame.midY, height: h, in: visibleFrame),
+                          width: w, height: h)
+        case .top:
+            return CGRect(x: alignHorizontal(center: tabFrame.midX, width: w, in: visibleFrame),
+                          y: visibleFrame.maxY - h,
+                          width: w, height: h)
+        case .bottom:
+            return CGRect(x: alignHorizontal(center: tabFrame.midX, width: w, in: visibleFrame),
+                          y: visibleFrame.minY,
+                          width: w, height: h)
+        }
+    }
+
+    /// The tab's frame while its drawer is open: pushed in from the edge to ride
+    /// flush on the drawer's inner face, keeping its size and along-edge center.
+    static func openedTabFrame(edge: Edge, restingTabFrame: CGRect, drawerFrame: CGRect) -> CGRect {
+        var frame = restingTabFrame
+        switch edge {
+        case .left:   frame.origin.x = drawerFrame.maxX
+        case .right:  frame.origin.x = drawerFrame.minX - restingTabFrame.width
+        case .top:    frame.origin.y = drawerFrame.minY - restingTabFrame.height
+        case .bottom: frame.origin.y = drawerFrame.maxY
+        }
+        return frame
+    }
+
+    /// The drawer's "tucked behind the edge" frame (same size as `openFrame`,
+    /// shifted fully off-screen past the edge). The open animation slides from
+    /// here to `openFrame`; the close animation slides back.
+    static func tuckedDrawerFrame(edge: Edge, openFrame: CGRect) -> CGRect {
+        switch edge {
+        case .left:   return openFrame.offsetBy(dx: -openFrame.width, dy: 0)
+        case .right:  return openFrame.offsetBy(dx: openFrame.width, dy: 0)
+        case .top:    return openFrame.offsetBy(dx: 0, dy: openFrame.height)
+        case .bottom: return openFrame.offsetBy(dx: 0, dy: -openFrame.height)
+        }
+    }
+
+    private static func alignVertical(center: CGFloat, height: CGFloat, in vf: CGRect) -> CGFloat {
+        clamp(center - height / 2, vf.minY, vf.maxY - height)
+    }
+
+    private static func alignHorizontal(center: CGFloat, width: CGFloat, in vf: CGRect) -> CGFloat {
+        clamp(center - width / 2, vf.minX, vf.maxX - width)
+    }
+
+    // MARK: Drag inversion
+
+    /// The fractional position along `edge` for a screen-space point `p` — the
+    /// inverse of `tabFrame`'s placement, used during drag-to-reposition.
+    static func position(forPoint p: CGPoint, edge: Edge, in visibleFrame: CGRect) -> Double {
+        switch edge {
+        case .left, .right:
+            guard visibleFrame.height > 0 else { return 0.5 }
+            return ScreenAnchor.clampPosition(Double((visibleFrame.maxY - p.y) / visibleFrame.height))
+        case .top, .bottom:
+            guard visibleFrame.width > 0 else { return 0.5 }
+            return ScreenAnchor.clampPosition(Double((p.x - visibleFrame.minX) / visibleFrame.width))
+        }
+    }
+
+    // MARK: Helpers
+
+    /// Clamps `v` to `[lo, hi]`; if the window is larger than the available
+    /// range (hi < lo), pins to `lo` so it stays on-screen at the edge.
+    private static func clamp(_ v: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat {
+        guard hi > lo else { return lo }
+        return Swift.min(Swift.max(v, lo), hi)
+    }
+}

@@ -1,0 +1,136 @@
+import XCTest
+@testable import MacDring
+
+final class EdgeLayoutTests: XCTestCase {
+
+    private let visible = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    private let pill = CGSize(width: 40, height: 120)
+
+    // MARK: Tab placement
+
+    func testRightEdgeCenteredTab() {
+        let frame = EdgeLayout.tabFrame(edge: .right, position: 0.5, size: pill, in: visible)
+        XCTAssertEqual(frame.maxX, visible.maxX, accuracy: 0.001)          // flush to right
+        XCTAssertEqual(frame.midY, 400, accuracy: 0.001)                   // vertically centered
+        XCTAssertEqual(frame.width, 40, accuracy: 0.001)
+    }
+
+    func testLeftEdgeIsFlushLeft() {
+        let frame = EdgeLayout.tabFrame(edge: .left, position: 0.5, size: pill, in: visible)
+        XCTAssertEqual(frame.minX, visible.minX, accuracy: 0.001)
+    }
+
+    func testBottomEdgeIsFlushBottom() {
+        let frame = EdgeLayout.tabFrame(edge: .bottom, position: 0.5, size: pill, in: visible)
+        XCTAssertEqual(frame.minY, visible.minY, accuracy: 0.001)
+        XCTAssertEqual(frame.midX, 500, accuracy: 0.001)
+    }
+
+    func testTopEdgeIsFlushTop() {
+        let frame = EdgeLayout.tabFrame(edge: .top, position: 0.5, size: pill, in: visible)
+        XCTAssertEqual(frame.maxY, visible.maxY, accuracy: 0.001)
+    }
+
+    func testVerticalPositionZeroIsTopAndClampedOnScreen() {
+        // position 0 = top; the pill is pinned fully on-screen at the top.
+        let frame = EdgeLayout.tabFrame(edge: .right, position: 0, size: pill, in: visible)
+        XCTAssertEqual(frame.maxY, visible.maxY, accuracy: 0.001)
+        XCTAssertLessThanOrEqual(frame.maxY, visible.maxY + 0.001)
+    }
+
+    func testVerticalPositionOneIsBottomAndClampedOnScreen() {
+        let frame = EdgeLayout.tabFrame(edge: .right, position: 1, size: pill, in: visible)
+        XCTAssertEqual(frame.minY, visible.minY, accuracy: 0.001)
+    }
+
+    func testPositionIsClampedIntoRange() {
+        let high = EdgeLayout.tabFrame(edge: .right, position: 5, size: pill, in: visible)
+        let one = EdgeLayout.tabFrame(edge: .right, position: 1, size: pill, in: visible)
+        XCTAssertEqual(high, one)
+    }
+
+    // MARK: Drawer placement (flush to edge) + opened tab
+
+    func testOpenDrawerIsFlushToItsEdge() {
+        let tabR = EdgeLayout.tabFrame(edge: .right, position: 0.5, size: pill, in: visible)
+        let dR = EdgeLayout.openDrawerFrame(edge: .right, tabFrame: tabR, contentSize: CGSize(width: 300, height: 400), in: visible)
+        XCTAssertEqual(dR.maxX, visible.maxX, accuracy: 0.001)
+
+        let tabB = EdgeLayout.tabFrame(edge: .bottom, position: 0.5, size: pill, in: visible)
+        let dB = EdgeLayout.openDrawerFrame(edge: .bottom, tabFrame: tabB, contentSize: CGSize(width: 300, height: 400), in: visible)
+        XCTAssertEqual(dB.minY, visible.minY, accuracy: 0.001)
+    }
+
+    func testOpenDrawerIsCenteredOnTabAlongEdge() {
+        let tab = EdgeLayout.tabFrame(edge: .bottom, position: 0.3, size: pill, in: visible)
+        let drawer = EdgeLayout.openDrawerFrame(edge: .bottom, tabFrame: tab, contentSize: CGSize(width: 300, height: 200), in: visible)
+        XCTAssertEqual(drawer.midX, tab.midX, accuracy: 0.001)
+    }
+
+    func testOpenDrawerIsClampedToScreen() {
+        for edge in Edge.allCases {
+            let tab = EdgeLayout.tabFrame(edge: edge, position: 0.5, size: pill, in: visible)
+            let drawer = EdgeLayout.openDrawerFrame(edge: edge, tabFrame: tab,
+                                                    contentSize: CGSize(width: 9000, height: 9000), in: visible)
+            XCTAssertTrue(visible.insetBy(dx: -0.5, dy: -0.5).contains(drawer),
+                          "drawer left the screen on \(edge): \(drawer)")
+        }
+    }
+
+    func testOpenedTabRidesOnDrawerInnerFace() {
+        // The tab is pushed in from the edge to sit flush on the drawer's inner
+        // face — same size, touching, not overlapping the drawer's interior.
+        for edge in Edge.allCases {
+            let tab = EdgeLayout.tabFrame(edge: edge, position: 0.5, size: pill, in: visible)
+            let drawer = EdgeLayout.openDrawerFrame(edge: edge, tabFrame: tab, contentSize: CGSize(width: 300, height: 300), in: visible)
+            let opened = EdgeLayout.openedTabFrame(edge: edge, restingTabFrame: tab, drawerFrame: drawer)
+
+            XCTAssertEqual(opened.width, tab.width, accuracy: 0.001)
+            XCTAssertEqual(opened.height, tab.height, accuracy: 0.001)
+            switch edge {
+            case .right:  XCTAssertEqual(opened.maxX, drawer.minX, accuracy: 0.001)
+            case .left:   XCTAssertEqual(opened.minX, drawer.maxX, accuracy: 0.001)
+            case .top:    XCTAssertEqual(opened.maxY, drawer.minY, accuracy: 0.001)
+            case .bottom: XCTAssertEqual(opened.minY, drawer.maxY, accuracy: 0.001)
+            }
+            XCTAssertFalse(opened.insetBy(dx: 0.5, dy: 0.5).intersects(drawer),
+                           "opened tab overlaps drawer interior on \(edge)")
+        }
+    }
+
+    func testTuckedDrawerIsOffScreenPastEdgeSameSize() {
+        for edge in Edge.allCases {
+            let tab = EdgeLayout.tabFrame(edge: edge, position: 0.5, size: pill, in: visible)
+            let open = EdgeLayout.openDrawerFrame(edge: edge, tabFrame: tab, contentSize: CGSize(width: 300, height: 300), in: visible)
+            let tucked = EdgeLayout.tuckedDrawerFrame(edge: edge, openFrame: open)
+            XCTAssertEqual(tucked.size.width, open.size.width, accuracy: 0.001)
+            XCTAssertEqual(tucked.size.height, open.size.height, accuracy: 0.001)   // pure translation
+            XCTAssertFalse(tucked.insetBy(dx: 1, dy: 1).intersects(visible),
+                           "tucked drawer is still on-screen for \(edge)")
+        }
+    }
+
+    // MARK: Drag inversion
+
+    func testPositionForPointRoundTripsVerticalEdge() {
+        let tab = EdgeLayout.tabFrame(edge: .right, position: 0.3, size: pill, in: visible)
+        let center = CGPoint(x: tab.midX, y: tab.midY)
+        let recovered = EdgeLayout.position(forPoint: center, edge: .right, in: visible)
+        XCTAssertEqual(recovered, 0.3, accuracy: 0.02)
+    }
+
+    func testPositionForPointRoundTripsHorizontalEdge() {
+        let tab = EdgeLayout.tabFrame(edge: .bottom, position: 0.7, size: pill, in: visible)
+        let center = CGPoint(x: tab.midX, y: tab.midY)
+        let recovered = EdgeLayout.position(forPoint: center, edge: .bottom, in: visible)
+        XCTAssertEqual(recovered, 0.7, accuracy: 0.02)
+    }
+
+    func testPlacementWorksWithOffsetVisibleFrame() {
+        // A secondary display's visibleFrame has a non-zero origin.
+        let secondary = CGRect(x: 1440, y: 100, width: 1280, height: 700)
+        let frame = EdgeLayout.tabFrame(edge: .left, position: 0.5, size: pill, in: secondary)
+        XCTAssertEqual(frame.minX, secondary.minX, accuracy: 0.001)
+        XCTAssertEqual(frame.midY, secondary.midY, accuracy: 0.001)
+    }
+}
