@@ -17,10 +17,19 @@ final class DrawerModel: ObservableObject {
     /// Whether the open tab is locked (shown as a small lock in the drawer header).
     @Published var locked: Bool = false
 
+    /// What the drawer shows.
+    @Published var kind: TabKind = .items
+    /// The note text (for `.notes` tabs).
+    @Published var notes: String = ""
+    /// The linked directory (for `.folder` tabs), used by "Open in Finder".
+    @Published var folderURL: URL?
+
     var onLaunch: ((DrawerItem) -> Void)?
     var onRemoveItem: ((DrawerItem) -> Void)?
     var onRevealItem: ((DrawerItem) -> Void)?
-    var onDropURLs: (([URL]) -> Void)?
+    /// Files were dropped on the drawer: `slot` is the target slot, or -1 for the
+    /// background. The controller routes (open-with / move-into / add).
+    var onDropFiles: ((_ urls: [URL], _ slot: Int) -> Void)?
     var onMouseEntered: (() -> Void)?
     var onMouseExited: (() -> Void)?
     /// Called when a drag-reorder finishes: place `itemID` at grid `slot`.
@@ -29,6 +38,10 @@ final class DrawerModel: ObservableObject {
     var onOpenSettings: (() -> Void)?
     /// Toggle this tab's locked state (drawer header lock).
     var onToggleLocked: (() -> Void)?
+    /// Notes text changed (for `.notes` tabs).
+    var onNotesChanged: ((String) -> Void)?
+    /// Open the linked directory in Finder (for `.folder` tabs).
+    var onOpenFolder: (() -> Void)?
 
     /// The item occupying a grid slot, if any.
     func item(atSlot slot: Int) -> DrawerItem? {

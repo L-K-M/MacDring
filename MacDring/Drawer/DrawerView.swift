@@ -1,15 +1,16 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The panel that expands from a tab: a header in the tab's color and the tab's
-/// items in a grid (or list). The grid is sized by the tab (`columns` x `rows`),
-/// and items hold explicit grid **slots**, so they can be arranged freely with
-/// gaps — every slot is a drop target.
+/// The panel that expands from a tab. Its content depends on the tab's kind:
+/// - **items**: a freely-arranged grid/list (slots + gaps, drag-to-reorder,
+///   drop-to-add, remove).
+/// - **folder**: a read-only live listing of a directory (launch + reveal; items
+///   are draggable *out* to Finder/other apps).
+/// - **notes**: a text editor.
 ///
-/// Reorder uses a `DragGesture` (SwiftUI's `.onDrop` doesn't fire inside a
-/// borderless panel). The dragged item stays dimmed in its home cell while a
-/// **copy is drawn in an overlay above the grid** that follows the cursor — this
-/// keeps it on top (a per-cell `zIndex` is ignored inside a `LazyVGrid`).
+/// File drops are routed by what they land on: an **app** opens the files with
+/// it, a **folder** receives them, and an empty slot / the background adds them
+/// (items tab) or files them into the mirrored directory (folder tab).
 struct DrawerView: View {
     @ObservedObject var model: DrawerModel
     @ObservedObject var preferences: Preferences
@@ -17,7 +18,8 @@ struct DrawerView: View {
     @State private var dragging: DrawerItem?
     @State private var dragOffset: CGSize = .zero
     @State private var slotFrames: [Int: CGRect] = [:]
-    @State private var dropTargetSlot: Int?
+    @State private var dropTargetSlot: Int?      // internal reorder target
+    @State private var fileDropSlot: Int?         // external file-drop target
 
     private let contentSpace = "macdring.drawer.content"
     private var columns: Int { max(1, model.columns) }
@@ -27,6 +29,10 @@ struct DrawerView: View {
                                    itemCount: model.items.count, columns: columns)
     }
     private var cellHeight: CGFloat { CGFloat(preferences.iconSize) + 26 }
+    /// Only `.items` tabs support internal reorder / remove.
+    private var editable: Bool { model.kind == .items }
+    /// Items and folder tabs accept dropped files (routed); notes tabs don't.
+    private var acceptsFileDrops: Bool { model.kind != .notes }
 
     var body: some View {
         let radius = CGFloat(preferences.cornerRadius)
@@ -34,11 +40,7 @@ struct DrawerView: View {
 
         VStack(alignment: .leading, spacing: 10) {
             header
-            if model.items.isEmpty {
-                emptyState
-            } else {
-                content
-            }
+            bodyContent
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -57,12 +59,25 @@ struct DrawerView: View {
             if inside { model.onMouseEntered?() } else { model.onMouseExited?() }
         }
         .onDrop(of: [UTType.fileURL], isTargeted: dropBinding) { providers in
+            guard acceptsFileDrops else { return false }
             loadFileURLs(from: providers) { urls in
-                if !urls.isEmpty { model.onDropURLs?(urls) }
+                if !urls.isEmpty { model.onDropFiles?(urls, -1) }   // -1 = drawer background
             }
             return true
         }
     }
+
+    @ViewBuilder
+    private var bodyContent: some View {
+        switch model.kind {
+        case .notes:
+            notesEditor
+        case .items, .folder:
+            if model.items.isEmpty { emptyState } else { content }
+        }
+    }
+
+    // MARK: Header
 
     private var header: some View {
         HStack(spacing: 8) {
@@ -72,27 +87,47 @@ struct DrawerView: View {
             Text(model.title.isEmpty ? "Drawer" : model.title)
                 .font(.headline)
             Spacer(minLength: 12)
-            Text("\(model.items.count)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Button {
+            if model.kind != .notes {
+                Text("\(model.items.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if model.kind == .folder {
+                headerButton("folder", help: "Open folder in Finder") { model.onOpenFolder?() }
+                    .disabled(model.folderURL == nil)
+            }
+            headerButton(model.locked ? "lock.fill" : "lock.open",
+                         help: model.locked ? "Unlock this tab's position" : "Lock this tab's position") {
                 model.onToggleLocked?()
-            } label: {
-                Image(systemName: model.locked ? "lock.fill" : "lock.open")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help(model.locked ? "Unlock this tab's position" : "Lock this tab's position")
-            Button {
-                model.onOpenSettings?()
-            } label: {
-                Image(systemName: "gearshape")
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Configure Tab…")
+            headerButton("gearshape", help: "Configure Tab…") { model.onOpenSettings?() }
         }
     }
+
+    private func headerButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Image(systemName: symbol) }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(help)
+    }
+
+    // MARK: Notes
+
+    private var notesEditor: some View {
+        TextEditor(text: notesBinding)
+            .font(.body)
+            .scrollContentBackground(.hidden)
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.08)))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var notesBinding: Binding<String> {
+        Binding(get: { model.notes }, set: { model.notes = $0; model.onNotesChanged?($0) })
+    }
+
+    // MARK: Items / folder grid
 
     private var content: some View {
         ScrollView {
@@ -115,40 +150,60 @@ struct DrawerView: View {
         } else {
             VStack(spacing: 2) {
                 ForEach(model.items.sorted { $0.slot < $1.slot }) { item in
-                    inCellItem(item)
-                        .padding(.vertical, 3)
-                        .padding(.horizontal, 4)
-                        .background(slotFrameReporter(item.slot))
+                    fileDropTarget(
+                        inCellItem(item)
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 4)
+                            .background(slotFrameReporter(item.slot)),
+                        slot: item.slot
+                    )
                 }
             }
         }
     }
 
-    /// One grid cell for `slot` — the item placed there, or an empty droppable cell.
     private func gridSlot(_ slot: Int) -> some View {
         let item = model.item(atSlot: slot)
-        return ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(.white.opacity(dropTargetSlot == slot && dragging?.slot != slot ? 0.16 : 0))
-            if let item { inCellItem(item) }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: cellHeight)
-        .background(slotFrameReporter(slot))
+        let highlighted = (dropTargetSlot == slot && dragging?.slot != slot) || fileDropSlot == slot
+        return fileDropTarget(
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.white.opacity(highlighted ? 0.16 : 0))
+                if let item { inCellItem(item) }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: cellHeight)
+            .background(slotFrameReporter(slot)),
+            slot: slot
+        )
     }
 
-    /// The item in its home cell. While being dragged it's dimmed in place; the
-    /// moving copy is rendered by `draggedOverlay` above the grid.
+    /// An item in its home cell. `.items` tabs reorder by dragging; `.folder`
+    /// items are draggable *out* (to Finder / other apps) as their file URL.
+    @ViewBuilder
     private func inCellItem(_ item: DrawerItem) -> some View {
-        itemView(item)
-            .opacity(dragging?.id == item.id ? 0.25 : 1)
-            .gesture(reorderGesture(item))
+        let cell = itemView(item).opacity(dragging?.id == item.id ? 0.25 : 1)
+        if editable {
+            cell.gesture(reorderGesture(item))
+        } else {
+            cell.onDrag { dragProvider(item) }
+        }
     }
 
-    /// The dragged item, drawn above the whole grid so it's never occluded.
+    /// Wraps a cell so a file dragged from elsewhere can be dropped on it.
+    private func fileDropTarget(_ view: some View, slot: Int) -> some View {
+        view.onDrop(of: [UTType.fileURL], isTargeted: fileDropBinding(slot)) { providers in
+            guard acceptsFileDrops else { return false }
+            loadFileURLs(from: providers) { urls in
+                if !urls.isEmpty { model.onDropFiles?(urls, slot) }
+            }
+            return true
+        }
+    }
+
     @ViewBuilder
     private var draggedOverlay: some View {
-        if let dragging, let home = slotFrames[dragging.slot] {
+        if editable, let dragging, let home = slotFrames[dragging.slot] {
             itemView(dragging)
                 .frame(width: home.width, height: home.height)
                 .scaleEffect(1.06)
@@ -158,9 +213,6 @@ struct DrawerView: View {
         }
     }
 
-    /// Reports a slot's (or list row's) frame so the drop can find the slot under
-    /// the cursor. Frames are fixed cell positions — the dragged copy lives in the
-    /// overlay, so nothing moves these.
     private func slotFrameReporter(_ slot: Int) -> some View {
         GeometryReader { proxy in
             Color.clear.preference(key: SlotFramesKey.self, value: [slot: proxy.frame(in: .named(contentSpace))])
@@ -186,8 +238,6 @@ struct DrawerView: View {
             }
     }
 
-    /// The slot the cursor is over: the slot whose frame contains `point`, else
-    /// the nearest slot center.
     private func targetSlot(at point: CGPoint) -> Int? {
         if let hit = slotFrames.first(where: { $0.value.contains(point) })?.key {
             return hit
@@ -200,6 +250,13 @@ struct DrawerView: View {
         return dx * dx + dy * dy
     }
 
+    private func dragProvider(_ item: DrawerItem) -> NSItemProvider {
+        if let url = BookmarkResolver.url(for: item) {
+            return NSItemProvider(object: url as NSURL)
+        }
+        return NSItemProvider()
+    }
+
     private func itemView(_ item: DrawerItem) -> some View {
         ItemView(
             item: item,
@@ -207,26 +264,47 @@ struct DrawerView: View {
             layout: preferences.drawerLayout,
             launchOnSingleClick: preferences.launchOnSingleClick,
             onLaunch: { model.onLaunch?(item) },
-            onRemove: { model.onRemoveItem?(item) },
-            onReveal: { model.onRevealItem?(item) }
+            onReveal: { model.onRevealItem?(item) },
+            onRemove: editable ? { model.onRemoveItem?(item) } : nil
         )
     }
 
+    // MARK: Empty state
+
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "tray.and.arrow.down")
+            Image(systemName: model.kind == .folder ? "folder" : "tray.and.arrow.down")
                 .font(.system(size: 26))
                 .foregroundStyle(.secondary)
-            Text("Drag apps & files here")
+            Text(emptyMessage)
                 .foregroundStyle(.secondary)
                 .font(.callout)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 22)
     }
 
+    private var emptyMessage: String {
+        if model.kind == .folder {
+            return model.folderURL == nil
+                ? "No folder chosen.\nPick one with the gear above."
+                : "This folder is empty."
+        }
+        return "Drag apps & files here"
+    }
+
+    // MARK: Drop highlight bindings
+
     private var dropBinding: Binding<Bool> {
-        Binding(get: { model.isDropTargeted }, set: { model.isDropTargeted = $0 })
+        Binding(get: { model.isDropTargeted }, set: { model.isDropTargeted = acceptsFileDrops && $0 })
+    }
+
+    private func fileDropBinding(_ slot: Int) -> Binding<Bool> {
+        Binding(
+            get: { fileDropSlot == slot },
+            set: { fileDropSlot = $0 ? slot : (fileDropSlot == slot ? nil : fileDropSlot) }
+        )
     }
 }
 

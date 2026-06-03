@@ -8,8 +8,8 @@ struct ItemView: View {
     let layout: DrawerLayout
     let launchOnSingleClick: Bool
     var onLaunch: () -> Void
-    var onRemove: () -> Void
     var onReveal: () -> Void
+    var onRemove: (() -> Void)?
 
     @State private var icon: NSImage?
 
@@ -26,8 +26,10 @@ struct ItemView: View {
                 if item.kind != .url {
                     Button("Reveal in Finder", action: onReveal)
                 }
-                Divider()
-                Button("Remove", role: .destructive, action: onRemove)
+                if let onRemove {
+                    Divider()
+                    Button("Remove", role: .destructive, action: onRemove)
+                }
             }
             .onAppear { if icon == nil { icon = ItemView.resolveIcon(item) } }
     }

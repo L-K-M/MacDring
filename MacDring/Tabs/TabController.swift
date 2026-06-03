@@ -19,6 +19,7 @@ final class TabController {
     private var globalClickMonitor: Any?
     private var localKeyMonitor: Any?
     private var pendingHoverClose: DispatchWorkItem?
+    private var pendingSpringOpen: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
     /// The pill's along-edge length captured at drag start, kept constant while
     /// previewing snaps to different edges.
@@ -99,7 +100,8 @@ final class TabController {
         let id = tab.id
         wc.onTap = { [weak self] in self?.toggleDrawer(id) }
         wc.onHoverChanged = { [weak self] inside in self?.handleHover(id, inside: inside) }
-        wc.onDropURLs = { [weak self] urls in self?.addItems(urls, toTab: id) }
+        wc.onDropURLs = { [weak self] urls in self?.handleFileDrop(urls, slot: -1, toTab: id) }
+        wc.model.onDragHover = { [weak self] targeted in self?.handleDragHover(id, targeted: targeted) }
         wc.onDragWillBegin = { [weak self] in self?.beginDrag(id) }
         wc.onDragChanged = { [weak self] in self?.previewDrag(id) }
         wc.onDragEnded = { [weak self] in self?.endDrag(id) }
@@ -123,6 +125,7 @@ final class TabController {
             tabWindows[prev]?.restoreResting()
         }
         cancelHoverClose()
+        pendingSpringOpen?.cancel(); pendingSpringOpen = nil
         openTabID = id
         wc.setOpen(true)
         let duration = animationDuration
@@ -138,6 +141,7 @@ final class TabController {
 
     private func closeDrawer() {
         cancelHoverClose()
+        pendingSpringOpen?.cancel(); pendingSpringOpen = nil
         let duration = animationDuration
         if let id = openTabID, let wc = tabWindows[id] {
             wc.setOpen(false)
@@ -234,13 +238,53 @@ final class TabController {
         return dx * dx + dy * dy
     }
 
-    // MARK: Items
+    // MARK: File drops & spring-loading
 
-    private func addItems(_ urls: [URL], toTab id: UUID) {
-        for url in urls {
-            store.addItem(DrawerItem.fromFileURL(url), toTab: id)
+    /// Routes files dropped on a tab/drawer. `slot` is the drawer slot they landed
+    /// on (or -1 for the tab pill / drawer background): dropping on an **app**
+    /// opens the files with it, on a **folder** files them into it, otherwise they
+    /// are added (items tab) or filed into the mirrored directory (folder tab).
+    private func handleFileDrop(_ urls: [URL], slot: Int, toTab id: UUID) {
+        guard !urls.isEmpty, let tab = store.tab(id: id) else { return }
+        let liveItems = tab.kind == .folder ? FolderLister.contents(of: tab) : tab.items
+        let target = slot >= 0 ? liveItems.first { $0.slot == slot } : nil
+
+        if let target, target.kind == .application {
+            ItemLauncher.open(urls, withApp: target)
+            return
         }
-        if openTabID == id { refreshOpenDrawer() } else { openDrawer(id) }
+        if let target, target.kind == .folder, let directory = BookmarkResolver.url(for: target) {
+            FileMover.move(urls, into: directory)
+            if tab.kind == .folder { refreshOpenDrawer() }
+            return
+        }
+
+        switch tab.kind {
+        case .notes:
+            return
+        case .folder:
+            guard let directory = FolderLister.resolveFolder(tab) else { return }
+            FileMover.move(urls, into: directory)
+            if openTabID == id { refreshOpenDrawer() } else { openDrawer(id) }
+        case .items:
+            let newItems = urls.map { DrawerItem.fromFileURL($0) }
+            for item in newItems { store.addItem(item, toTab: id) }
+            if slot >= 0, let first = newItems.first {
+                store.placeItem(first.id, atSlot: slot, inTab: id)   // drop into the targeted empty slot
+            }
+            if openTabID != id { openDrawer(id) }   // a store change already refreshed an open drawer
+        }
+    }
+
+    /// Spring-loads a tab: hovering it with a file drag opens its drawer after a
+    /// short delay, so the file can be dropped onto the drawer's contents.
+    private func handleDragHover(_ id: UUID, targeted: Bool) {
+        guard targeted else { pendingSpringOpen?.cancel(); pendingSpringOpen = nil; return }
+        guard openTabID != id else { return }
+        pendingSpringOpen?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.openDrawer(id) }
+        pendingSpringOpen = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
     // MARK: Hotkeys
@@ -276,9 +320,9 @@ final class TabController {
             self.store.removeItem(id: item.id, fromTab: id)
         }
         drawer.model.onRevealItem = { item in ItemLauncher.revealInFinder(item) }
-        drawer.model.onDropURLs = { [weak self] urls in
+        drawer.model.onDropFiles = { [weak self] urls, slot in
             guard let self, let id = self.openTabID else { return }
-            self.addItems(urls, toTab: id)
+            self.handleFileDrop(urls, slot: slot, toTab: id)
         }
         drawer.model.onMouseEntered = { [weak self] in self?.cancelHoverClose() }
         drawer.model.onMouseExited = { [weak self] in
@@ -298,6 +342,15 @@ final class TabController {
             guard let self, let id = self.openTabID else { return }
             let locked = self.store.tab(id: id)?.locked ?? false
             self.store.setLocked(!locked, forTab: id)
+        }
+        drawer.model.onNotesChanged = { [weak self] text in
+            guard let self, let id = self.openTabID else { return }
+            self.store.setNotes(text, forTab: id)
+        }
+        drawer.model.onOpenFolder = { [weak self] in
+            guard let self, let id = self.openTabID, let tab = self.store.tab(id: id),
+                  let url = FolderLister.resolveFolder(tab) else { return }
+            NSWorkspace.shared.open(url)
         }
     }
 

@@ -133,7 +133,13 @@ struct TabStripView: View {
     // MARK: Drop
 
     private var dropTargetBinding: Binding<Bool> {
-        Binding(get: { model.isDropTargeted }, set: { model.isDropTargeted = $0 })
+        Binding(
+            get: { model.isDropTargeted },
+            set: { targeted in
+                model.isDropTargeted = targeted
+                model.onDragHover?(targeted)   // spring-load the drawer on drag-hover
+            }
+        )
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {

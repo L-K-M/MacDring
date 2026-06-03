@@ -14,12 +14,23 @@ struct Tab: Codable, Identifiable, Equatable {
     var hotkey: HotkeySpec?
 
     /// The drawer's grid size for this tab (width = columns, height = rows). Items
-    /// are placed within this grid; it grows if items are placed beyond it.
+    /// are placed within this grid; it grows if items are placed beyond it. For a
+    /// notes tab it sizes the text area.
     var gridColumns: Int
     var gridRows: Int
 
     /// When locked, the tab can't be dragged to a new position.
     var locked: Bool
+
+    /// What this tab's drawer shows (items / notes / folder).
+    var kind: TabKind
+
+    /// The note text for a `.notes` tab.
+    var notes: String
+
+    /// The linked directory for a `.folder` tab (bookmark + resolved-path fallback).
+    var folderBookmark: Data?
+    var folderURL: URL?
 
     init(id: UUID = UUID(),
          title: String,
@@ -31,7 +42,11 @@ struct Tab: Codable, Identifiable, Equatable {
          hotkey: HotkeySpec? = nil,
          gridColumns: Int = 4,
          gridRows: Int = 2,
-         locked: Bool = false) {
+         locked: Bool = false,
+         kind: TabKind = .items,
+         notes: String = "",
+         folderBookmark: Data? = nil,
+         folderURL: URL? = nil) {
         self.id = id
         self.title = title
         self.colorHex = colorHex
@@ -43,6 +58,10 @@ struct Tab: Codable, Identifiable, Equatable {
         self.gridColumns = gridColumns
         self.gridRows = gridRows
         self.locked = locked
+        self.kind = kind
+        self.notes = notes
+        self.folderBookmark = folderBookmark
+        self.folderURL = folderURL
     }
 
     init(from decoder: Decoder) throws {
@@ -58,9 +77,14 @@ struct Tab: Codable, Identifiable, Equatable {
         gridColumns = max(1, try c.decodeIfPresent(Int.self, forKey: .gridColumns) ?? 4)
         gridRows = max(1, try c.decodeIfPresent(Int.self, forKey: .gridRows) ?? 2)
         locked = try c.decodeIfPresent(Bool.self, forKey: .locked) ?? false
+        kind = try c.decodeIfPresent(TabKind.self, forKey: .kind) ?? .items
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        folderBookmark = try c.decodeIfPresent(Data.self, forKey: .folderBookmark)
+        folderURL = try c.decodeIfPresent(URL.self, forKey: .folderURL)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, colorHex, glyph, anchor, items, behavior, hotkey, gridColumns, gridRows, locked
+        case id, title, colorHex, glyph, anchor, items, behavior, hotkey
+        case gridColumns, gridRows, locked, kind, notes, folderBookmark, folderURL
     }
 }

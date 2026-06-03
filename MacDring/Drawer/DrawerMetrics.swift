@@ -11,6 +11,15 @@ enum DrawerMetrics {
     static let gridSpacing: CGFloat = 12
     static let gridInterColumn: CGFloat = 10
 
+    /// Size for a notes drawer, derived from the tab's grid dimensions (so the
+    /// Columns/Rows steppers also size the text area), clamped to the screen.
+    static func notesSize(columns: Int, rows: Int, iconSize: CGFloat, in visibleFrame: CGRect) -> CGSize {
+        let width = padding + CGFloat(max(1, columns)) * (iconSize + 28)
+        let height = padding + headerHeight + CGFloat(max(1, rows)) * (iconSize + 26)
+        return CGSize(width: min(max(width, 260), visibleFrame.width - 16),
+                      height: min(max(height, 180), visibleFrame.height - 16))
+    }
+
     /// Number of grid rows to show: the tab's configured row count (its height),
     /// grown if needed so items/slots placed beyond it stay visible. The empty
     /// cells within are the droppable gaps for free arrangement.

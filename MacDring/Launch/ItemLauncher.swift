@@ -31,4 +31,16 @@ enum ItemLauncher {
         guard item.kind != .url, let url = BookmarkResolver.url(for: item) else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
+
+    /// Opens dropped `urls` with a specific application item (drop-onto-app).
+    static func open(_ urls: [URL], withApp appItem: DrawerItem) {
+        guard !urls.isEmpty, let appURL = BookmarkResolver.url(for: appItem) else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.open(urls, withApplicationAt: appURL, configuration: configuration) { _, error in
+            if let error {
+                NSLog("MacDring: open-with failed: \(error.localizedDescription)")
+            }
+        }
+    }
 }

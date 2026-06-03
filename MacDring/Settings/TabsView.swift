@@ -102,6 +102,9 @@ private struct TabEditor: View {
     var body: some View {
         Form {
             Section("Tab") {
+                Picker("Type", selection: $draft.kind) {
+                    ForEach(TabKind.allCases) { Text($0.displayName).tag($0) }
+                }
                 TextField("Name", text: $draft.title)
                 ColorPicker("Color", selection: colorBinding, supportsOpacity: false)
                 Picker("Glyph", selection: glyphIsSymbolBinding) {
@@ -138,10 +141,10 @@ private struct TabEditor: View {
                 Toggle("Locked (can't be moved)", isOn: $draft.locked)
             }
 
-            Section("Drawer grid") {
+            Section("Drawer size") {
                 Stepper("Columns: \(draft.gridColumns)", value: $draft.gridColumns, in: 1...10)
                 Stepper("Rows: \(draft.gridRows)", value: $draft.gridRows, in: 1...12)
-                Text("The grid size of this tab's drawer. Items can be placed anywhere in it, with gaps.")
+                Text("Sizes the drawer. Items can be placed anywhere in the grid, with gaps; for a notes tab it sizes the text area.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -152,28 +155,50 @@ private struct TabEditor: View {
                 LabeledContent("Hotkey") { HotkeyRecorderView(hotkey: $draft.hotkey) }
             }
 
-            Section("Items") {
-                if draft.items.isEmpty {
-                    Text("No items yet. Add some below, or drag files onto the tab.")
-                        .foregroundStyle(.secondary).font(.callout)
-                } else {
-                    ForEach(draft.items) { item in
-                        HStack(spacing: 8) {
-                            Image(nsImage: ItemView.resolveIcon(item))
-                                .resizable().frame(width: 18, height: 18)
-                            Text(item.displayName).lineLimit(1)
-                            Spacer(minLength: 0)
-                        }
-                        .contextMenu {
-                            Button("Remove", role: .destructive) {
-                                draft.items.removeAll { $0.id == item.id }
+            if draft.kind == .items {
+                Section("Items") {
+                    if draft.items.isEmpty {
+                        Text("No items yet. Add some below, or drag files onto the tab.")
+                            .foregroundStyle(.secondary).font(.callout)
+                    } else {
+                        ForEach(draft.items) { item in
+                            HStack(spacing: 8) {
+                                Image(nsImage: ItemView.resolveIcon(item))
+                                    .resizable().frame(width: 18, height: 18)
+                                Text(item.displayName).lineLimit(1)
+                                Spacer(minLength: 0)
+                            }
+                            .contextMenu {
+                                Button("Remove", role: .destructive) {
+                                    draft.items.removeAll { $0.id == item.id }
+                                }
                             }
                         }
                     }
+                    HStack {
+                        Button("Add Files…", action: addFiles)
+                        Button("Add Link…") { linkText = ""; showingLinkSheet = true }
+                    }
                 }
-                HStack {
-                    Button("Add Files…", action: addFiles)
-                    Button("Add Link…") { linkText = ""; showingLinkSheet = true }
+            }
+
+            if draft.kind == .folder {
+                Section("Folder") {
+                    LabeledContent("Directory") {
+                        Text(folderDisplayPath)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                    Button("Choose Folder…", action: chooseFolder)
+                    Text("The drawer shows this folder's contents live (read-only).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if draft.kind == .notes {
+                Section("Notes") {
+                    Text("Open the tab's drawer to write notes.")
+                        .foregroundStyle(.secondary).font(.callout)
                 }
             }
         }
@@ -229,6 +254,24 @@ private struct TabEditor: View {
             choices.append((uuid: draft.anchor.displayUUID, name: "Disconnected display"))
         }
         return choices
+    }
+
+    // MARK: Folder tab
+
+    private var folderDisplayPath: String {
+        FolderLister.resolveFolder(draft)?.path ?? "None"
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a folder to mirror"
+        if panel.runModal() == .OK, let url = panel.url {
+            draft.folderURL = url
+            draft.folderBookmark = BookmarkResolver.makeBookmark(for: url)
+        }
     }
 
     // MARK: Adding items

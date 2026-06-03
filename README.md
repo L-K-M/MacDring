@@ -11,7 +11,10 @@ them after a restart.
 ## Features
 
 - **Edge tabs → drawers.** Colored tabs anchored to any screen edge; click (or
-  hover) to open a drawer of items.
+  hover) to open a drawer.
+- **Three tab types** — an **items** tab (apps, files, folders, links arranged
+  freely in a grid with gaps), a **notes** tab (a quick text scratchpad), and a
+  **folder** tab (a live, read-only view of a directory's contents).
 - **Holds anything launchable** — applications, files, folders, and URLs. One
   click opens them.
 - **Drag-and-drop to add.** Drop files or apps from Finder onto a tab or its open
@@ -54,8 +57,9 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 3. **Drag files or apps** from Finder onto a tab to add them.
 4. **Right-click a tab** → *Configure Tab…* to rename it, change its color/glyph,
    move it to another edge or display, set behavior, or assign a hotkey.
-5. Use the menu bar → **New Tab** to add more, or **MacDring Settings…** to manage
-   everything.
+5. Use the menu bar → **New Items / Notes / Folder Tab…** to add more (a small
+   dialog sets the name, color, type, and folder), or **MacDring Settings…** to
+   manage everything.
 
 ### Customizing
 

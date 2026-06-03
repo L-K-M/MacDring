@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let registry = DisplayRegistry()
     private lazy var controller = TabController(store: store, preferences: preferences, registry: registry)
     private lazy var settingsWindow = SettingsWindowController(preferences: preferences, store: store, registry: registry)
+    private lazy var newTabWindow = NewTabWindowController(preferences: preferences, store: store, registry: registry)
 
     private var statusItem: NSStatusItem?
     private var launchAtLoginItem: NSMenuItem?
@@ -63,9 +64,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
-        let newTabItem = NSMenuItem(title: "New Tab", action: #selector(newTab), keyEquivalent: "n")
-        newTabItem.target = self
-        menu.addItem(newTabItem)
+        let newItems = NSMenuItem(title: "New Items Tab…", action: #selector(newItemsTab), keyEquivalent: "n")
+        newItems.target = self
+        menu.addItem(newItems)
+
+        let newNotes = NSMenuItem(title: "New Notes Tab…", action: #selector(newNotesTab), keyEquivalent: "")
+        newNotes.target = self
+        menu.addItem(newNotes)
+
+        let newFolder = NSMenuItem(title: "New Folder Tab…", action: #selector(newFolderTab), keyEquivalent: "")
+        newFolder.target = self
+        menu.addItem(newFolder)
+
+        menu.addItem(.separator())
 
         let settingsItem = NSMenuItem(title: "MacDring Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -94,22 +105,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Actions
 
-    @objc private func newTab() {
-        guard let uuid = registry.mainScreenUUID() else { return }
-        // Stagger new right-edge tabs so they don't land exactly on top of each other.
-        let rightCount = store.tabs.filter { $0.anchor.edge == .right && $0.anchor.displayUUID == uuid }.count
-        let position = max(0.12, min(0.88, 0.5 - 0.08 * Double(rightCount)))
-        let tab = Tab(
-            title: "New Tab",
-            colorHex: preferences.defaultTabColorHex,
-            glyph: .symbol("folder.fill"),
-            anchor: ScreenAnchor(displayUUID: uuid, edge: .right, position: position, order: rightCount),
-            behavior: preferences.newTabBehavior,
-            gridColumns: Int(preferences.gridColumns),
-            gridRows: Int(preferences.gridRows)
-        )
-        store.addTab(tab)
-    }
+    @objc private func newItemsTab() { newTabWindow.show(kind: .items) }
+    @objc private func newNotesTab() { newTabWindow.show(kind: .notes) }
+    @objc private func newFolderTab() { newTabWindow.show(kind: .folder) }
 
     @objc private func openSettings() {
         settingsWindow.show(selectTab: nil)

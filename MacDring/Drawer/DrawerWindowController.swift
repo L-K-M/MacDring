@@ -71,9 +71,12 @@ final class DrawerWindowController {
 
     // MARK: Presentation
 
-    /// Shows the drawer for `tab`, sliding it out of the screen edge over
-    /// `duration` seconds (0 = instant). The slide is a pure translation from the
-    /// off-edge "tucked" frame to the flush-to-edge open frame.
+    /// How far the drawer nudges (inward) while fading in/out.
+    private static let nudge: CGFloat = 22
+
+    /// Shows the drawer for `tab` over `duration` seconds (0 = instant) with a fade
+    /// + small inward slide. The slide stays on the drawer's own screen, so it
+    /// never bleeds onto an adjacent display at a shared edge.
     func show(tab: Tab, tabFrame: CGRect, edge: Edge, on screen: NSScreen, duration: TimeInterval) {
         apply(tab: tab)
         model.edge = edge
@@ -83,15 +86,18 @@ final class DrawerWindowController {
         openFrame = computeOpenFrame(in: screen.visibleFrame)
 
         if duration > 0 {
-            panel.setFrame(EdgeLayout.tuckedDrawerFrame(edge: edge, openFrame: openFrame), display: false)
+            panel.setFrame(EdgeLayout.nudgedDrawerFrame(edge: edge, openFrame: openFrame, by: Self.nudge), display: false)
+            panel.alphaValue = 0
             panel.orderFrontRegardless()
             panel.makeKey()
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = duration
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 panel.animator().setFrame(openFrame, display: true)
+                panel.animator().alphaValue = 1
             }
         } else {
+            panel.alphaValue = 1
             panel.setFrame(openFrame, display: true)
             panel.orderFrontRegardless()
             panel.makeKey()
@@ -112,24 +118,27 @@ final class DrawerWindowController {
         panel.setFrame(openFrame, display: true)
     }
 
-    /// Hides the drawer, sliding it back into the edge over `duration` seconds.
+    /// Hides the drawer over `duration` seconds with a fade + small inward slide.
     func hide(duration: TimeInterval) {
         guard isVisible else { return }
         isVisible = false
         guard duration > 0 else {
             panel.orderOut(nil)
+            panel.alphaValue = 1
             model.items = []
             return
         }
-        let tucked = EdgeLayout.tuckedDrawerFrame(edge: currentEdge, openFrame: openFrame)
+        let end = EdgeLayout.nudgedDrawerFrame(edge: currentEdge, openFrame: openFrame, by: Self.nudge)
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = duration
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.animator().setFrame(tucked, display: true)
+            panel.animator().setFrame(end, display: true)
+            panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             // Skip if a new open happened during the close animation.
             guard let self, !self.isVisible else { return }
             self.panel.orderOut(nil)
+            self.panel.alphaValue = 1   // reset while hidden, ready for next open
             self.model.items = []
         })
     }
@@ -137,25 +146,45 @@ final class DrawerWindowController {
     private func apply(tab: Tab) {
         model.title = tab.title
         model.colorHex = tab.colorHex
-        model.items = tab.items
         model.columns = max(1, tab.gridColumns)
         model.rows = max(1, tab.gridRows)
         model.locked = tab.locked
+        model.kind = tab.kind
+        switch tab.kind {
+        case .items:
+            model.items = tab.items
+            model.notes = ""
+            model.folderURL = nil
+        case .folder:
+            model.items = FolderLister.contents(of: tab)   // live directory listing
+            model.notes = ""
+            model.folderURL = FolderLister.resolveFolder(tab)
+        case .notes:
+            model.items = []
+            model.notes = tab.notes
+            model.folderURL = nil
+        }
     }
 
     /// The drawer's flush-to-edge open frame, sized deterministically from the
     /// item count + appearance (not SwiftUI `fittingSize`, which is unreliable for
     /// a ScrollView/LazyVGrid). `DrawerView` fills it.
     private func computeOpenFrame(in visibleFrame: CGRect) -> CGRect {
-        let size = DrawerMetrics.contentSize(
-            itemCount: model.items.count,
-            maxSlot: model.items.map(\.slot).max() ?? -1,
-            configuredRows: model.rows,
-            layout: preferences.drawerLayout,
-            iconSize: CGFloat(preferences.iconSize),
-            columns: model.columns,
-            in: visibleFrame
-        )
+        let size: CGSize
+        if model.kind == .notes {
+            size = DrawerMetrics.notesSize(columns: model.columns, rows: model.rows,
+                                           iconSize: CGFloat(preferences.iconSize), in: visibleFrame)
+        } else {
+            size = DrawerMetrics.contentSize(
+                itemCount: model.items.count,
+                maxSlot: model.items.map(\.slot).max() ?? -1,
+                configuredRows: model.rows,
+                layout: preferences.drawerLayout,
+                iconSize: CGFloat(preferences.iconSize),
+                columns: model.columns,
+                in: visibleFrame
+            )
+        }
         return EdgeLayout.openDrawerFrame(edge: currentEdge, tabFrame: currentTabFrame, contentSize: size, in: visibleFrame)
     }
 }

@@ -47,7 +47,29 @@ final class LauncherDocumentCodableTests: XCTestCase {
         XCTAssertEqual(tab.gridColumns, 4)
         XCTAssertEqual(tab.gridRows, 2)
         XCTAssertFalse(tab.locked)
+        XCTAssertEqual(tab.kind, .items)
+        XCTAssertEqual(tab.notes, "")
+        XCTAssertNil(tab.folderURL)
         XCTAssertEqual(decoded.version, LauncherDocument.currentVersion)
+    }
+
+    func testNotesAndFolderTabsRoundTrip() throws {
+        let notes = Tab(title: "Scratch", colorHex: "#FFD60A",
+                        anchor: ScreenAnchor(displayUUID: "U", edge: .left, position: 0.4),
+                        kind: .notes, notes: "remember the milk")
+        let folder = Tab(title: "Downloads", colorHex: "#30D158",
+                         anchor: ScreenAnchor(displayUUID: "U", edge: .right, position: 0.6),
+                         kind: .folder, folderURL: URL(fileURLWithPath: "/tmp/x"))
+        let document = LauncherDocument(tabs: [notes, folder])
+
+        let data = try JSONEncoder().encode(document)
+        let decoded = try JSONDecoder().decode(LauncherDocument.self, from: data)
+
+        XCTAssertEqual(decoded, document)
+        XCTAssertEqual(decoded.tabs[0].kind, .notes)
+        XCTAssertEqual(decoded.tabs[0].notes, "remember the milk")
+        XCTAssertEqual(decoded.tabs[1].kind, .folder)
+        XCTAssertEqual(decoded.tabs[1].folderURL?.path, "/tmp/x")
     }
 
     func testEmptyDocumentDecodes() throws {

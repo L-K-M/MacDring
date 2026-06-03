@@ -98,15 +98,15 @@ final class EdgeLayoutTests: XCTestCase {
         }
     }
 
-    func testTuckedDrawerIsOffScreenPastEdgeSameSize() {
+    func testNudgedDrawerStaysOnScreenSameSize() {
         for edge in Edge.allCases {
             let tab = EdgeLayout.tabFrame(edge: edge, position: 0.5, size: pill, in: visible)
             let open = EdgeLayout.openDrawerFrame(edge: edge, tabFrame: tab, contentSize: CGSize(width: 300, height: 300), in: visible)
-            let tucked = EdgeLayout.tuckedDrawerFrame(edge: edge, openFrame: open)
-            XCTAssertEqual(tucked.size.width, open.size.width, accuracy: 0.001)
-            XCTAssertEqual(tucked.size.height, open.size.height, accuracy: 0.001)   // pure translation
-            XCTAssertFalse(tucked.insetBy(dx: 1, dy: 1).intersects(visible),
-                           "tucked drawer is still on-screen for \(edge)")
+            let nudged = EdgeLayout.nudgedDrawerFrame(edge: edge, openFrame: open, by: 22)
+            XCTAssertEqual(nudged.size.width, open.size.width, accuracy: 0.001)
+            XCTAssertEqual(nudged.size.height, open.size.height, accuracy: 0.001)   // pure translation
+            // Nudge is inward, so it stays within the screen (never crosses the edge).
+            XCTAssertTrue(visible.contains(nudged), "nudged drawer left the screen for \(edge)")
         }
     }
 

@@ -18,6 +18,9 @@ final class TabStripModel: ObservableObject {
     var onTap: (() -> Void)?
     var onHoverChanged: ((Bool) -> Void)?
     var onDropURLs: (([URL]) -> Void)?
+    /// A file drag entered (true) or left (false) the pill — used to spring-open
+    /// the drawer so the user can drop onto its contents.
+    var onDragHover: ((Bool) -> Void)?
     var onDragBegan: (() -> Void)?
     var onDragChanged: (() -> Void)?
     var onDragEnded: (() -> Void)?

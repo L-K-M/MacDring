@@ -92,15 +92,16 @@ enum EdgeLayout {
         return frame
     }
 
-    /// The drawer's "tucked behind the edge" frame (same size as `openFrame`,
-    /// shifted fully off-screen past the edge). The open animation slides from
-    /// here to `openFrame`; the close animation slides back.
-    static func tuckedDrawerFrame(edge: Edge, openFrame: CGRect) -> CGRect {
+    /// A small **inward** nudge of `openFrame` (toward the screen center), used as
+    /// the start/end of the drawer's fade-slide. Nudging inward (rather than
+    /// tucking off the edge) keeps the animation on the drawer's own screen, so it
+    /// never bleeds onto an adjacent display at a shared edge.
+    static func nudgedDrawerFrame(edge: Edge, openFrame: CGRect, by amount: CGFloat) -> CGRect {
         switch edge {
-        case .left:   return openFrame.offsetBy(dx: -openFrame.width, dy: 0)
-        case .right:  return openFrame.offsetBy(dx: openFrame.width, dy: 0)
-        case .top:    return openFrame.offsetBy(dx: 0, dy: openFrame.height)
-        case .bottom: return openFrame.offsetBy(dx: 0, dy: -openFrame.height)
+        case .left:   return openFrame.offsetBy(dx: amount, dy: 0)
+        case .right:  return openFrame.offsetBy(dx: -amount, dy: 0)
+        case .top:    return openFrame.offsetBy(dx: 0, dy: -amount)
+        case .bottom: return openFrame.offsetBy(dx: 0, dy: amount)
         }
     }
 

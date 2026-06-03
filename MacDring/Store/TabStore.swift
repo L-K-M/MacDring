@@ -173,13 +173,24 @@ final class TabStore: ObservableObject {
         }
     }
 
+    /// Updates a notes tab's text (edited live in the drawer). Does **not** notify
+    /// `onChange`, so editing notes doesn't reconcile/refresh the open drawer and
+    /// fight the text editor's cursor.
+    func setNotes(_ notes: String, forTab tabID: UUID) {
+        mutate(notifyChange: false) {
+            if let i = $0.tabs.firstIndex(where: { $0.id == tabID }) {
+                $0.tabs[i].notes = notes
+            }
+        }
+    }
+
     // MARK: Persistence
 
-    private func mutate(_ change: (inout LauncherDocument) -> Void) {
+    private func mutate(notifyChange: Bool = true, _ change: (inout LauncherDocument) -> Void) {
         var doc = document
         change(&doc)
         document = doc
-        onChange?()
+        if notifyChange { onChange?() }
         scheduleSave()
     }
 

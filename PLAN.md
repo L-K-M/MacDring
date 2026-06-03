@@ -145,7 +145,15 @@ struct Tab: Codable, Identifiable {
     var gridColumns: Int                   // drawer grid width
     var gridRows: Int                      // drawer grid height (grows if items overflow)
     var locked: Bool                       // if set, the tab can't be dragged to a new spot
+    var kind: TabKind                      // .items | .notes | .folder
+    var notes: String                      // text for a .notes tab
+    var folderBookmark: Data?; var folderURL: URL?   // linked dir for a .folder tab
 }
+
+// TabKind: what the drawer shows.
+//   .items  — the freely-arranged grid/list of apps/files/folders/links (default)
+//   .notes  — a text editor (notes persist as you type)
+//   .folder — a live, read-only listing of a chosen directory
 
 struct DrawerItem: Codable, Identifiable {
     let id: UUID
@@ -220,14 +228,20 @@ must not steal focus or churn the active-app order).
   `canBecomeKey = true` + `.nonactivatingPanel`): it can receive keys and
   intra-window drag-and-drop (item reorder, Esc) **without activating the app**, so
   the user's frontmost app is never disturbed.
-- **Open/close:** the drawer **slides out of / back into the screen edge** over
-  `animationMs` (a pure translation from an off-edge "tucked" frame to the flush
-  open frame, `EdgeLayout.tuckedDrawerFrame`), with the tab sliding in sync;
-  *Reduce Motion* makes it instant.
+- **Open/close:** a **fade + small inward slide** over `animationMs`
+  (`EdgeLayout.nudgedDrawerFrame`), with the tab sliding in sync; *Reduce Motion*
+  makes it instant. The slide nudges **inward** (never off-edge) so it can't bleed
+  onto an adjacent display at a shared edge.
 - **Content:** SwiftUI grid (icon + label) or compact list. The grid renders one
   cell per **slot** (`DrawerMetrics.gridRowCount` rows incl. a spare row), so items
   can be **placed freely with gaps** and every cell is a drop target. Header shows
   the tab title in the tab's color. Items launch via `ItemLauncher`.
+- **Spring-loaded file drops:** hovering a tab while dragging a file opens its
+  drawer (after ~0.5 s); dropping a file onto an **app** opens it with that app,
+  onto a **folder** files it into that folder, and onto an empty slot / background
+  adds it (items tab) or files it into the mirrored directory (folder tab). Folder
+  items are also draggable **out** to Finder/other apps. (Dropping onto a folder
+  **moves** the file, Finder-style.)
 - **Auto-hide:** closes on click-outside, `Esc`, re-click of its tab, selecting an item
   (unless "keep open"/pinned), or — optionally — when the pointer leaves (hover mode).
 - **Sizing:** deterministic via `DrawerMetrics` (item count + appearance), not SwiftUI
@@ -297,7 +311,7 @@ reconnection can invalidate.
 | Right-click an item | Rename, Change Icon…, Reveal in Finder, Remove |
 | `Esc` / click-outside | Close the open drawer |
 | Optional per-tab hotkey | Toggle that tab's drawer from anywhere (Carbon) |
-| Menu-bar item | New Tab…, Settings…, Manage Tabs, Launch at Login, Quit |
+| Menu-bar item | New Items/Notes/Folder Tab… (each opens a config modal), Settings…, Launch at Login, Quit |
 
 **First-run onboarding:** create one starter tab on the right edge of the main display,
 pre-populated with a couple of common apps and a hint label ("Drag apps & files here"),
@@ -405,13 +419,15 @@ MacDring/
 │   │   ├── Edge.swift
 │   │   ├── TabGlyph.swift         # SF Symbol or monogram
 │   │   ├── TabBehavior.swift      # per-tab open/hide/keep-open
+│   │   ├── TabKind.swift          # items / notes / folder
 │   │   ├── HotkeySpec.swift       # keyCode + Carbon modifier mask
 │   │   ├── PreferenceEnums.swift  # material/layout/disconnect/level enums
 │   │   ├── ColorHex.swift         # reused from Zap
 │   │   └── Preferences.swift      # UserDefaults-backed global prefs
 │   ├── Store/
 │   │   ├── TabStore.swift         # load/save JSON, observable, debounced atomic write
-│   │   └── BookmarkResolver.swift # bookmark ⇄ URL, staleness, broken-item handling
+│   │   ├── BookmarkResolver.swift # bookmark ⇄ URL, staleness, broken-item handling
+│   │   └── FolderLister.swift     # live directory listing for folder tabs
 │   ├── Screens/
 │   │   ├── DisplayRegistry.swift  # NSScreen ⇄ CGDisplay UUID, change notifications
 │   │   └── EdgeLayout.swift       # pure anchor → frame math (unit-tested)
@@ -427,7 +443,8 @@ MacDring/
 │   │   ├── DrawerMetrics.swift     # deterministic drawer sizing (pure)
 │   │   └── ItemView.swift
 │   ├── Launch/
-│   │   └── ItemLauncher.swift      # NSWorkspace open app/file/url/folder
+│   │   ├── ItemLauncher.swift      # NSWorkspace open app/file/url/folder + open-with
+│   │   └── FileMover.swift         # file dropped onto a folder → move it there
 │   ├── Hotkeys/
 │   │   ├── CarbonHotkey.swift       # optional per-tab hotkey (no Accessibility)
 │   │   └── KeyCodes.swift
@@ -440,6 +457,8 @@ MacDring/
 │   │   ├── HotkeyRecorderView.swift
 │   │   ├── SymbolPickerView.swift   # searchable SF Symbol grid for tab glyphs
 │   │   ├── SettingsRouter.swift     # deep-links Configure Tab → Tabs → [tab]
+│   │   ├── NewTabView.swift         # New Tab modal (name/color/type/folder)
+│   │   ├── NewTabWindowController.swift
 │   │   └── AboutView.swift
 │   ├── Common/
 │   │   └── VisualEffectView.swift   # NSVisualEffectView wrapper (reused from Zap)
@@ -452,7 +471,9 @@ MacDring/
 │   ├── BookmarkResolverTests.swift  # bookmark round-trip, stale/broken handling
 │   ├── TabStoreTests.swift          # load/save/mutations/reorder + .bak recovery
 │   ├── DrawerMetricsTests.swift     # deterministic drawer sizing
-│   ├── DrawerModelTests.swift       # item reorder / move-up-down logic
+│   ├── DrawerModelTests.swift       # item(atSlot:) lookup
+│   ├── FolderListerTests.swift      # directory listing (sort/hidden/slots)
+│   ├── FileMoverTests.swift         # move-into-directory + collision rename
 │   └── PreferencesTests.swift       # defaults, clamping
 ├── Tools/
 │   └── GenerateAppIcon.swift        # renders AppIcon.appiconset at all sizes
@@ -504,6 +525,18 @@ MacDring/
 > - App items drop the **`.app`** extension from their display name.
 > - **Icons** — the **About** pane shows the real app icon; the **menu-bar** glyph is
 >   a custom template echoing the edge-tab + drawer motif.
+> - **Tab types** (`TabKind`) — besides the default **items** tab, a **notes** tab
+>   (drawer is a text editor; edits persist via `setNotes` without reconciling the
+>   open drawer) and a **folder** tab (drawer shows a directory's live contents,
+>   read-only: launch + reveal, with an Open-in-Finder header button).
+> - **New Tab modal** — the menu bar has **New Items / Notes / Folder Tab…**
+>   entries; each opens a small dialog (`NewTabView`) to set the name, color, type,
+>   and (for a folder) the directory, then creates the tab.
+> - **Spring-loaded file drops** — hovering a tab while dragging opens its drawer;
+>   dropping onto an app opens-with, onto a folder moves the file in, onto a slot
+>   adds it (items) or files it into the mirrored directory (folder). Folder items
+>   drag **out** to Finder. The open/close animation nudges **inward** + fades, so
+>   it never bleeds onto an adjacent display at a shared edge.
 
 1. **Skeleton** ✅ — Xcode project (synchronized groups, `.accessory`, `LSUIElement`),
    menu-bar `NSStatusItem`, Settings window, `Preferences` + `ColorHex`.
@@ -549,8 +582,8 @@ MacDring/
 ## 13. Post-v1 Candidates
 
 - **Auto-hide / reveal-on-edge-hover** tabs (Dock-style) so they never obstruct.
-- **Clippings** tab kind (store/paste text & image snippets) — a beloved DragThing extra.
-- **Folder-as-drawer**: a tab that mirrors a folder's contents live.
+- **Notes tab** ✅ (a text-notes tab kind). Image/picture clippings remain a future extra.
+- **Folder-as-drawer** ✅ (a `.folder` tab that mirrors a directory live).
 - **Layout import/export** and optional **iCloud sync** of the document.
 - **Per-tab keyboard navigation** within an open drawer (type-to-select, arrows).
 - **Stage Manager / Mission Control** awareness and tuning.
