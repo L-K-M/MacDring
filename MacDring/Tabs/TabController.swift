@@ -119,7 +119,11 @@ final class TabController {
     private func openDrawer(_ id: UUID) {
         guard let wc = tabWindows[id],
               let tab = store.tab(id: id),
-              let screen = wc.currentScreen else { return }
+              // Resolve the tab's screen *live* rather than trusting a possibly-stale
+              // `currentScreen`: a parked tab (its display disconnected, default policy)
+              // keeps its old screen reference, so a hotkey/spring-open must not slide a
+              // drawer out onto a detached display. See ANALYSIS.md B3.
+              let screen = resolvedScreen(for: tab) else { return }
         if let prev = openTabID, prev != id {
             tabWindows[prev]?.setOpen(false)
             tabWindows[prev]?.restoreResting()
@@ -150,6 +154,16 @@ final class TabController {
         openTabID = nil
         drawer.hide(duration: duration)
         stopMonitoring()
+    }
+
+    /// The screen a tab should currently appear on: its anchored display if present,
+    /// or the main display under the move-to-main policy, otherwise `nil` (parked).
+    /// Mirrors the placement decision in `reconcile`, so a drawer only opens where
+    /// the tab is actually shown.
+    private func resolvedScreen(for tab: Tab) -> NSScreen? {
+        if let screen = registry.screen(for: tab.anchor.displayUUID) { return screen }
+        if preferences.disconnectPolicy == .moveToMain { return NSScreen.main }
+        return nil
     }
 
     /// Drawer open/close animation duration; 0 when *Reduce Motion* is on.
