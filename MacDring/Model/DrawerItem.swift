@@ -22,6 +22,11 @@ struct DrawerItem: Codable, Identifiable, Equatable {
     /// Optional icon override (bookmark to an image file).
     var customIconBookmark: Data?
 
+    /// A user-defined generated icon (base shape + color + optional SF Symbol). An
+    /// alternative to `customIconBookmark` that needs no file. For live/transient
+    /// items it's filled in from the owning `Tab.iconStyles` at list time.
+    var iconStyle: IconStyle?
+
     /// The item's position in the drawer's grid (row-major linear index). Lets
     /// items be arranged freely with gaps. `-1` means "unassigned" — `TabStore`
     /// fills it with the lowest free slot (used for new items and migration).
@@ -33,6 +38,7 @@ struct DrawerItem: Codable, Identifiable, Equatable {
          bookmark: Data? = nil,
          url: URL? = nil,
          customIconBookmark: Data? = nil,
+         iconStyle: IconStyle? = nil,
          slot: Int = -1) {
         self.id = id
         self.kind = kind
@@ -40,6 +46,7 @@ struct DrawerItem: Codable, Identifiable, Equatable {
         self.bookmark = bookmark
         self.url = url
         self.customIconBookmark = customIconBookmark
+        self.iconStyle = iconStyle
         self.slot = slot
     }
 
@@ -51,11 +58,12 @@ struct DrawerItem: Codable, Identifiable, Equatable {
         bookmark = try c.decodeIfPresent(Data.self, forKey: .bookmark)
         url = try c.decodeIfPresent(URL.self, forKey: .url)
         customIconBookmark = try c.decodeIfPresent(Data.self, forKey: .customIconBookmark)
+        iconStyle = try c.decodeIfPresent(IconStyle.self, forKey: .iconStyle)
         slot = try c.decodeIfPresent(Int.self, forKey: .slot) ?? -1
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, displayName, bookmark, url, customIconBookmark, slot
+        case id, kind, displayName, bookmark, url, customIconBookmark, iconStyle, slot
     }
 }
 
@@ -78,6 +86,20 @@ extension Array where Element == DrawerItem {
             used.insert(next)
         }
         return result
+    }
+
+    /// Applies a tab's per-target icon overrides to these (typically live/transient)
+    /// items, keyed by each item's path. Used by the folder/disks/network/cloud
+    /// listings, whose items are rebuilt each open and so can't carry the override
+    /// themselves. A no-op when the tab has no overrides.
+    func applyingIconStyles(from styles: [String: IconStyle]) -> [DrawerItem] {
+        guard !styles.isEmpty else { return self }
+        return map { item in
+            guard let path = item.url?.path, let style = styles[path] else { return item }
+            var item = item
+            item.iconStyle = style
+            return item
+        }
     }
 }
 

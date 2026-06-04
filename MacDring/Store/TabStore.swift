@@ -179,6 +179,18 @@ final class TabStore: ObservableObject {
         }
     }
 
+    /// Sets (or clears, with `nil`) the generated-icon override for a **live** item —
+    /// one produced by a folder/disks/network/cloud listing — keyed by its path on
+    /// the owning tab. Persistent `.items` carry their override on the item instead
+    /// (via `updateItem`).
+    func setIconStyle(_ style: IconStyle?, forItemPath path: String, inTab tabID: UUID) {
+        mutate {
+            if let i = $0.tabs.firstIndex(where: { $0.id == tabID }) {
+                $0.tabs[i].iconStyles[path] = style
+            }
+        }
+    }
+
     /// Places an item at a grid `slot`. If another item already occupies that slot
     /// they swap (so the slot the dragged item left becomes the other's); if the
     /// slot is empty the item simply moves there, leaving a gap. This is what makes

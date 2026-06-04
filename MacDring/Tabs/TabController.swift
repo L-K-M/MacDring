@@ -12,6 +12,9 @@ final class TabController {
     private let registry: DisplayRegistry
     private let drawer: DrawerWindowController
 
+    /// Presents the generated-icon editor (built lazily on first use).
+    private lazy var iconEditor = IconEditorWindowController()
+
     private var tabWindows: [UUID: TabWindowController] = [:]
     private var hotkeys: [UUID: (hotkey: CarbonHotkey, spec: HotkeySpec)] = [:]
     private var openTabID: UUID?
@@ -538,6 +541,7 @@ final class TabController {
         drawer.model.onRenameItem = { [weak self] item in self?.renameItem(item) }
         drawer.model.onChangeItemIcon = { [weak self] item in self?.changeItemIcon(item) }
         drawer.model.onResetItemIcon = { [weak self] item in self?.resetItemIcon(item) }
+        drawer.model.onCustomizeItemIcon = { [weak self] item in self?.customizeIcon(item) }
         drawer.model.onEjectItem = { [weak self] item in self?.ejectDisk(item) }
         drawer.model.onDropFiles = { [weak self] urls, slot in
             guard let self, let id = self.openTabID else { return }
@@ -638,12 +642,35 @@ final class TabController {
         }
     }
 
-    /// Clears an item's custom icon, restoring its default.
+    /// Clears an item's custom icon (image *and* generated style), restoring its default.
     private func resetItemIcon(_ item: DrawerItem) {
         guard let id = openTabID else { return }
         var updated = item
         updated.customIconBookmark = nil
+        updated.iconStyle = nil
         store.updateItem(updated, inTab: id)
+    }
+
+    /// Opens the generated-icon editor for `item` and stores the result. The drawer
+    /// closes first because the editor is an ordinary window (the drawer floats above
+    /// normal windows), then reopens so the new icon is visible. A persistent
+    /// `.items` item keeps its style on the item (clearing any image override);
+    /// a live item's style is stored on the tab, keyed by its path.
+    private func customizeIcon(_ item: DrawerItem) {
+        guard let id = openTabID, let kind = store.tab(id: id)?.kind else { return }
+        closeDrawer()
+        iconEditor.show(itemName: item.displayName, initial: item.iconStyle) { [weak self] style in
+            guard let self else { return }
+            if kind == .items {
+                var updated = item
+                updated.iconStyle = style
+                if style != nil { updated.customIconBookmark = nil }   // generated replaces an image override
+                self.store.updateItem(updated, inTab: id)
+            } else if let path = item.url?.path {
+                self.store.setIconStyle(style, forItemPath: path, inTab: id)
+            }
+            self.openDrawer(id)   // reopen so the change shows
+        }
     }
 
     // MARK: Disks (eject)

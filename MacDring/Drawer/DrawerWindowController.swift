@@ -239,19 +239,20 @@ final class DrawerWindowController {
             model.notes = ""
             model.folderURL = nil
         case .folder:
-            model.items = FolderLister.contents(of: tab)   // live directory listing
+            // Live listings re-apply the tab's per-target icon overrides each open.
+            model.items = FolderLister.contents(of: tab).applyingIconStyles(from: tab.iconStyles)
             model.notes = ""
             model.folderURL = FolderLister.resolveFolder(tab)
         case .disks:
-            model.items = DisksLister.contents(of: tab)     // live mounted-volume listing
+            model.items = DisksLister.contents(of: tab).applyingIconStyles(from: tab.iconStyles)
             model.notes = ""
             model.folderURL = nil
         case .network:
-            model.items = NetworkLister.contents(of: tab)   // live network-share listing
+            model.items = NetworkLister.contents(of: tab).applyingIconStyles(from: tab.iconStyles)
             model.notes = ""
             model.folderURL = nil
         case .cloud:
-            model.items = CloudLister.contents(of: tab)     // live cloud-drive listing
+            model.items = CloudLister.contents(of: tab).applyingIconStyles(from: tab.iconStyles)
             model.notes = ""
             model.folderURL = nil
         case .notes:

@@ -52,6 +52,8 @@ final class DrawerModel: ObservableObject {
     var onChangeItemIcon: ((DrawerItem) -> Void)?
     /// Clear an item's custom icon, restoring its default.
     var onResetItemIcon: ((DrawerItem) -> Void)?
+    /// Open the generated-icon editor for an item (any item, any tab kind).
+    var onCustomizeItemIcon: ((DrawerItem) -> Void)?
     /// Eject a `.disk` item's volume (Disks tab).
     var onEjectItem: ((DrawerItem) -> Void)?
     /// Files were dropped on the drawer: `slot` is the target slot, or -1 for the

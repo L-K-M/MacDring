@@ -78,7 +78,7 @@ If a default icon looks generic (some cloud providers don't publish a folder ico
 you can give any item your own icon — **right-click → Customize Icon…** — choosing a
 color and an optional SF Symbol on a folder or rounded-tile base. For these live
 tabs the override is remembered per share/provider (keyed by its path), so it sticks
-across re-lists. See the per-item icon customization for details.
+across re-lists. See [custom item icons](custom-icons.md) for details.
 
 ## Network vs. Disks — which lists what?
 

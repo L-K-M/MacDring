@@ -18,6 +18,8 @@ struct ItemView: View {
     /// Bumped by the drawer to force a fresh icon even when `item` is unchanged.
     var iconNonce: Int = 0
     var onEject: (() -> Void)?
+    /// Open the generated-icon editor for this item (available for every item).
+    var onCustomizeIcon: (() -> Void)?
 
     @State private var icon: NSImage?
 
@@ -50,11 +52,12 @@ struct ItemView: View {
                     Button("Empty Trash…", action: onEmptyTrash)
                         .disabled(TrashInspector.trashIsEmpty())
                 }
-                if onRename != nil || onChangeIcon != nil {
+                if onRename != nil || onChangeIcon != nil || onCustomizeIcon != nil {
                     Divider()
                     if let onRename { Button("Rename…", action: onRename) }
+                    if let onCustomizeIcon { Button("Customize Icon…", action: onCustomizeIcon) }
                     if let onChangeIcon { Button("Change Icon…", action: onChangeIcon) }
-                    if item.customIconBookmark != nil, let onResetIcon {
+                    if (item.customIconBookmark != nil || item.iconStyle != nil), let onResetIcon {
                         Button("Reset Icon", action: onResetIcon)
                     }
                 }
@@ -108,6 +111,10 @@ struct ItemView: View {
            let resolved = BookmarkResolver.resolve(data),
            let custom = NSImage(contentsOf: resolved.url) {
             return custom
+        }
+        // A user-defined generated icon (base shape + color + optional SF Symbol).
+        if let style = item.iconStyle {
+            return IconRenderer.image(for: style)
         }
         // The Trash shows the system full / empty trash can. Handled before the
         // broken check, since a Trash item has no bookmark of its own.

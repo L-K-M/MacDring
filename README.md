@@ -32,6 +32,9 @@ them after a restart.
 - **Trash item.** Add a Trash to any tab (Settings → Tabs → *Add Trash*): click it to
   open the Trash, or drop files onto it to throw them away.
 - **Per-tab color, name, and glyph** (SF Symbol or letters).
+- **Custom item icons.** Right-click any item → *Customize Icon…* to give it a
+  colored **folder** or **rounded tile** with an SF Symbol burned in (or pick an
+  image file). Works on every tab — see [the docs](docs/custom-icons.md).
 - **Multi-monitor support.** Tabs live on a specific display + edge and
   react live to displays connecting, disconnecting, and changing resolution.
 - **Stable restore.** Tabs return to the same display and spot after a restart,
@@ -66,7 +69,9 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 2. **Click the tab** to open its drawer; click an item to launch it.
 3. **Drag files or apps** from Finder onto a tab to add them.
 4. **Right-click a tab** → *Configure Tab…* to rename it, change its color/glyph,
-   move it to another edge or display, set behavior, or assign a hotkey.
+   move it to another edge or display, set behavior, or assign a hotkey. **Right-click
+   an item** in its drawer → *Customize Icon…* to give it a colored folder/tile +
+   SF Symbol icon.
 5. Use the menu bar → **New Items / Notes / Folder / Disks / Network / Cloud Tab…**
    to add more (a small dialog sets the name, color, type, and folder), or
    **MacDring Settings…** to manage everything. A **Disks** tab lists your mounted
