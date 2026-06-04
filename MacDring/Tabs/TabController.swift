@@ -23,8 +23,8 @@ final class TabController {
     private var pendingSpringOpen: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
 
-    /// Observers for volume mount/unmount/rename, so an open Disks drawer reflects
-    /// the live set of mounted volumes. Torn down in `saveAndTeardown`.
+    /// Observers for volume mount/unmount/rename, so an open Disks/Network drawer
+    /// reflects the live set of mounted volumes. Torn down in `saveAndTeardown`.
     private var volumeObservers: [NSObjectProtocol] = []
 
     /// Edge-hover monitors (no permission needed — mouse only) that drive
@@ -462,8 +462,8 @@ final class TabController {
         }
 
         switch tab.kind {
-        case .notes, .disks:
-            return   // notes take no drops; a Disks tab is a live, read-only listing
+        case .notes, .disks, .network:
+            return   // notes take no drops; Disks/Network are live, read-only listings
         case .folder:
             guard let directory = FolderLister.resolveFolder(tab) else { return }
             FileMover.move(fileURLs, into: directory)
@@ -636,26 +636,34 @@ final class TabController {
 
     // MARK: Disks (eject)
 
-    /// Ejects a disk item's volume and refreshes the open Disks drawer so the
+    /// Whether the open tab shows a live volume listing — the **Disks** tab or a
+    /// **Network** tab (whose network shares are ejectable `.disk` items too). Both
+    /// must refresh when volumes mount, unmount, rename, or are ejected.
+    private var openTabReflectsVolumes: Bool {
+        guard let kind = openTabID.flatMap({ store.tab(id: $0) })?.kind else { return false }
+        return kind == .disks || kind == .network
+    }
+
+    /// Ejects a disk item's volume and refreshes the open Disks/Network drawer so the
     /// volume drops out of the listing at once (the unmount notification is a
     /// belt-and-suspenders refresh if the eject completes asynchronously).
     private func ejectDisk(_ item: DrawerItem) {
         DiskEjector.eject(item)
-        if openTabID.flatMap({ store.tab(id: $0) })?.kind == .disks {
+        if openTabReflectsVolumes {
             refreshOpenDrawer()
         }
     }
 
-    /// Watches for volumes mounting, unmounting, or being renamed so an open Disks
-    /// drawer stays in sync with the live set. (A closed Disks drawer re-lists when
-    /// it next opens, so only the open one needs refreshing.)
+    /// Watches for volumes mounting, unmounting, or being renamed so an open
+    /// Disks/Network drawer stays in sync with the live set. (A closed drawer
+    /// re-lists when it next opens, so only the open one needs refreshing.)
     private func startVolumeMonitoring() {
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification,
                      NSWorkspace.didUnmountNotification,
                      NSWorkspace.didRenameVolumeNotification] {
             let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                guard let self, self.openTabID.flatMap({ self.store.tab(id: $0) })?.kind == .disks else { return }
+                guard let self, self.openTabReflectsVolumes else { return }
                 self.refreshOpenDrawer()
             }
             volumeObservers.append(token)

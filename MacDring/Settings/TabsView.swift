@@ -269,6 +269,13 @@ private struct TabEditor: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+
+            if draft.kind == .network {
+                Section("Network & Cloud") {
+                    Text("The drawer lists your network shares and cloud drives live — mounted SMB/AFP/NFS shares (click to open, eject from the menu) and cloud providers such as iCloud Drive, Dropbox, Google Drive, and OneDrive (click to open in Finder).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)

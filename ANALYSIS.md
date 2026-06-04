@@ -52,7 +52,6 @@ The code moved ahead of the prose in a few places. Each is a one-line fix.
 
 | Doc | Says | Reality | Fix |
 |---|---|---|---|
-| **README.md §Features** | "**Three tab types** — items, notes, folder" ([README.md:19](README.md)) | Four kinds: items, notes, folder, **disks** (`TabKind`). | Say "Four tab types" and add the Disks tab (the Usage section already describes it). |
 | **README.md §Permissions** | "needs **no special permissions**" ([README.md:84](README.md)) | True for core launching, but the app **requests `com.apple.security.automation.apple-events`** and prompts to control Finder the first time you **Empty Trash**. | Add a sentence: Empty Trash asks once to control Finder (Apple Events); declining just leaves the Trash as-is. |
 | **PLAN.md §4** | `enum ItemKind { case application, file, folder, url }` ([PLAN.md:169](PLAN.md)) | Six cases — adds `.trash`, `.disk`. | Update the enum and the `DrawerItem`/`TabKind` notes to include trash + disks. |
 | **PLAN.md §11–§12** | "**61 unit tests passing**" ([PLAN.md:516](PLAN.md)); file tree omits some files | ~97 tests across 12 files. Tree lacks `TabConcealment.swift`, `MacDringTests/DrawerItemTests.swift`, `MacDringTests/DisksListerTests.swift`. | Refresh the count and add the missing files (or soften to "the test suite," since exact counts drift). |

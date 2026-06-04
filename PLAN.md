@@ -145,16 +145,17 @@ struct Tab: Codable, Identifiable {
     var gridColumns: Int                   // drawer grid width
     var gridRows: Int                      // drawer grid height (grows if items overflow)
     var locked: Bool                       // if set, the tab can't be dragged to a new spot
-    var kind: TabKind                      // .items | .notes | .folder | .disks
+    var kind: TabKind                      // .items | .notes | .folder | .disks | .network
     var notes: String                      // text for a .notes tab
     var folderBookmark: Data?; var folderURL: URL?   // linked dir for a .folder tab
 }
 
 // TabKind: what the drawer shows.
-//   .items  — the freely-arranged grid/list of apps/files/folders/links (default)
-//   .notes  — a text editor (notes persist as you type)
-//   .folder — a live, read-only listing of a chosen directory
-//   .disks  — a live, read-only listing of the mounted ejectable volumes (eject)
+//   .items   — the freely-arranged grid/list of apps/files/folders/links (default)
+//   .notes   — a text editor (notes persist as you type)
+//   .folder  — a live, read-only listing of a chosen directory
+//   .disks   — a live, read-only listing of the mounted ejectable volumes (eject)
+//   .network — a live, read-only listing of network shares + cloud drives (eject shares)
 
 struct DrawerItem: Codable, Identifiable {
     let id: UUID
@@ -333,7 +334,7 @@ reconnection can invalidate.
 | Right-click an item | Rename, Change Icon…, Reveal in Finder, Remove |
 | `Esc` / click-outside | Close the open drawer |
 | Optional per-tab hotkey | Toggle that tab's drawer from anywhere (Carbon) |
-| Menu-bar item | New Items/Notes/Folder/Disks Tab… (each opens a config modal), Settings…, Launch at Login, Quit |
+| Menu-bar item | New Items/Notes/Folder/Disks/Network & Cloud Tab… (each opens a config modal), Settings…, Launch at Login, Quit |
 
 **First-run onboarding:** create one starter tab on the right edge of the main display,
 pre-populated with a couple of common apps and a hint label ("Drag apps & files here"),
@@ -451,7 +452,8 @@ MacDring/
 │   │   ├── TabStore.swift         # load/save JSON, observable, debounced atomic write
 │   │   ├── BookmarkResolver.swift # bookmark ⇄ URL, staleness, broken-item handling
 │   │   ├── FolderLister.swift     # live directory listing for folder tabs
-│   │   └── DisksLister.swift      # live mounted-ejectable-volume listing for disks tabs
+│   │   ├── DisksLister.swift      # live mounted-ejectable-volume listing for disks tabs
+│   │   └── NetworkLister.swift    # live network-share + cloud-drive listing for network tabs
 │   ├── Screens/
 │   │   ├── DisplayRegistry.swift  # NSScreen ⇄ CGDisplay UUID, change notifications
 │   │   └── EdgeLayout.swift       # pure anchor → frame math (unit-tested)
@@ -499,6 +501,8 @@ MacDring/
 │   ├── DrawerMetricsTests.swift     # deterministic drawer sizing
 │   ├── DrawerModelTests.swift       # item(atSlot:) lookup
 │   ├── FolderListerTests.swift      # directory listing (sort/hidden/slots)
+│   ├── DisksListerTests.swift       # ejectable-volume filtering/sort/slots
+│   ├── NetworkListerTests.swift     # network-share + cloud-root filtering/sort/slots
 │   ├── FileMoverTests.swift         # move-into-directory + collision rename
 │   └── PreferencesTests.swift       # defaults, clamping
 ├── Tools/
@@ -572,10 +576,14 @@ MacDring/
 >   read-only: launch + reveal, with an Open-in-Finder header button), and a
 >   **disks** tab (drawer shows the mounted **ejectable** volumes live via
 >   `DisksLister`, read-only: open in Finder + **eject** from each volume's menu;
->   it refreshes on mount/unmount via `NSWorkspace` notifications).
-> - **New Tab modal** — the menu bar has **New Items / Notes / Folder / Disks Tab…**
->   entries; each opens a small dialog (`NewTabView`) to set the name, color, type,
->   and (for a folder) the directory, then creates the tab.
+>   it refreshes on mount/unmount via `NSWorkspace` notifications), and a
+>   **network & cloud** tab (drawer lists **network shares** + **cloud drives**
+>   live via `NetworkLister`, read-only: open in Finder, **eject** a share; reuses
+>   the Disks volume notifications to stay live). See
+>   [docs/network-and-cloud-drives.md](docs/network-and-cloud-drives.md).
+> - **New Tab modal** — the menu bar has **New Items / Notes / Folder / Disks /
+>   Network & Cloud Tab…** entries; each opens a small dialog (`NewTabView`) to set
+>   the name, color, type, and (for a folder) the directory, then creates the tab.
 > - **Spring-loaded file drops** — hovering a tab while dragging opens its drawer;
 >   the drawer's hosting view (`DrawerHostingView`, an **AppKit `NSDraggingDestination`**)
 >   then **highlights the slot under the cursor** as you move and files there on
@@ -648,6 +656,8 @@ MacDring/
 - **Notes tab** ✅ (a text-notes tab kind). Image/picture clippings remain a future extra.
 - **Folder-as-drawer** ✅ (a `.folder` tab that mirrors a directory live).
 - **Disks tab** ✅ (a `.disks` tab that lists mounted ejectable volumes; eject per volume).
+- **Network & Cloud tab** ✅ (a `.network` tab that lists network shares — ejectable —
+  and cloud drives via `NetworkLister`; see docs/network-and-cloud-drives.md).
 - **Layout import/export** and optional **iCloud sync** of the document.
 - **Per-tab keyboard navigation** within an open drawer (type-to-select, arrows).
 - **Stage Manager / Mission Control** awareness and tuning.

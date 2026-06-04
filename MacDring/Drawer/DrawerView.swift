@@ -75,7 +75,7 @@ struct DrawerView: View {
         switch model.kind {
         case .notes:
             notesEditor
-        case .items, .folder, .disks:
+        case .items, .folder, .disks, .network:
             if model.items.isEmpty { emptyState } else { content }
         }
     }
@@ -298,6 +298,7 @@ struct DrawerView: View {
         switch model.kind {
         case .folder: return "folder"
         case .disks: return "externaldrive"
+        case .network: return "externaldrive.connected.to.line.below"
         default: return "tray.and.arrow.down"
         }
     }
@@ -310,6 +311,8 @@ struct DrawerView: View {
                 : "This folder is empty."
         case .disks:
             return "No ejectable disks mounted."
+        case .network:
+            return "No network shares or cloud drives."
         default:
             return "Drag apps & files here"
         }
