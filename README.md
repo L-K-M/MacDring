@@ -22,6 +22,8 @@ them after a restart.
 - **Spring-loaded drops.** Drag a file onto a tab and its drawer springs open; the
   slot under your cursor **highlights**, and dropping there files the item into that
   slot — onto an app to open it with, onto a folder to move it in.
+- **Trash item.** Add a Trash to any tab (Settings → Tabs → *Add Trash*): click it to
+  open the Trash, or drop files onto it to throw them away (recoverable, à la DragThing).
 - **Per-tab color, name, and glyph** (SF Symbol or letters) — DragThing-style
   customization, modernized.
 - **Multi-monitor from the start.** Tabs live on a specific display + edge and

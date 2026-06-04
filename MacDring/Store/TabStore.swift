@@ -113,6 +113,25 @@ final class TabStore: ObservableObject {
         mutate { $0.tabs = tabs }
     }
 
+    // MARK: Import / export
+
+    /// The current document encoded as pretty-printed JSON, for backup/export.
+    func exportData() -> Data? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try? encoder.encode(document)
+    }
+
+    /// Replaces all tabs from an exported document. Decodes leniently (the same
+    /// forward/again-compatible path as a normal load) and normalizes slots.
+    /// Returns `false` without changing anything if the data can't be decoded.
+    @discardableResult
+    func importData(_ data: Data) -> Bool {
+        guard let doc = TabStore.decode(data) else { return false }
+        replaceTabs(TabStore.normalizingSlots(doc).tabs)
+        return true
+    }
+
     /// Adds an item to a tab, skipping it if the tab already holds an item pointing
     /// at the same target — so dropping (or choosing) the same app/file/link twice
     /// doesn't create a duplicate. Items without a resolvable target are always added.

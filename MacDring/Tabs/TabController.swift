@@ -107,7 +107,17 @@ final class TabController {
         wc.onDragEnded = { [weak self] in self?.endDrag(id) }
         wc.model.onRequestSettings = { [weak self] in self?.onOpenSettings?(id) }
         wc.model.onDelete = { [weak self] in self?.store.removeTab(id: id) }
+        wc.model.onMoveToEdge = { [weak self] edge in self?.moveTab(id, toEdge: edge) }
         return wc
+    }
+
+    /// Re-anchors a tab to a different edge (pill context menu), keeping its
+    /// display, fractional position, and stack order.
+    private func moveTab(_ id: UUID, toEdge edge: Edge) {
+        guard let tab = store.tab(id: id), tab.anchor.edge != edge else { return }
+        var anchor = tab.anchor
+        anchor.edge = edge
+        store.setAnchor(anchor, forTab: id)
     }
 
     // MARK: Drawer open / close
@@ -253,6 +263,11 @@ final class TabController {
             ItemLauncher.open(urls, withApp: target)
             return
         }
+        if let target, target.kind == .trash {
+            FileMover.trash(urls)   // drop onto Trash → move the files to the Trash
+            if tab.kind == .folder { refreshOpenDrawer() }
+            return
+        }
         if let target, target.kind == .folder, let directory = BookmarkResolver.url(for: target) {
             FileMover.move(urls, into: directory)
             if tab.kind == .folder { refreshOpenDrawer() }
@@ -378,6 +393,10 @@ final class TabController {
         }
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             if event.keyCode == 53 {   // Escape
+                // Don't steal Esc from one of the app's own ordinary windows
+                // (Settings / New Tab); they need it to dismiss sheets, popovers,
+                // or fields. The borderless drawer/tab panels aren't `.titled`.
+                if let key = NSApp.keyWindow, key.styleMask.contains(.titled) { return event }
                 self?.closeDrawer()
                 return nil
             }
