@@ -3,7 +3,8 @@
 # Clean build for MacDring.
 #
 # Stops any in-flight builds, RESETS Xcode's build daemon, wipes MacDring's
-# DerivedData, then does a fresh Release build. Run from anywhere:
+# DerivedData, does a fresh Release build, then opens the built products folder
+# in Finder. Run from anywhere:
 #   ./clean-build.sh
 #
 # If a build hangs forever at "CreateBuildDescription" / the initial
@@ -26,3 +27,13 @@ sleep 1
 xcodebuild -project MacDring.xcodeproj -scheme MacDring clean
 rm -rf ~/Library/Developer/Xcode/DerivedData/MacDring-*
 xcodebuild -project MacDring.xcodeproj -scheme MacDring -configuration Release build
+status=$?
+
+# On a successful build, open the products folder (where MacDring.app lands) in
+# Finder. DerivedData was just wiped and rebuilt, so there's a single MacDring-*.
+if [ "$status" -eq 0 ]; then
+    products=$(ls -d ~/Library/Developer/Xcode/DerivedData/MacDring-*/Build/Products/Release 2>/dev/null | head -1)
+    [ -n "$products" ] && open "$products"
+fi
+
+exit "$status"

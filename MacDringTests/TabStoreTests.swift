@@ -43,6 +43,23 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.tabs.first?.id, tab.id)
     }
 
+    func testUpdateTabAssignsSlotsToNewlyAppendedItems() {
+        // The Settings editor appends items with an unassigned slot (-1) and commits
+        // via updateTab; they must get a real slot so they render without a restart.
+        let store = TabStore(storeURL: storeURL)
+        var tab = makeTab()
+        store.addTab(tab)
+
+        tab = try! XCTUnwrap(store.tab(id: tab.id))
+        tab.items.append(DrawerItem.trash())               // slot defaults to -1
+        tab.items.append(DrawerItem(kind: .url, displayName: "Site", url: URL(string: "https://example.com")))
+        store.updateTab(tab)
+
+        let saved = store.tab(id: tab.id)!
+        XCTAssertTrue(saved.items.allSatisfy { $0.slot >= 0 }, "every item should get a real slot")
+        XCTAssertEqual(Set(saved.items.map(\.slot)).count, saved.items.count, "slots should be distinct")
+    }
+
     func testUpdateAllBehaviorsAppliesToEveryTab() {
         let store = TabStore(storeURL: storeURL)
         var a = makeTab("A"); a.behavior = TabBehavior(openOnHover: false, autoHide: true)

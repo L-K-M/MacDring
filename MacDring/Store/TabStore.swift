@@ -99,10 +99,15 @@ final class TabStore: ObservableObject {
         mutate { $0.tabs.removeAll { $0.id == id } }
     }
 
-    /// Replaces a tab (matched by id) with an updated value.
+    /// Replaces a tab (matched by id) with an updated value. Items get any missing
+    /// slots filled (the Settings editor appends items with an unassigned slot),
+    /// matching `addItem` and the on-disk load so they render immediately — not
+    /// only after a restart re-normalizes the document.
     func updateTab(_ tab: Tab) {
         mutate {
             if let i = $0.tabs.firstIndex(where: { $0.id == tab.id }) {
+                var tab = tab
+                tab.items = tab.items.assigningMissingSlots()
                 $0.tabs[i] = tab
             }
         }

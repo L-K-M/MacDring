@@ -92,6 +92,11 @@ struct ItemView: View {
            let custom = NSImage(contentsOf: resolved.url) {
             return custom
         }
+        // The Trash shows the system full / empty trash can. Handled before the
+        // broken check, since a Trash item has no bookmark of its own.
+        if item.kind == .trash {
+            return trashIcon()
+        }
         if BookmarkResolver.isBroken(item) {
             return symbol("exclamationmark.triangle")
         }
@@ -104,6 +109,22 @@ struct ItemView: View {
             }
             return symbol("questionmark.square.dashed")
         }
+    }
+
+    /// The system Trash icon — full when the Trash holds anything, empty otherwise.
+    ///
+    /// The Trash is privacy-protected, so *listing* it fails without a permission
+    /// we deliberately don't request. Instead we **stat** the directory (always
+    /// allowed): on APFS a directory's link count is its entry count + 2, so a
+    /// count greater than 2 means the Trash isn't empty. If even the stat fails we
+    /// show the full can (a recognizable Trash) rather than guess empty.
+    private static func trashIcon() -> NSImage {
+        let trash = (try? FileManager.default.url(for: .trashDirectory, in: .userDomainMask, appropriateFor: nil, create: false))
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash", isDirectory: true)
+        let attrs = try? FileManager.default.attributesOfItem(atPath: trash.path)
+        let linkCount = (attrs?[.referenceCount] as? NSNumber)?.intValue
+        let isEmpty = linkCount == 2
+        return NSImage(named: isEmpty ? "NSTrashEmpty" : "NSTrashFull") ?? symbol("trash")
     }
 
     private static func symbol(_ name: String) -> NSImage {
