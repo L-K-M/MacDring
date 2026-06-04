@@ -17,8 +17,8 @@ them after a restart.
   **folder** tab (a live, read-only view of a directory's contents).
 - **Holds anything launchable** — applications, files, folders, and URLs. One
   click opens them.
-- **Drag-and-drop to add.** Drop files or apps from Finder onto a tab or its open
-  drawer.
+- **Drag-and-drop to add.** Drop files or apps from Finder — or a link dragged from
+  a browser's address bar — onto a tab or its open drawer.
 - **Spring-loaded drops.** Drag a file onto a tab and its drawer springs open; the
   slot under your cursor **highlights**, and dropping there files the item into that
   slot — onto an app to open it with, onto a folder to move it in.
