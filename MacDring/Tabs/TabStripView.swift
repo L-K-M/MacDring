@@ -18,7 +18,12 @@ struct TabStripView: View {
     @State private var isDragging = false
 
     private var isVertical: Bool { model.edge.isVertical }
-    private var thickness: CGFloat { CGFloat(preferences.tabThickness) }
+    /// The pill's thickness, scaled down for the (more compact) classic style. Must
+    /// match `TabWindowController`'s window sizing, which applies the same scale.
+    private var thickness: CGFloat { CGFloat(preferences.tabThickness) * preferences.tabStyle.thicknessScale }
+    /// Glyph size relative to thickness — a little smaller for classic so its icon
+    /// reads as a compact folder-tab marker rather than filling the pill.
+    private var glyphScale: CGFloat { preferences.tabStyle == .classic ? 0.36 : 0.42 }
 
     var body: some View {
         styledTab
@@ -86,8 +91,11 @@ struct TabStripView: View {
         let shape = ClassicTabShape(edge: model.edge)
         return contentStack
             .foregroundStyle(base.readableForeground)
-            .padding(.vertical, isVertical ? 12 : 5)
-            .padding(.horizontal, isVertical ? 5 : 15)
+            // More breathing room on the perpendicular sides (so the angled
+            // shoulders don't crowd the content), less along the edge — keeping
+            // classic shorter and more compact than modern.
+            .padding(.vertical, isVertical ? 7 : 4)
+            .padding(.horizontal, isVertical ? 7 : 14)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
                 shape.fill(
@@ -127,10 +135,10 @@ struct TabStripView: View {
         switch model.glyph {
         case .symbol(let name):
             Image(systemName: name)
-                .font(.system(size: thickness * 0.42, weight: .semibold))
+                .font(.system(size: thickness * glyphScale, weight: .semibold))
         case .monogram(let text):
             Text(text.prefix(2))
-                .font(.system(size: thickness * 0.40, weight: .bold))
+                .font(.system(size: thickness * (glyphScale - 0.02), weight: .bold))
         }
     }
 

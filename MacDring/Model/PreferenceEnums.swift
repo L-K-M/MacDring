@@ -39,6 +39,11 @@ enum TabStyle: String, Codable, CaseIterable, Identifiable {
     case modern, classic
     var id: String { rawValue }
     var displayName: String { self == .modern ? "Modern" : "Classic" }
+
+    /// Classic renders a bit thinner than modern, as a more compact alternative.
+    /// Applied to the configured tab thickness by both the window and the view so
+    /// they stay in lockstep. `CGFloat` via `import CoreGraphics`/AppKit.
+    var thicknessScale: CGFloat { self == .classic ? 0.82 : 1.0 }
 }
 
 /// What happens to a tab when its display is disconnected (see PLAN.md §6).
