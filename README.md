@@ -1,6 +1,6 @@
 # MacDring
 
-Screen-edge tabs that open drawers of your apps, files, folders, and links. Reimagining the classic **[DragThing](https://www.dragthing.com/)**.
+Screen-edge tabs that open drawers of your apps, files, folders, and links. Inspired by the classic **[DragThing](https://www.dragthing.com/)**.
 
 ![Screenshot](screenshot.png)
 
