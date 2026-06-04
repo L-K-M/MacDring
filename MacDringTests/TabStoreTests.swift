@@ -154,6 +154,70 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(items.first { $0.id == b.id }?.slot, 0)
     }
 
+    // MARK: Slot-drop edge cases (I4)
+
+    func testAddItemReturnsNewItemID() {
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab(); store.addTab(tab)
+        let item = DrawerItem(kind: .url, displayName: "A", url: URL(string: "https://a.example"))
+        XCTAssertEqual(store.addItem(item, toTab: tab.id), item.id)
+    }
+
+    func testAddItemReturnsExistingIDOnDuplicate() {
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab(); store.addTab(tab)
+        let url = URL(fileURLWithPath: "/Applications/Safari.app")
+        let first = DrawerItem(kind: .application, displayName: "Safari", url: url)
+        XCTAssertEqual(store.addItem(first, toTab: tab.id), first.id)
+        // A second add of the same target returns the *existing* id, not the new one.
+        let dup = DrawerItem(kind: .application, displayName: "Safari again", url: url)
+        XCTAssertEqual(store.addItem(dup, toTab: tab.id), first.id)
+        XCTAssertEqual(store.tab(id: tab.id)?.items.count, 1)
+    }
+
+    func testPlaceItemsLandConsecutivelyFromTarget() {
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab(); store.addTab(tab)
+        let a = DrawerItem(kind: .url, displayName: "A", url: URL(string: "https://a.example"))
+        let b = DrawerItem(kind: .url, displayName: "B", url: URL(string: "https://b.example"))
+        let c = DrawerItem(kind: .url, displayName: "C", url: URL(string: "https://c.example"))
+        [a, b, c].forEach { store.addItem($0, toTab: tab.id) }
+
+        store.placeItems([a.id, b.id, c.id], startingAt: 5, inTab: tab.id)
+        let items = store.tab(id: tab.id)!.items
+        XCTAssertEqual(items.first { $0.id == a.id }?.slot, 5)
+        XCTAssertEqual(items.first { $0.id == b.id }?.slot, 6)
+        XCTAssertEqual(items.first { $0.id == c.id }?.slot, 7)
+    }
+
+    func testPlaceItemsSkipSlotsHeldByOtherItems() {
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab(); store.addTab(tab)
+        let keep = DrawerItem(kind: .url, displayName: "K", url: URL(string: "https://k.example"))
+        let a = DrawerItem(kind: .url, displayName: "A", url: URL(string: "https://a.example"))
+        let b = DrawerItem(kind: .url, displayName: "B", url: URL(string: "https://b.example"))
+        [keep, a, b].forEach { store.addItem($0, toTab: tab.id) }
+        store.placeItem(keep.id, atSlot: 3, inTab: tab.id)   // keep now occupies slot 3
+
+        store.placeItems([a.id, b.id], startingAt: 3, inTab: tab.id)
+        let items = store.tab(id: tab.id)!.items
+        XCTAssertEqual(items.first { $0.id == keep.id }?.slot, 3)   // untouched
+        XCTAssertEqual(items.first { $0.id == a.id }?.slot, 4)      // skipped the blocked 3
+        XCTAssertEqual(items.first { $0.id == b.id }?.slot, 5)
+    }
+
+    func testDuplicateDropMovesExistingItemToTarget() {
+        // The drop flow: addItem returns the existing id on a dup, placeItems moves it.
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab(); store.addTab(tab)
+        let url = URL(fileURLWithPath: "/Applications/Safari.app")
+        store.addItem(DrawerItem(kind: .application, displayName: "Safari", url: url), toTab: tab.id)  // slot 0
+        let resolved = store.addItem(DrawerItem(kind: .application, displayName: "Safari", url: url), toTab: tab.id)
+        store.placeItems([resolved].compactMap { $0 }, startingAt: 4, inTab: tab.id)
+        XCTAssertEqual(store.tab(id: tab.id)?.items.count, 1)        // still one item (deduped)
+        XCTAssertEqual(store.tab(id: tab.id)?.items.first?.slot, 4)  // existing item moved to the target
+    }
+
     func testAssigningMissingSlotsFillsGapsAndKeepsValidSlots() {
         let items = [
             DrawerItem(kind: .file, displayName: "A", slot: -1),
