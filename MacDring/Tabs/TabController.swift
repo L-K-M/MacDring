@@ -463,6 +463,7 @@ final class TabController {
         }
         if let target, target.kind == .trash {
             FileMover.trash(urls)   // drop onto Trash → move the files to the Trash
+            drawer.model.iconNonce += 1   // the Trash now has something — re-resolve its icon to "full"
             if tab.kind == .folder { refreshOpenDrawer() }
             return
         }
