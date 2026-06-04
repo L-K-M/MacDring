@@ -30,6 +30,10 @@ final class TabController {
     /// reflects the live set of mounted volumes. Torn down in `saveAndTeardown`.
     private var volumeObservers: [NSObjectProtocol] = []
 
+    /// Observers for app launch/terminate, so application items show a live "running"
+    /// dot. Torn down in `saveAndTeardown`.
+    private var runningAppObservers: [NSObjectProtocol] = []
+
     /// Edge-hover monitors (no permission needed — mouse only) that drive
     /// Dock-style auto-hide / auto-fade reveal. Active only while a concealable tab
     /// is shown and no drawer is open. See `refreshConcealment`.
@@ -64,6 +68,7 @@ final class TabController {
 
         wireDrawer()
         startVolumeMonitoring()
+        startRunningAppMonitoring()
         store.onChange = { [weak self] in self?.reconcile() }
         registry.onChange = { [weak self] in self?.reconcile() }
         // A preference change reconciles every tab window (re-measure + reposition,
@@ -724,6 +729,32 @@ final class TabController {
         volumeObservers.removeAll()
     }
 
+    // MARK: Running-app indicator
+
+    /// Tracks the set of running apps' bundle IDs so application items show a live
+    /// "running" dot, updating as apps launch and quit.
+    private func startRunningAppMonitoring() {
+        refreshRunningApps()
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didLaunchApplicationNotification,
+                     NSWorkspace.didTerminateApplicationNotification] {
+            let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.refreshRunningApps()
+            }
+            runningAppObservers.append(token)
+        }
+    }
+
+    private func refreshRunningApps() {
+        drawer.model.runningBundleIDs = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+    }
+
+    private func stopRunningAppMonitoring() {
+        let center = NSWorkspace.shared.notificationCenter
+        runningAppObservers.forEach { center.removeObserver($0) }
+        runningAppObservers.removeAll()
+    }
+
     // MARK: Dismissal monitoring
 
     private func startMonitoring() {
@@ -766,6 +797,7 @@ final class TabController {
         stopMonitoring()
         stopRevealMonitoring()
         stopVolumeMonitoring()
+        stopRunningAppMonitoring()
         drawer.hide(duration: 0)     // instant on quit, no animation
         openTabID = nil
         for (_, wc) in tabWindows { wc.close() }

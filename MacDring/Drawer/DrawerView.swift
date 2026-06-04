@@ -275,7 +275,8 @@ struct DrawerView: View {
             onEmptyTrash: item.kind == .trash ? { model.onEmptyTrash?() } : nil,
             iconNonce: model.iconNonce,
             onEject: item.kind == .disk ? { model.onEjectItem?(item) } : nil,
-            onCustomizeIcon: { model.onCustomizeItemIcon?(item) }   // any item, any tab kind
+            onCustomizeIcon: { model.onCustomizeItemIcon?(item) },   // any item, any tab kind
+            runningBundleIDs: model.runningBundleIDs
         )
     }
 
