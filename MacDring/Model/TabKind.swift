@@ -10,8 +10,10 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
     case folder
     /// A live listing of the mounted, ejectable volumes (each openable / ejectable).
     case disks
-    /// A live listing of the user's network shares and cloud-storage drives.
+    /// A live listing of the user's mounted network shares (each openable / ejectable).
     case network
+    /// A live listing of the user's cloud-storage drives (iCloud, Dropbox, …).
+    case cloud
 
     var id: String { rawValue }
 
@@ -21,7 +23,8 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
         case .notes: return "Notes"
         case .folder: return "Folder"
         case .disks: return "Disks"
-        case .network: return "Network & Cloud"
+        case .network: return "Network"
+        case .cloud: return "Cloud"
         }
     }
 }
