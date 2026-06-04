@@ -40,8 +40,14 @@ final class TabController {
         wireDrawer()
         store.onChange = { [weak self] in self?.reconcile() }
         registry.onChange = { [weak self] in self?.reconcile() }
+        // A preference change reconciles every tab window (re-measure + reposition,
+        // and re-list every folder tab). Dragging an appearance slider fires
+        // `objectWillChange` continuously, so debounce to coalesce a burst into a
+        // single reconcile once the value settles — `objectWillChange` fires *before*
+        // the change, and a debounced main-queue delivery reads the updated value.
         preferences.objectWillChange
-            .sink { [weak self] in DispatchQueue.main.async { self?.reconcile() } }
+            .debounce(for: .milliseconds(80), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reconcile() }
             .store(in: &cancellables)
     }
 
