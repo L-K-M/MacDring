@@ -148,6 +148,7 @@ struct Tab: Codable, Identifiable {
     var kind: TabKind                      // .items | .notes | .folder | .disks | .network | .cloud
     var notes: String                      // text for a .notes tab
     var folderBookmark: Data?; var folderURL: URL?   // linked dir for a .folder tab
+    var iconStyles: [String: IconStyle]    // per-path generated-icon overrides for live items
 }
 
 // TabKind: what the drawer shows.
@@ -164,9 +165,14 @@ struct DrawerItem: Codable, Identifiable {
     var displayName: String                // overridable label
     var bookmark: Data?                    // URL bookmark (survives moves/renames)
     var url: URL?                          // for .url kind, or fallback path
-    var customIconBookmark: Data?          // optional icon override
+    var customIconBookmark: Data?          // optional icon override (an image file)
+    var iconStyle: IconStyle?              // optional generated icon (base + color + SF Symbol)
     var slot: Int                          // grid position (row-major); enables free placement + gaps
 }
+
+// IconStyle: a generated icon — base (.folder/.tile) + colorHex + optional SF Symbol.
+// Rendered to an NSImage by IconRenderer (shared by the drawer and the editor preview).
+// Persistent items carry it on the item; live items keep it on Tab.iconStyles by path.
 
 enum ItemKind: String, Codable { case application, file, folder, url }
 
@@ -453,8 +459,9 @@ MacDring/
 │   │   ├── Edge.swift
 │   │   ├── TabGlyph.swift         # SF Symbol or monogram
 │   │   ├── TabBehavior.swift      # per-tab open/hide/keep-open
-│   │   ├── TabKind.swift          # items / notes / folder / disks
+│   │   ├── TabKind.swift          # items / notes / folder / disks / network / cloud
 │   │   ├── HotkeySpec.swift       # keyCode + Carbon modifier mask
+│   │   ├── IconStyle.swift        # generated icon: base + color + optional SF Symbol
 │   │   ├── PreferenceEnums.swift  # material/layout/disconnect/level enums
 │   │   ├── ColorHex.swift         # reused from Zap
 │   │   └── Preferences.swift      # UserDefaults-backed global prefs
@@ -497,11 +504,14 @@ MacDring/
 │   │   ├── SettingsRouter.swift     # deep-links Configure Tab → Tabs → [tab]
 │   │   ├── NewTabView.swift         # New Tab modal (name/color/type/folder)
 │   │   ├── NewTabWindowController.swift
+│   │   ├── IconEditorView.swift      # generated-icon editor (base/color/symbol + preview)
+│   │   ├── IconEditorWindowController.swift
 │   │   └── AboutView.swift
 │   ├── Common/
 │   │   ├── VisualEffectView.swift   # NSVisualEffectView wrapper (reused from Zap)
 │   │   ├── TabShapes.swift          # edgeRoundedRect + ClassicTabShape (tab/drawer shapes)
-│   │   └── ActivationPolicy.swift   # shared .regular↔.accessory revert guard (Settings/New Tab)
+│   │   ├── ActivationPolicy.swift   # shared .regular↔.accessory revert guard (Settings/New Tab)
+│   │   └── IconRenderer.swift       # draws an IconStyle to an NSImage (drawer + editor)
 │   └── Resources/
 │       └── Assets.xcassets          # Info.plist generated
 ├── MacDringTests/
@@ -516,6 +526,7 @@ MacDring/
 │   ├── DisksListerTests.swift       # ejectable-volume filtering/sort/slots
 │   ├── NetworkListerTests.swift     # network-share filtering/sort/slots
 │   ├── CloudListerTests.swift       # cloud-root listing/sort/slots
+│   ├── IconStyleTests.swift         # IconStyle Codable, applyingIconStyles, IconRenderer
 │   ├── FileMoverTests.swift         # move-into-directory + collision rename
 │   └── PreferencesTests.swift       # defaults, clamping
 ├── Tools/
@@ -673,6 +684,9 @@ MacDring/
 - **Network tab** ✅ (a `.network` tab that lists mounted network shares — ejectable —
   via `NetworkLister`) and **Cloud tab** ✅ (a `.cloud` tab that lists cloud drives via
   `CloudLister`); see docs/network-and-cloud-drives.md.
+- **Custom item icons** ✅ (per-item generated icon — folder/tile base + color + SF
+  Symbol, or an image file — on any item via *Customize Icon…*; `IconStyle` +
+  `IconRenderer`; see docs/custom-icons.md). Image/picture *clippings* remain a future extra.
 - **Layout import/export** and optional **iCloud sync** of the document.
 - **Per-tab keyboard navigation** within an open drawer (type-to-select, arrows).
 - **Stage Manager / Mission Control** awareness and tuning.

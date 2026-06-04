@@ -32,6 +32,12 @@ struct Tab: Codable, Identifiable, Equatable {
     var folderBookmark: Data?
     var folderURL: URL?
 
+    /// Per-target generated-icon overrides for this tab's **live** items
+    /// (folder/disks/network/cloud listings), keyed by the item's path. Persistent
+    /// `.items` carry their override on the item itself; live items are rebuilt each
+    /// open, so their overrides live here and are re-applied at list time.
+    var iconStyles: [String: IconStyle]
+
     init(id: UUID = UUID(),
          title: String,
          colorHex: String,
@@ -46,7 +52,8 @@ struct Tab: Codable, Identifiable, Equatable {
          kind: TabKind = .items,
          notes: String = "",
          folderBookmark: Data? = nil,
-         folderURL: URL? = nil) {
+         folderURL: URL? = nil,
+         iconStyles: [String: IconStyle] = [:]) {
         self.id = id
         self.title = title
         self.colorHex = colorHex
@@ -62,6 +69,7 @@ struct Tab: Codable, Identifiable, Equatable {
         self.notes = notes
         self.folderBookmark = folderBookmark
         self.folderURL = folderURL
+        self.iconStyles = iconStyles
     }
 
     init(from decoder: Decoder) throws {
@@ -81,10 +89,11 @@ struct Tab: Codable, Identifiable, Equatable {
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         folderBookmark = try c.decodeIfPresent(Data.self, forKey: .folderBookmark)
         folderURL = try c.decodeIfPresent(URL.self, forKey: .folderURL)
+        iconStyles = try c.decodeIfPresent([String: IconStyle].self, forKey: .iconStyles) ?? [:]
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, colorHex, glyph, anchor, items, behavior, hotkey
-        case gridColumns, gridRows, locked, kind, notes, folderBookmark, folderURL
+        case gridColumns, gridRows, locked, kind, notes, folderBookmark, folderURL, iconStyles
     }
 }

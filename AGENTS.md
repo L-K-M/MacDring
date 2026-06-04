@@ -55,8 +55,8 @@ swift Tools/GenerateAppIcon.swift MacDring/Resources/Assets.xcassets/AppIcon.app
 Mirrors `PLAN.md §11`. Keep modules aligned:
 
 - `Model/` — Codable model (`Tab`, `DrawerItem`, `ScreenAnchor`, `Edge`,
-  `TabGlyph`, `TabBehavior`, `HotkeySpec`, `LauncherDocument`), `ColorHex`,
-  `Preferences`, and the small UI enums in `PreferenceEnums.swift`.
+  `TabGlyph`, `TabBehavior`, `HotkeySpec`, `IconStyle`, `LauncherDocument`),
+  `ColorHex`, `Preferences`, and the small UI enums in `PreferenceEnums.swift`.
 - `Store/` — `TabStore` (JSON load/save), `BookmarkResolver`, and the live
   transient listers (`FolderLister`, `DisksLister`, `NetworkLister`, `CloudLister`).
 - `Screens/` — `DisplayRegistry` (UUID mapping) and the pure `EdgeLayout` math.
@@ -67,10 +67,12 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
   `NSDraggingDestination` that handles spring-loaded per-slot file drops),
   `DrawerView`, `DrawerModel`, `ItemView`.
 - `Launch/` — `ItemLauncher`. `Hotkeys/` — `CarbonHotkey`, `KeyCodes`.
-- `Settings/` — the SwiftUI settings window and panes.
+- `Settings/` — the SwiftUI settings window and panes, plus the small modal
+  windows (`NewTabView`/Controller, `IconEditorView`/Controller).
 - `Common/` — `VisualEffectView`; `TabShapes` (`edgeRoundedRect` for the
   inward-rounded/edge-sharp tab pill + drawer, and `ClassicTabShape`);
-  `ActivationPolicy` (the shared `.regular`↔`.accessory` revert guard).
+  `ActivationPolicy` (the shared `.regular`↔`.accessory` revert guard);
+  `IconRenderer` (draws an `IconStyle` to an `NSImage`).
 
 ## Conventions
 
