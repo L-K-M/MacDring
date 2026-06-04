@@ -78,6 +78,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         newFolder.target = self
         menu.addItem(newFolder)
 
+        let newDisks = NSMenuItem(title: "New Disks Tab…", action: #selector(newDisksTab), keyEquivalent: "")
+        newDisks.target = self
+        menu.addItem(newDisks)
+
         menu.addItem(.separator())
 
         let settingsItem = NSMenuItem(title: "MacDring Settings…", action: #selector(openSettings), keyEquivalent: ",")
@@ -110,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func newItemsTab() { newTabWindow.show(kind: .items) }
     @objc private func newNotesTab() { newTabWindow.show(kind: .notes) }
     @objc private func newFolderTab() { newTabWindow.show(kind: .folder) }
+    @objc private func newDisksTab() { newTabWindow.show(kind: .disks) }
 
     @objc private func openSettings() {
         settingsWindow.show(selectTab: nil)

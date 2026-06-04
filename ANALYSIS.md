@@ -50,7 +50,7 @@ Severity: **P0** correctness / data-loss / core-usability · **P1** notable func
 | Per-dock hotkeys, launch at login, stable multi-monitor restore | ✅ | Pre-existing. |
 | **Layout backup / migration** | ✅ | JSON import/export shipped in **#16**. |
 | **Tab reordering** + quick "Move to Edge" | ✅ | Shipped in **#14**. |
-| **Disks** (mounted volumes, **eject**) | ❌ | The Trash half is done; eject-able disks remain. |
+| **Disks** (mounted volumes, **eject**) | ✅ | A live **Disks** tab lists the mounted ejectable volumes; open in Finder, **eject** from each volume's menu. `DisksLister` + `DiskEjector`. |
 | **Recent applications / documents** dock | ❌ | Auto-populating recents. |
 | **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. |
 | **Multiple named layouts / sets** | ◑ | Import/export covers backup; in-app switching is still TODO. |
@@ -94,7 +94,6 @@ attempted blind):
 - **Spring-loaded folder _items_** (hierarchical pop-out from a folder item).
 - **Multiple named layouts / sets** with in-app switching (import/export already covers
   the backup half).
-- **Eject-able Disks** items (the Trash half shipped in #15).
 - **iCloud sync**, **Quick Look**, **accessibility**, **localization**.
 
 **Outstanding from the original plan (PLAN §12, phase 10) — not code I can do here:**

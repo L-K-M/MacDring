@@ -40,9 +40,9 @@ private final class DrawerHostingView: NSHostingView<DrawerView> {
     }
 
     /// The model iff this drag is acceptable here (items/folder tab + has file URLs
-    /// or web links).
+    /// or web links). Notes and Disks tabs are read-only, so they take no drops.
     private func droppableModel(_ sender: NSDraggingInfo) -> DrawerModel? {
-        guard let model, model.kind != .notes,
+        guard let model, model.kind != .notes, model.kind != .disks,
               sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self],
                                                       options: [.urlReadingFileURLsOnly: false])
         else { return nil }
@@ -240,6 +240,10 @@ final class DrawerWindowController {
             model.items = FolderLister.contents(of: tab)   // live directory listing
             model.notes = ""
             model.folderURL = FolderLister.resolveFolder(tab)
+        case .disks:
+            model.items = DisksLister.contents(of: tab)     // live mounted-volume listing
+            model.notes = ""
+            model.folderURL = nil
         case .notes:
             model.items = []
             if !preserveLiveNotes { model.notes = tab.notes }

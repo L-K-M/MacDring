@@ -8,6 +8,8 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
     case notes
     /// A live listing of a chosen directory's contents.
     case folder
+    /// A live listing of the mounted, ejectable volumes (each openable / ejectable).
+    case disks
 
     var id: String { rawValue }
 
@@ -16,6 +18,7 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
         case .items: return "Items"
         case .notes: return "Notes"
         case .folder: return "Folder"
+        case .disks: return "Disks"
         }
     }
 }

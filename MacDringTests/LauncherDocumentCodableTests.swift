@@ -88,6 +88,18 @@ final class LauncherDocumentCodableTests: XCTestCase {
         XCTAssertEqual(decoded.tabs[1].folderURL?.path, "/tmp/x")
     }
 
+    func testDisksTabRoundTrips() throws {
+        // A Disks tab persists only its kind — its volume items are listed live and
+        // are never stored in the document.
+        let disks = Tab(title: "Disks", colorHex: "#BF5AF2",
+                        anchor: ScreenAnchor(displayUUID: "U", edge: .right, position: 0.7),
+                        kind: .disks)
+        let data = try JSONEncoder().encode(LauncherDocument(tabs: [disks]))
+        let decoded = try JSONDecoder().decode(LauncherDocument.self, from: data)
+        XCTAssertEqual(decoded.tabs.first?.kind, .disks)
+        XCTAssertTrue(decoded.tabs.first?.items.isEmpty ?? false)
+    }
+
     func testOneMalformedTabIsDroppedNotTheWholeDocument() throws {
         // The first tab is missing its required `anchor`; the second is valid.
         // The bad record should be skipped while the good one survives — losing a

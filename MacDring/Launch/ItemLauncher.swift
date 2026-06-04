@@ -21,8 +21,8 @@ enum ItemLauncher {
                 }
             }
             return true
-        case .file, .folder, .url, .trash:
-            return NSWorkspace.shared.open(url)   // trash opens the Trash folder in Finder
+        case .file, .folder, .url, .trash, .disk:
+            return NSWorkspace.shared.open(url)   // trash → Trash folder; disk → the volume in Finder
         }
     }
 

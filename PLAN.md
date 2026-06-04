@@ -145,7 +145,7 @@ struct Tab: Codable, Identifiable {
     var gridColumns: Int                   // drawer grid width
     var gridRows: Int                      // drawer grid height (grows if items overflow)
     var locked: Bool                       // if set, the tab can't be dragged to a new spot
-    var kind: TabKind                      // .items | .notes | .folder
+    var kind: TabKind                      // .items | .notes | .folder | .disks
     var notes: String                      // text for a .notes tab
     var folderBookmark: Data?; var folderURL: URL?   // linked dir for a .folder tab
 }
@@ -154,10 +154,11 @@ struct Tab: Codable, Identifiable {
 //   .items  — the freely-arranged grid/list of apps/files/folders/links (default)
 //   .notes  — a text editor (notes persist as you type)
 //   .folder — a live, read-only listing of a chosen directory
+//   .disks  — a live, read-only listing of the mounted ejectable volumes (eject)
 
 struct DrawerItem: Codable, Identifiable {
     let id: UUID
-    var kind: ItemKind                     // .application | .file | .folder | .url
+    var kind: ItemKind                     // .application | .file | .folder | .url | .trash | .disk
     var displayName: String                // overridable label
     var bookmark: Data?                    // URL bookmark (survives moves/renames)
     var url: URL?                          // for .url kind, or fallback path
@@ -332,7 +333,7 @@ reconnection can invalidate.
 | Right-click an item | Rename, Change Icon…, Reveal in Finder, Remove |
 | `Esc` / click-outside | Close the open drawer |
 | Optional per-tab hotkey | Toggle that tab's drawer from anywhere (Carbon) |
-| Menu-bar item | New Items/Notes/Folder Tab… (each opens a config modal), Settings…, Launch at Login, Quit |
+| Menu-bar item | New Items/Notes/Folder/Disks Tab… (each opens a config modal), Settings…, Launch at Login, Quit |
 
 **First-run onboarding:** create one starter tab on the right edge of the main display,
 pre-populated with a couple of common apps and a hint label ("Drag apps & files here"),
@@ -441,7 +442,7 @@ MacDring/
 │   │   ├── Edge.swift
 │   │   ├── TabGlyph.swift         # SF Symbol or monogram
 │   │   ├── TabBehavior.swift      # per-tab open/hide/keep-open
-│   │   ├── TabKind.swift          # items / notes / folder
+│   │   ├── TabKind.swift          # items / notes / folder / disks
 │   │   ├── HotkeySpec.swift       # keyCode + Carbon modifier mask
 │   │   ├── PreferenceEnums.swift  # material/layout/disconnect/level enums
 │   │   ├── ColorHex.swift         # reused from Zap
@@ -449,7 +450,8 @@ MacDring/
 │   ├── Store/
 │   │   ├── TabStore.swift         # load/save JSON, observable, debounced atomic write
 │   │   ├── BookmarkResolver.swift # bookmark ⇄ URL, staleness, broken-item handling
-│   │   └── FolderLister.swift     # live directory listing for folder tabs
+│   │   ├── FolderLister.swift     # live directory listing for folder tabs
+│   │   └── DisksLister.swift      # live mounted-ejectable-volume listing for disks tabs
 │   ├── Screens/
 │   │   ├── DisplayRegistry.swift  # NSScreen ⇄ CGDisplay UUID, change notifications
 │   │   └── EdgeLayout.swift       # pure anchor → frame math (unit-tested)
@@ -466,7 +468,8 @@ MacDring/
 │   │   └── ItemView.swift
 │   ├── Launch/
 │   │   ├── ItemLauncher.swift      # NSWorkspace open app/file/url/folder + open-with
-│   │   └── FileMover.swift         # file dropped onto a folder → move it there
+│   │   ├── FileMover.swift         # file dropped onto a folder → move it there
+│   │   └── DiskEjector.swift       # unmount + eject a mounted volume (disks tab)
 │   ├── Hotkeys/
 │   │   ├── CarbonHotkey.swift       # optional per-tab hotkey (no Accessibility)
 │   │   └── KeyCodes.swift
@@ -565,9 +568,12 @@ MacDring/
 >   pane shows the real app icon.
 > - **Tab types** (`TabKind`) — besides the default **items** tab, a **notes** tab
 >   (drawer is a text editor; edits persist via `setNotes` without reconciling the
->   open drawer) and a **folder** tab (drawer shows a directory's live contents,
->   read-only: launch + reveal, with an Open-in-Finder header button).
-> - **New Tab modal** — the menu bar has **New Items / Notes / Folder Tab…**
+>   open drawer), a **folder** tab (drawer shows a directory's live contents,
+>   read-only: launch + reveal, with an Open-in-Finder header button), and a
+>   **disks** tab (drawer shows the mounted **ejectable** volumes live via
+>   `DisksLister`, read-only: open in Finder + **eject** from each volume's menu;
+>   it refreshes on mount/unmount via `NSWorkspace` notifications).
+> - **New Tab modal** — the menu bar has **New Items / Notes / Folder / Disks Tab…**
 >   entries; each opens a small dialog (`NewTabView`) to set the name, color, type,
 >   and (for a folder) the directory, then creates the tab.
 > - **Spring-loaded file drops** — hovering a tab while dragging opens its drawer;
@@ -641,6 +647,7 @@ MacDring/
   (per-tab **Auto-hide** slide-off / **Auto-fade** dim, revealed on edge-hover).
 - **Notes tab** ✅ (a text-notes tab kind). Image/picture clippings remain a future extra.
 - **Folder-as-drawer** ✅ (a `.folder` tab that mirrors a directory live).
+- **Disks tab** ✅ (a `.disks` tab that lists mounted ejectable volumes; eject per volume).
 - **Layout import/export** and optional **iCloud sync** of the document.
 - **Per-tab keyboard navigation** within an open drawer (type-to-select, arrows).
 - **Stage Manager / Mission Control** awareness and tuning.

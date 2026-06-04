@@ -14,6 +14,7 @@ struct ItemView: View {
     var onRename: (() -> Void)?
     var onChangeIcon: (() -> Void)?
     var onResetIcon: (() -> Void)?
+    var onEject: (() -> Void)?
 
     @State private var icon: NSImage?
 
@@ -33,9 +34,13 @@ struct ItemView: View {
             }
             .help(isBroken ? "\(item.displayName) — can’t find this item" : item.displayName)
             .contextMenu {
-                Button("Open", action: onLaunch)
+                Button(item.kind == .disk ? "Open Disk" : "Open", action: onLaunch)
                 if item.kind != .url {
                     Button("Reveal in Finder", action: onReveal)
+                }
+                if let onEject {
+                    Divider()
+                    Button("Eject", action: onEject)
                 }
                 if onRename != nil || onChangeIcon != nil {
                     Divider()
@@ -96,6 +101,15 @@ struct ItemView: View {
         // broken check, since a Trash item has no bookmark of its own.
         if item.kind == .trash {
             return trashIcon()
+        }
+        // A mounted volume shows its own drive icon. Handled before the broken check
+        // so a volume that just unmounted shows a drive glyph for the instant before
+        // the live listing drops it, not the broken-item triangle.
+        if item.kind == .disk {
+            if let url = BookmarkResolver.url(for: item), FileManager.default.fileExists(atPath: url.path) {
+                return NSWorkspace.shared.icon(forFile: url.path)
+            }
+            return symbol("externaldrive")
         }
         if BookmarkResolver.isBroken(item) {
             return symbol("exclamationmark.triangle")

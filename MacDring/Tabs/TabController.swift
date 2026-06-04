@@ -23,6 +23,10 @@ final class TabController {
     private var pendingSpringOpen: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
 
+    /// Observers for volume mount/unmount/rename, so an open Disks drawer reflects
+    /// the live set of mounted volumes. Torn down in `saveAndTeardown`.
+    private var volumeObservers: [NSObjectProtocol] = []
+
     /// Edge-hover monitors (no permission needed — mouse only) that drive
     /// Dock-style auto-hide / auto-fade reveal. Active only while a concealable tab
     /// is shown and no drawer is open. See `refreshConcealment`.
@@ -56,6 +60,7 @@ final class TabController {
         self.drawer = DrawerWindowController(preferences: preferences)
 
         wireDrawer()
+        startVolumeMonitoring()
         store.onChange = { [weak self] in self?.reconcile() }
         registry.onChange = { [weak self] in self?.reconcile() }
         // A preference change reconciles every tab window (re-measure + reposition,
@@ -457,8 +462,8 @@ final class TabController {
         }
 
         switch tab.kind {
-        case .notes:
-            return
+        case .notes, .disks:
+            return   // notes take no drops; a Disks tab is a live, read-only listing
         case .folder:
             guard let directory = FolderLister.resolveFolder(tab) else { return }
             FileMover.move(fileURLs, into: directory)
@@ -520,6 +525,7 @@ final class TabController {
         drawer.model.onRenameItem = { [weak self] item in self?.renameItem(item) }
         drawer.model.onChangeItemIcon = { [weak self] item in self?.changeItemIcon(item) }
         drawer.model.onResetItemIcon = { [weak self] item in self?.resetItemIcon(item) }
+        drawer.model.onEjectItem = { [weak self] item in self?.ejectDisk(item) }
         drawer.model.onDropFiles = { [weak self] urls, slot in
             guard let self, let id = self.openTabID else { return }
             self.handleFileDrop(urls, slot: slot, toTab: id)
@@ -610,6 +616,40 @@ final class TabController {
         store.updateItem(updated, inTab: id)
     }
 
+    // MARK: Disks (eject)
+
+    /// Ejects a disk item's volume and refreshes the open Disks drawer so the
+    /// volume drops out of the listing at once (the unmount notification is a
+    /// belt-and-suspenders refresh if the eject completes asynchronously).
+    private func ejectDisk(_ item: DrawerItem) {
+        DiskEjector.eject(item)
+        if openTabID.flatMap({ store.tab(id: $0) })?.kind == .disks {
+            refreshOpenDrawer()
+        }
+    }
+
+    /// Watches for volumes mounting, unmounting, or being renamed so an open Disks
+    /// drawer stays in sync with the live set. (A closed Disks drawer re-lists when
+    /// it next opens, so only the open one needs refreshing.)
+    private func startVolumeMonitoring() {
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didMountNotification,
+                     NSWorkspace.didUnmountNotification,
+                     NSWorkspace.didRenameVolumeNotification] {
+            let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self, self.openTabID.flatMap({ self.store.tab(id: $0) })?.kind == .disks else { return }
+                self.refreshOpenDrawer()
+            }
+            volumeObservers.append(token)
+        }
+    }
+
+    private func stopVolumeMonitoring() {
+        let center = NSWorkspace.shared.notificationCenter
+        volumeObservers.forEach { center.removeObserver($0) }
+        volumeObservers.removeAll()
+    }
+
     // MARK: Dismissal monitoring
 
     private func startMonitoring() {
@@ -651,6 +691,7 @@ final class TabController {
         store.saveNow()
         stopMonitoring()
         stopRevealMonitoring()
+        stopVolumeMonitoring()
         drawer.hide(duration: 0)     // instant on quit, no animation
         openTabID = nil
         for (_, wc) in tabWindows { wc.close() }

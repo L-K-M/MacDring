@@ -1,7 +1,7 @@
 import Foundation
 
 /// What a drawer item points at.
-enum ItemKind: String, Codable { case application, file, folder, url, trash }
+enum ItemKind: String, Codable { case application, file, folder, url, trash, disk }
 
 /// A single launchable entry inside a drawer: an app, file, folder, or URL.
 ///

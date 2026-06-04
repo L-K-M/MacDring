@@ -64,9 +64,10 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 3. **Drag files or apps** from Finder onto a tab to add them.
 4. **Right-click a tab** → *Configure Tab…* to rename it, change its color/glyph,
    move it to another edge or display, set behavior, or assign a hotkey.
-5. Use the menu bar → **New Items / Notes / Folder Tab…** to add more (a small
-   dialog sets the name, color, type, and folder), or **MacDring Settings…** to
-   manage everything.
+5. Use the menu bar → **New Items / Notes / Folder / Disks Tab…** to add more (a
+   small dialog sets the name, color, type, and folder), or **MacDring Settings…**
+   to manage everything. A **Disks** tab lists your mounted ejectable volumes —
+   click one to open it, or use its menu to **eject**.
 
 ### Customizing
 

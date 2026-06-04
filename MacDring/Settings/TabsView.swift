@@ -262,6 +262,13 @@ private struct TabEditor: View {
                         .foregroundStyle(.secondary).font(.callout)
                 }
             }
+
+            if draft.kind == .disks {
+                Section("Disks") {
+                    Text("The drawer lists the mounted ejectable volumes live — external, removable, network, and disk-image volumes. Click one to open it in Finder, or use its menu to eject.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
