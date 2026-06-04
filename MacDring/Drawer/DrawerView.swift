@@ -163,7 +163,7 @@ struct DrawerView: View {
         let fileDropHere = model.fileDropSlot == slot
         // A file dragged onto a folder/app is a "file into / open with" target, not a
         // plain slot drop — give it a distinct ring so the difference is obvious.
-        let intoTarget = fileDropHere && (item?.kind == .folder || item?.kind == .application)
+        let intoTarget = fileDropHere && (item?.kind == .folder || item?.kind == .application || item?.kind == .trash)
         return ZStack {
             RoundedRectangle(cornerRadius: 10)
                 .fill(.white.opacity((reorderHere || fileDropHere) ? 0.16 : 0))

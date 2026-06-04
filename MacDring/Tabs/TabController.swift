@@ -253,6 +253,11 @@ final class TabController {
             ItemLauncher.open(urls, withApp: target)
             return
         }
+        if let target, target.kind == .trash {
+            FileMover.trash(urls)   // drop onto Trash → move the files to the Trash
+            if tab.kind == .folder { refreshOpenDrawer() }
+            return
+        }
         if let target, target.kind == .folder, let directory = BookmarkResolver.url(for: target) {
             FileMover.move(urls, into: directory)
             if tab.kind == .folder { refreshOpenDrawer() }
