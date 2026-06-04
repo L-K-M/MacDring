@@ -477,8 +477,8 @@ final class TabController {
         }
 
         switch tab.kind {
-        case .notes, .disks, .network, .cloud:
-            return   // notes take no drops; Disks/Network/Cloud are live, read-only listings
+        case .notes, .disks, .network, .cloud, .recents:
+            return   // notes take no drops; the live listings (Disks/Network/Cloud/Recents) are read-only
         case .folder:
             guard let directory = FolderLister.resolveFolder(tab) else { return }
             FileMover.move(fileURLs, into: directory)
@@ -584,12 +584,31 @@ final class TabController {
                   let url = FolderLister.resolveFolder(tab) else { return }
             NSWorkspace.shared.open(url)
         }
+        drawer.model.onClearRecents = { [weak self] in
+            guard let self else { return }
+            RecentsStore.shared.clear()
+            if self.openTabID.flatMap({ self.store.tab(id: $0) })?.kind == .recents { self.refreshOpenDrawer() }
+        }
     }
 
     private func launch(_ item: DrawerItem) {
         ItemLauncher.launch(item)
+        recordRecent(item)
         let keepOpen = openTabID.flatMap { store.tab(id: $0) }?.behavior.keepOpenAfterLaunch ?? false
-        if !keepOpen { closeDrawer() }
+        if !keepOpen {
+            closeDrawer()
+        } else if openTabID.flatMap({ store.tab(id: $0) })?.kind == .recents {
+            refreshOpenDrawer()   // re-list so the just-opened item jumps to the top
+        }
+    }
+
+    /// Records an opened target into the Recents history. Only the kinds you'd want to
+    /// re-open are tracked (apps/files/folders/links/cloud); volumes and the Trash are
+    /// skipped, as are items with no resolvable target.
+    private func recordRecent(_ item: DrawerItem) {
+        guard [.application, .file, .folder, .url, .cloud].contains(item.kind),
+              let url = BookmarkResolver.url(for: item) else { return }
+        RecentsStore.shared.record(RecentItem(url: url, kind: item.kind, name: item.displayName, date: Date()))
     }
 
     // MARK: Item rename / icon

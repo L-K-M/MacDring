@@ -75,7 +75,7 @@ struct DrawerView: View {
         switch model.kind {
         case .notes:
             notesEditor
-        case .items, .folder, .disks, .network, .cloud:
+        case .items, .folder, .disks, .network, .cloud, .recents:
             if model.items.isEmpty { emptyState } else { content }
         }
     }
@@ -98,6 +98,10 @@ struct DrawerView: View {
             if model.kind == .folder {
                 headerButton("folder", help: "Open folder in Finder") { model.onOpenFolder?() }
                     .disabled(model.folderURL == nil)
+            }
+            if model.kind == .recents {
+                headerButton("trash", help: "Clear recent items") { model.onClearRecents?() }
+                    .disabled(model.items.isEmpty)
             }
             headerButton(model.locked ? "lock.fill" : "lock.open",
                          help: model.locked ? "Unlock this tab's position" : "Lock this tab's position") {
@@ -301,6 +305,7 @@ struct DrawerView: View {
         case .disks: return "externaldrive"
         case .network: return "externaldrive.connected.to.line.below"
         case .cloud: return "icloud"
+        case .recents: return "clock.arrow.circlepath"
         default: return "tray.and.arrow.down"
         }
     }
@@ -317,6 +322,8 @@ struct DrawerView: View {
             return "No network shares mounted."
         case .cloud:
             return "No cloud drives found."
+        case .recents:
+            return "Nothing opened from MacDring yet."
         default:
             return "Drag apps & files here"
         }

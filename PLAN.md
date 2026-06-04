@@ -145,7 +145,7 @@ struct Tab: Codable, Identifiable {
     var gridColumns: Int                   // drawer grid width
     var gridRows: Int                      // drawer grid height (grows if items overflow)
     var locked: Bool                       // if set, the tab can't be dragged to a new spot
-    var kind: TabKind                      // .items | .notes | .folder | .disks | .network | .cloud
+    var kind: TabKind                      // .items | .notes | .folder | .disks | .network | .cloud | .recents
     var notes: String                      // text for a .notes tab
     var folderBookmark: Data?; var folderURL: URL?   // linked dir for a .folder tab
     var iconStyles: [String: IconStyle]    // per-path generated-icon overrides for live items
@@ -158,6 +158,7 @@ struct Tab: Codable, Identifiable {
 //   .disks   — a live, read-only listing of the mounted ejectable volumes (eject)
 //   .network — a live, read-only listing of mounted network shares (eject/disconnect)
 //   .cloud   — a live, read-only listing of cloud-storage drives (iCloud, Dropbox, …)
+//   .recents — a live, read-only listing of targets recently opened from MacDring
 
 struct DrawerItem: Codable, Identifiable {
     let id: UUID
@@ -344,7 +345,7 @@ reconnection can invalidate.
 | Right-click an item | Rename, Change Icon…, Reveal in Finder, Remove |
 | `Esc` / click-outside | Close the open drawer |
 | Optional per-tab hotkey | Toggle that tab's drawer from anywhere (Carbon) |
-| Menu-bar item | New Items/Notes/Folder/Disks/Network/Cloud Tab… (each opens a config modal), Settings…, Launch at Login, Quit |
+| Menu-bar item | New Items/Notes/Folder/Disks/Network/Cloud/Recents Tab… (each opens a config modal), Settings…, Launch at Login, Quit |
 
 **First-run onboarding:** create one starter tab on the right edge of the main display,
 pre-populated with a couple of common apps and a hint label ("Drag apps & files here"),
@@ -466,6 +467,7 @@ MacDring/
 │   │   ├── TabKind.swift          # items / notes / folder / disks / network / cloud
 │   │   ├── HotkeySpec.swift       # keyCode + Carbon modifier mask
 │   │   ├── IconStyle.swift        # generated icon: base + color + optional SF Symbol
+│   │   ├── RecentItem.swift       # a recently-opened target (recents tab)
 │   │   ├── PreferenceEnums.swift  # material/layout/disconnect/level enums
 │   │   ├── ColorHex.swift         # reused from Zap
 │   │   └── Preferences.swift      # UserDefaults-backed global prefs
@@ -475,7 +477,9 @@ MacDring/
 │   │   ├── FolderLister.swift     # live directory listing for folder tabs
 │   │   ├── DisksLister.swift      # live mounted-ejectable-volume listing for disks tabs
 │   │   ├── NetworkLister.swift    # live network-share listing for network tabs
-│   │   └── CloudLister.swift      # live cloud-drive listing for cloud tabs
+│   │   ├── CloudLister.swift      # live cloud-drive listing for cloud tabs
+│   │   ├── RecentsStore.swift     # recent-items history (UserDefaults JSON)
+│   │   └── RecentsLister.swift    # live recent-items listing for recents tabs
 │   ├── Screens/
 │   │   ├── DisplayRegistry.swift  # NSScreen ⇄ CGDisplay UUID, change notifications
 │   │   └── EdgeLayout.swift       # pure anchor → frame math (unit-tested)
@@ -532,6 +536,8 @@ MacDring/
 │   ├── DisksListerTests.swift       # ejectable-volume filtering/sort/slots
 │   ├── NetworkListerTests.swift     # network-share filtering/sort/slots
 │   ├── CloudListerTests.swift       # cloud-root listing/sort/slots
+│   ├── RecentsStoreTests.swift      # recents merge/dedup/cap + persistence
+│   ├── RecentsListerTests.swift     # recents listing (mapping/order/slots)
 │   ├── IconStyleTests.swift         # IconStyle Codable, applyingIconStyles, IconRenderer
 │   ├── TrashInspectorTests.swift    # trash entry-count / emptiness across volumes
 │   ├── FileMoverTests.swift         # move-into-directory + collision rename
@@ -612,11 +618,13 @@ MacDring/
 >   tab (drawer lists mounted **network shares** live via `NetworkLister`, read-only:
 >   open in Finder + **eject**/disconnect; reuses the Disks volume notifications to
 >   stay live), and a **cloud** tab (drawer lists **cloud drives** — iCloud,
->   Dropbox, … — live via `CloudLister`, read-only: open in Finder). See
->   [docs/network-and-cloud-drives.md](docs/network-and-cloud-drives.md).
+>   Dropbox, … — live via `CloudLister`, read-only: open in Finder), and a
+>   **recents** tab (drawer lists targets recently opened from MacDring via
+>   `RecentsLister`/`RecentsStore`, read-only: re-open, or clear from the header).
+>   See [docs/network-and-cloud-drives.md](docs/network-and-cloud-drives.md).
 > - **New Tab modal** — the menu bar has **New Items / Notes / Folder / Disks /
->   Network / Cloud Tab…** entries; each opens a small dialog (`NewTabView`) to set
->   the name, color, type, and (for a folder) the directory, then creates the tab.
+>   Network / Cloud / Recents Tab…** entries; each opens a small dialog (`NewTabView`)
+>   to set the name, color, type, and (for a folder) the directory, then creates it.
 > - **Spring-loaded file drops** — hovering a tab while dragging opens its drawer;
 >   the drawer's hosting view (`DrawerHostingView`, an **AppKit `NSDraggingDestination`**)
 >   then **highlights the slot under the cursor** as you move and files there on
