@@ -18,11 +18,8 @@ env:
 
 jobs:
   release:
-    name: Build, sign, notarize & publish
+    name: Build & publish (unsigned)
     runs-on: macos-14
-    env:
-      AC_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
-      AC_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,83 +34,56 @@ jobs:
       - name: Version from tag
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
-      # Import the Developer ID Application certificate into a throwaway keychain.
-      # (Pattern from Apple/GitHub docs: "Installing an Apple certificate on macOS
-      # runners for Xcode development".)
-      - name: Import Developer ID certificate
-        env:
-          CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
-          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          KC="$RUNNER_TEMP/build.keychain-db"
-          P12="$RUNNER_TEMP/cert.p12"
-          echo -n "$CERT_P12_BASE64" | base64 --decode -o "$P12"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KC"
-          security set-keychain-settings -lut 21600 "$KC"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KC"
-          security import "$P12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KC"
-          security list-keychain -d user -s "$KC" login.keychain-db
-
-      - name: Prepare notarization key
-        run: echo -n "${{ secrets.AC_API_KEY_BASE64 }}" | base64 --decode -o "$RUNNER_TEMP/AuthKey.p8"
-
-      - name: Archive & export (Developer ID)
-        env:
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Build (Release, no Developer ID signing)
         run: |
           set -o pipefail
-          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>method</key><string>developer-id</string>
-            <key>teamID</key><string>${TEAM_ID}</string>
-            <key>signingStyle</key><string>manual</string>
-          </dict></plist>
-          EOF
-
-          xcodebuild archive \
+          xcodebuild build \
             -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
-            -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -destination 'generic/platform=macOS' \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            | xcbeautify
+            CODE_SIGNING_ALLOWED=NO | xcbeautify
 
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -exportPath "$RUNNER_TEMP/export" | xcbeautify
-
-      - name: Notarize & staple the app
+      - name: Locate & ad-hoc sign the app
         run: |
-          APP="$RUNNER_TEMP/export/$APP_NAME.app"
-          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/$APP_NAME.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/$APP_NAME.zip" \
-            --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$AC_KEY_ID" --issuer "$AC_ISSUER_ID" --wait
-          xcrun stapler staple "$APP"
+          APP=$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release" -maxdepth 1 -name "$APP_NAME.app" -print -quit)
+          [ -n "$APP" ] || { echo "::error::built $APP_NAME.app not found"; exit 1; }
+          # Ad-hoc sign (identity "-"): no certificate, keychain, or API key required,
+          # but it IS required for the app to launch on Apple Silicon. This is not a
+          # Developer ID signature and the app is not notarized — Gatekeeper still warns.
+          codesign --force --deep --sign - "$APP"
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
 
-      - name: Build DMG
+      - name: Package zip + DMG
         run: |
+          ZIP="$RUNNER_TEMP/$APP_NAME-$VERSION.zip"
           DMG="$RUNNER_TEMP/$APP_NAME-$VERSION.dmg"
-          # create-dmg occasionally exits non-zero even on success (e.g. when it
-          # can't set the volume icon on a headless runner) — verify the file instead.
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP"
+          # create-dmg can exit non-zero on a headless runner even on success — verify the file.
           create-dmg \
             --volname "$APP_NAME $VERSION" \
             --window-size 540 380 \
             --icon-size 100 \
             --icon "$APP_NAME.app" 150 185 \
             --app-drop-link 390 185 \
-            "$DMG" "$RUNNER_TEMP/export/$APP_NAME.app" || true
+            "$DMG" "$APP_PATH" || true
           [ -f "$DMG" ] || { echo "::error::DMG was not created"; exit 1; }
-          xcrun notarytool submit "$DMG" \
-            --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$AC_KEY_ID" --issuer "$AC_ISSUER_ID" --wait
-          xcrun stapler staple "$DMG"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "DMG=$DMG" >> "$GITHUB_ENV"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ env.APP_NAME }} ${{ env.VERSION }}
-          files: ${{ runner.temp }}/${{ env.APP_NAME }}-${{ env.VERSION }}.dmg
+          files: |
+            ${{ env.DMG }}
+            ${{ env.ZIP }}
           generate_release_notes: true
+          body: |
+            ### Unsigned build
+
+            This app is **not** code-signed with a Developer ID or notarized, so macOS
+            Gatekeeper will warn on first launch. To open it:
+
+            - **Right-click** (or Control-click) the app → **Open** → **Open**, or
+            - run `xattr -dr com.apple.quarantine /Applications/${{ env.APP_NAME }}.app`
