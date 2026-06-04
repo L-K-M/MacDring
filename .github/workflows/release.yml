@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']        # e.g. v1.2.0
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write       # needed to create the GitHub Release
+
+env:
+  PROJECT: MacDring.xcodeproj
+  SCHEME: MacDring
+  APP_NAME: MacDring
+
+jobs:
+  release:
+    name: Build & publish (unsigned)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2'
+
+      - name: Install tooling
+        run: brew install xcbeautify create-dmg
+
+      - name: Version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Build (Release, no Developer ID signing)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -destination 'generic/platform=macOS' \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO | xcbeautify
+
+      - name: Locate & ad-hoc sign the app
+        run: |
+          APP=$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release" -maxdepth 1 -name "$APP_NAME.app" -print -quit)
+          [ -n "$APP" ] || { echo "::error::built $APP_NAME.app not found"; exit 1; }
+          # Ad-hoc sign (identity "-"): no certificate, keychain, or API key required,
+          # but it IS required for the app to launch on Apple Silicon. This is not a
+          # Developer ID signature and the app is not notarized — Gatekeeper still warns.
+          codesign --force --deep --sign - "$APP"
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
+
+      - name: Package zip + DMG
+        run: |
+          ZIP="$RUNNER_TEMP/$APP_NAME-$VERSION.zip"
+          DMG="$RUNNER_TEMP/$APP_NAME-$VERSION.dmg"
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP"
+          # create-dmg can exit non-zero on a headless runner even on success — verify the file.
+          create-dmg \
+            --volname "$APP_NAME $VERSION" \
+            --window-size 540 380 \
+            --icon-size 100 \
+            --icon "$APP_NAME.app" 150 185 \
+            --app-drop-link 390 185 \
+            "$DMG" "$APP_PATH" || true
+          [ -f "$DMG" ] || { echo "::error::DMG was not created"; exit 1; }
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "DMG=$DMG" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.APP_NAME }} ${{ env.VERSION }}
+          files: |
+            ${{ env.DMG }}
+            ${{ env.ZIP }}
+          generate_release_notes: true
+          body: |
+            ### Unsigned build
+
+            This app is **not** code-signed with a Developer ID or notarized, so macOS
+            Gatekeeper will warn on first launch. To open it:
+
+            - **Right-click** (or Control-click) the app → **Open** → **Open**, or
+            - run `xattr -dr com.apple.quarantine /Applications/${{ env.APP_NAME }}.app`
