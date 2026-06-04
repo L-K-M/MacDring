@@ -22,6 +22,23 @@ enum FileMover {
         return allSucceeded
     }
 
+    /// Moves dropped files to the Trash (recoverable — `trashItem`, not a hard
+    /// delete). Used when files are dropped onto a Trash item.
+    @discardableResult
+    static func trash(_ urls: [URL]) -> Bool {
+        let fileManager = FileManager.default
+        var allSucceeded = true
+        for url in urls where url.isFileURL {
+            do {
+                try fileManager.trashItem(at: url, resultingItemURL: nil)
+            } catch {
+                allSucceeded = false
+                NSLog("MacDring: couldn't trash \(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        return allSucceeded
+    }
+
     /// A non-colliding destination in `directory` for `url` (appends " 2", " 3", …).
     static func uniqueDestination(for url: URL, in directory: URL, fileManager: FileManager = .default) -> URL {
         let base = url.deletingPathExtension().lastPathComponent

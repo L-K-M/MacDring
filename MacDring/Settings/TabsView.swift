@@ -178,6 +178,8 @@ private struct TabEditor: View {
                     HStack {
                         Button("Add Files…", action: addFiles)
                         Button("Add Link…") { linkText = ""; showingLinkSheet = true }
+                        Button("Add Trash", action: addTrash)
+                            .disabled(draft.items.contains { $0.kind == .trash })
                     }
                 }
             }
@@ -287,6 +289,12 @@ private struct TabEditor: View {
                 draft.items.append(DrawerItem.fromFileURL(url))
             }
         }
+    }
+
+    /// Adds a Trash item (once): opens the Trash, and accepts drops to delete.
+    private func addTrash() {
+        guard !draft.items.contains(where: { $0.kind == .trash }) else { return }
+        draft.items.append(DrawerItem.trash())
     }
 
     private var linkSheet: some View {
