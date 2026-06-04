@@ -104,9 +104,9 @@ extension Array where Element == DrawerItem {
 }
 
 extension DrawerItem {
-    /// Builds an item from a dropped or chosen file, app, or folder URL,
-    /// detecting the kind and capturing a bookmark.
-    static func fromFileURL(_ url: URL) -> DrawerItem {
+    /// Detects an item's kind (app / folder / file) and display name from a
+    /// file/app/folder URL — the shared part of `fromFileURL` and `transientFileItem`.
+    static func kindAndName(for url: URL) -> (kind: ItemKind, name: String) {
         var isDirectory: ObjCBool = false
         FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
         let kind: ItemKind
@@ -124,12 +124,30 @@ extension DrawerItem {
             name = String(name.dropLast(4))
         }
         if name.isEmpty { name = url.deletingPathExtension().lastPathComponent }
+        return (kind, name)
+    }
+
+    /// Builds an item from a dropped or chosen file, app, or folder URL, detecting the
+    /// kind and **capturing a bookmark** so it keeps working when the target is moved
+    /// or renamed. Use for items that are **persisted** (drops, the Settings picker).
+    static func fromFileURL(_ url: URL) -> DrawerItem {
+        let (kind, name) = kindAndName(for: url)
         return DrawerItem(
             kind: kind,
             displayName: name,
             bookmark: BookmarkResolver.makeBookmark(for: url),
             url: url
         )
+    }
+
+    /// Builds a lightweight, **transient** item for a live listing (e.g. a folder
+    /// tab): detects the kind + name but **skips the bookmark**. Folder items are
+    /// never persisted, and every read path (`launch`, `reveal`, `isBroken`, drag-out)
+    /// falls back to `url` when there's no bookmark — so this avoids ~N
+    /// `makeBookmark` syscalls per refresh on a large directory. See ANALYSIS.md I1.
+    static func transientFileItem(_ url: URL) -> DrawerItem {
+        let (kind, name) = kindAndName(for: url)
+        return DrawerItem(kind: kind, displayName: name, url: url)
     }
 
     /// Builds an item from a **dropped** URL: a file/app/folder item for file URLs,
