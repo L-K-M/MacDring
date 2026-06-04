@@ -142,6 +142,10 @@ struct TabsView: View {
     }
 }
 
+/// A per-tab override choice for a behavior that has a global default: follow the
+/// global setting, or pin it On / Off for this tab. "Use global" is also the revert.
+private enum BehaviorMode { case useGlobal, on, off }
+
 /// Edits one tab. Holds a local `draft` (re-seeded when the selection changes via
 /// `.id`) and commits the whole tab to the store on any change.
 private struct TabEditor: View {
@@ -203,13 +207,25 @@ private struct TabEditor: View {
             }
 
             Section("Behavior") {
-                Toggle("Open on hover", isOn: $draft.behavior.openOnHover)
-                Toggle("Close drawer when clicking elsewhere", isOn: $draft.behavior.autoHide)
+                // "Open on hover" and "Close on click-outside" follow the global
+                // default (General → Drawers) unless this tab overrides them. Picking
+                // "Use global default" reverts the override — the clear way to undo a
+                // local change. See ANALYSIS.md I3.
+                Picker("Open on hover", selection: openOnHoverModeBinding) {
+                    Text("Use global default (\(globalText(preferences.newTabOpenOnHover)))").tag(BehaviorMode.useGlobal)
+                    Text("On").tag(BehaviorMode.on)
+                    Text("Off").tag(BehaviorMode.off)
+                }
+                Picker("Close drawer when clicking elsewhere", selection: autoHideModeBinding) {
+                    Text("Use global default (\(globalText(preferences.newTabAutoHide)))").tag(BehaviorMode.useGlobal)
+                    Text("On").tag(BehaviorMode.on)
+                    Text("Off").tag(BehaviorMode.off)
+                }
                 Toggle("Keep open after launching an item", isOn: $draft.behavior.keepOpenAfterLaunch)
                 Picker("When idle", selection: $draft.behavior.concealment) {
                     ForEach(TabConcealment.allCases) { Text($0.displayName).tag($0) }
                 }
-                Text("Auto-hide slides the tab off its edge (leaving a sliver); auto-fade dims it. Either one reveals when you move the pointer to that screen edge.")
+                Text("Hover and close-on-click follow the global default unless set here. Auto-hide slides the tab off its edge (leaving a sliver); auto-fade dims it — either reveals when you move the pointer to that screen edge.")
                     .font(.caption).foregroundStyle(.secondary)
                 LabeledContent("Hotkey") { HotkeyRecorderView(hotkey: $draft.hotkey) }
             }
@@ -284,6 +300,36 @@ private struct TabEditor: View {
     }
 
     // MARK: Bindings
+
+    private func globalText(_ value: Bool) -> String { value ? "On" : "Off" }
+
+    /// Maps the tab's `overridesOpenOnHover` + `openOnHover` to a 3-way choice:
+    /// follow the global default, or pin On / Off for this tab.
+    private var openOnHoverModeBinding: Binding<BehaviorMode> {
+        Binding(
+            get: { draft.behavior.overridesOpenOnHover ? (draft.behavior.openOnHover ? .on : .off) : .useGlobal },
+            set: { mode in
+                switch mode {
+                case .useGlobal: draft.behavior.overridesOpenOnHover = false
+                case .on:  draft.behavior.overridesOpenOnHover = true; draft.behavior.openOnHover = true
+                case .off: draft.behavior.overridesOpenOnHover = true; draft.behavior.openOnHover = false
+                }
+            }
+        )
+    }
+
+    private var autoHideModeBinding: Binding<BehaviorMode> {
+        Binding(
+            get: { draft.behavior.overridesAutoHide ? (draft.behavior.autoHide ? .on : .off) : .useGlobal },
+            set: { mode in
+                switch mode {
+                case .useGlobal: draft.behavior.overridesAutoHide = false
+                case .on:  draft.behavior.overridesAutoHide = true; draft.behavior.autoHide = true
+                case .off: draft.behavior.overridesAutoHide = true; draft.behavior.autoHide = false
+                }
+            }
+        )
+    }
 
     private var colorBinding: Binding<Color> {
         Binding(get: { Color(hexString: draft.colorHex) },

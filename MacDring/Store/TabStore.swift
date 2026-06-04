@@ -118,9 +118,9 @@ final class TabStore: ObservableObject {
         mutate { $0.tabs = tabs }
     }
 
-    /// Applies a change to every tab's behavior. Used by the global drawer-behavior
-    /// toggles in Settings, which set the new-tab default *and* update existing tabs
-    /// so the toggle takes effect immediately (the Tabs pane still overrides per tab).
+    /// Applies a change to every tab's behavior in one mutation. A general-purpose
+    /// bulk edit (no UI calls it today — the global hover/auto-hide toggles are now
+    /// live defaults each tab follows or overrides; see `TabBehavior.resolved`).
     func updateAllBehaviors(_ transform: (inout TabBehavior) -> Void) {
         mutate {
             for i in $0.tabs.indices { transform(&$0.tabs[i].behavior) }
