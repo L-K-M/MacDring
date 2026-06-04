@@ -583,7 +583,9 @@ MacDring/
 >   an adjacent display at a shared edge.
 > - **Tab styles** — a global **Modern / Classic** toggle (Appearance): modern is the
 >   translucent rounded pill; classic is an angled DragThing-style **folder tab**
->   (`ClassicTabShape`) filled with the tab color + a raised bevel, auto-contrasting text.
+>   (`ClassicTabShape`) filled with the tab color + a raised bevel, auto-contrasting
+>   text. Classic renders **shorter** (`Preferences.renderedTabThickness` ≈ 0.66 ×
+>   `tabThickness`) and **wider** (more padding beside the name) — a squat folder tab.
 > - **Vertical side labels** — tabs on the **left/right** edges print their name
 >   **rotated a quarter turn** along the tab's length, so long names fit and the tab
 >   can stay thin (footprint measured synchronously from text metrics).
