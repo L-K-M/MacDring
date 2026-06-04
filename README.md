@@ -1,9 +1,10 @@
 # MacDring
 
-Screen-edge tabs that open drawers of your apps, files, folders, and links — a
-fast, modern reimagining of the classic **[DragThing](https://www.dragthing.com/)**.
+Screen-edge tabs that open drawers of your apps, files, folders, and links. Reimagining the classic **[DragThing](https://www.dragthing.com/)**.
 
-Slim colored tabs sit flush against the edges of your screens. Click one and a
+![Screenshot](screenshot.png)
+
+Tabs sit against the edges of your screens. Click one and a
 drawer slides out with whatever you put there. Drag files onto a tab to add them.
 Works across multiple monitors, and your tabs return to exactly where you left
 them after a restart.
@@ -26,27 +27,17 @@ them after a restart.
   slot under your cursor **highlights**, and dropping there files the item into that
   slot — onto an app to open it with, onto a folder to move it in.
 - **Trash item.** Add a Trash to any tab (Settings → Tabs → *Add Trash*): click it to
-  open the Trash, or drop files onto it to throw them away (recoverable, à la DragThing).
-- **Per-tab color, name, and glyph** (SF Symbol or letters) — DragThing-style
-  customization, modernized.
-- **Multi-monitor from the start.** Tabs live on a specific display + edge and
+  open the Trash, or drop files onto it to throw them away.
+- **Per-tab color, name, and glyph** (SF Symbol or letters).
+- **Multi-monitor support.** Tabs live on a specific display + edge and
   react live to displays connecting, disconnecting, and changing resolution.
 - **Stable restore.** Tabs return to the same display and spot after a restart,
-  resolution change, or reconnection — anchored by a durable display identity and
-  a fractional edge position, never raw pixels.
-- **Optional per-tab hotkey** to toggle a drawer from anywhere — and it needs
-  **no Accessibility permission**.
+  resolution change, or reconnection.
+- **Optional per-tab hotkey** to toggle drawers.
 - **Auto-hide / auto-fade tabs.** Set a tab to get out of the way when idle
   (**Settings → Tabs → When idle**): **Auto-hide** slides it off its edge leaving a
   thin sliver, **Auto-fade** dims it in place (opacity adjustable in **Settings →
-  Appearance**). Either reveals the moment you move the pointer to that screen edge —
-  Dock-style, and still no special permission.
-- **Two tab looks** — a **Modern** translucent rounded pill, or a **Classic** angled
-  "folder tab" à la DragThing (**Settings → Appearance**). Tabs on the left/right
-  edges print their name **vertically**, so long names fit and the tab stays thin.
-- **Modern, native look** — translucent materials, rounded corners, a quick
-  open/close animation; light/dark adaptive.
-- **Menu-bar agent** — no Dock icon. Launch at login via `SMAppService`.
+  Appearance**). Reveals the moment you move the pointer to that screen edge.
 
 ## Build & Run
 
@@ -91,13 +82,4 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 
 MacDring needs **no special permissions** for its core features — launching uses
 `NSWorkspace`, and optional hotkeys use Carbon (no Accessibility grant). It ships
-as a menu-bar agent (`LSUIElement`) and is intended for direct distribution with
-**Developer ID signing + notarization**. (A future App Store build would enable
-the sandbox and switch file items to security-scoped bookmarks.)
-
-## Status
-
-v1 is implemented and unit-tested (layout math, anchors, persistence, bookmarks,
-preferences). On-screen window behavior — multi-monitor placement, Spaces,
-fullscreen, drag-to-reposition, and drag-and-drop — is exercised in a real GUI
-session. See `PLAN.md` for the full design and milestone status.
+as a menu-bar agent (`LSUIElement`).

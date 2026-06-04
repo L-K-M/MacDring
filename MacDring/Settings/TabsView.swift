@@ -156,9 +156,9 @@ private struct TabEditor: View {
     var body: some View {
         Form {
             Section("Tab") {
-                Picker("Type", selection: $draft.kind) {
-                    ForEach(TabKind.allCases) { Text($0.displayName).tag($0) }
-                }
+                // A tab's type is fixed at creation (it determines what the drawer
+                // holds), so it's shown read-only here — change it by making a new tab.
+                LabeledContent("Type", value: draft.kind.displayName)
                 TextField("Name", text: $draft.title)
                 ColorPicker("Color", selection: colorBinding, supportsOpacity: false)
                 Picker("Glyph", selection: glyphIsSymbolBinding) {

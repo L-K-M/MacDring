@@ -9,7 +9,7 @@ struct SettingsView: View {
 
     var body: some View {
         TabView(selection: $router.section) {
-            GeneralView(preferences: preferences)
+            GeneralView(preferences: preferences, store: store)
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag(SettingsSection.general)
 

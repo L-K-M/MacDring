@@ -43,6 +43,21 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.tabs.first?.id, tab.id)
     }
 
+    func testUpdateAllBehaviorsAppliesToEveryTab() {
+        let store = TabStore(storeURL: storeURL)
+        var a = makeTab("A"); a.behavior = TabBehavior(openOnHover: false, autoHide: true)
+        var b = makeTab("B"); b.behavior = TabBehavior(openOnHover: true, autoHide: true)
+        store.addTab(a)
+        store.addTab(b)
+
+        store.updateAllBehaviors { $0.autoHide = false }
+
+        XCTAssertTrue(store.tabs.allSatisfy { !$0.behavior.autoHide })
+        // Only the targeted field changes; others are untouched.
+        XCTAssertFalse(store.tab(id: a.id)?.behavior.openOnHover ?? true)
+        XCTAssertTrue(store.tab(id: b.id)?.behavior.openOnHover ?? false)
+    }
+
     func testItemMutations() {
         let store = TabStore(storeURL: storeURL)
         let tab = makeTab()
