@@ -107,7 +107,17 @@ final class TabController {
         wc.onDragEnded = { [weak self] in self?.endDrag(id) }
         wc.model.onRequestSettings = { [weak self] in self?.onOpenSettings?(id) }
         wc.model.onDelete = { [weak self] in self?.store.removeTab(id: id) }
+        wc.model.onMoveToEdge = { [weak self] edge in self?.moveTab(id, toEdge: edge) }
         return wc
+    }
+
+    /// Re-anchors a tab to a different edge (pill context menu), keeping its
+    /// display, fractional position, and stack order.
+    private func moveTab(_ id: UUID, toEdge edge: Edge) {
+        guard let tab = store.tab(id: id), tab.anchor.edge != edge else { return }
+        var anchor = tab.anchor
+        anchor.edge = edge
+        store.setAnchor(anchor, forTab: id)
     }
 
     // MARK: Drawer open / close
