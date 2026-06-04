@@ -36,6 +36,11 @@ struct TabStripView: View {
             .help(model.title)
             .contextMenu {
                 Button("Configure Tab…") { model.onRequestSettings?() }
+                Menu("Move to Edge") {
+                    ForEach(Edge.allCases) { edge in
+                        Button(edge.displayName) { model.onMoveToEdge?(edge) }
+                    }
+                }
                 Divider()
                 Button("Remove Tab", role: .destructive) { model.onDelete?() }
             }

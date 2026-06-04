@@ -54,6 +54,7 @@ struct TabsView: View {
                     }
                     .tag(tab.id)
                 }
+                .onMove(perform: moveTabs)
             }
 
             Divider()
@@ -85,6 +86,15 @@ struct TabsView: View {
         guard let id = selection else { return }
         store.removeTab(id: id)
         selection = store.tabs.first?.id
+    }
+
+    /// Reorders the tab list, renumbering each tab's stack `order` to its new
+    /// position so tabs sharing an edge restack to match the list.
+    private func moveTabs(from offsets: IndexSet, to destination: Int) {
+        var tabs = store.tabs
+        tabs.move(fromOffsets: offsets, toOffset: destination)
+        for index in tabs.indices { tabs[index].anchor.order = index }
+        store.replaceTabs(tabs)
     }
 }
 
