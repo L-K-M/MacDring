@@ -146,11 +146,21 @@ struct DrawerView: View {
         } else {
             VStack(spacing: 2) {
                 ForEach(model.items.sorted { $0.slot < $1.slot }) { item in
+                    let fileDropHere = model.fileDropSlot == item.slot
+                    // Match the grid: a file dragged onto a folder/app is a
+                    // "file into / open with" target — give it a distinct ring.
+                    let intoTarget = fileDropHere && (item.kind == .folder || item.kind == .application)
                     inCellItem(item)
                         .padding(.vertical, 3)
                         .padding(.horizontal, 4)
                         .background(RoundedRectangle(cornerRadius: 8)
-                            .fill(.white.opacity(model.fileDropSlot == item.slot ? 0.16 : 0)))
+                            .fill(.white.opacity(fileDropHere ? 0.16 : 0)))
+                        .overlay {
+                            if intoTarget {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(Color(hexString: model.colorHex), lineWidth: 2)
+                            }
+                        }
                         .background(slotFrameReporter(item.slot))
                 }
             }
