@@ -48,7 +48,7 @@ struct ItemView: View {
                 if item.kind == .trash, let onEmptyTrash {
                     Divider()
                     Button("Empty Trash…", action: onEmptyTrash)
-                        .disabled(ItemView.trashIsEmpty())
+                        .disabled(TrashInspector.trashIsEmpty())
                 }
                 if onRename != nil || onChangeIcon != nil {
                     Divider()
@@ -138,21 +138,9 @@ struct ItemView: View {
     }
 
     /// The system Trash icon — full when the Trash holds anything, empty otherwise.
+    /// Emptiness mirrors Finder across every volume's trash (see `TrashInspector`).
     private static func trashIcon() -> NSImage {
-        NSImage(named: trashIsEmpty() ? "NSTrashEmpty" : "NSTrashFull") ?? symbol("trash")
-    }
-
-    /// Whether the Trash is empty, decided **without listing it** (it's
-    /// privacy-protected, so a list fails without a permission we don't request).
-    /// We stat the directory instead (always allowed): on APFS a directory's link
-    /// count is its entry count + 2, so a count of 2 means empty. If even the stat
-    /// fails we assume non-empty (a recognizable Trash) rather than guess empty.
-    static func trashIsEmpty() -> Bool {
-        let trash = (try? FileManager.default.url(for: .trashDirectory, in: .userDomainMask, appropriateFor: nil, create: false))
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash", isDirectory: true)
-        let attrs = try? FileManager.default.attributesOfItem(atPath: trash.path)
-        let linkCount = (attrs?[.referenceCount] as? NSNumber)?.intValue
-        return linkCount == 2
+        NSImage(named: TrashInspector.trashIsEmpty() ? "NSTrashEmpty" : "NSTrashFull") ?? symbol("trash")
     }
 
     private static func symbol(_ name: String) -> NSImage {
