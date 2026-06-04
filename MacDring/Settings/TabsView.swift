@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 /// Manage all tabs: a selectable list on the left, a per-tab editor on the
 /// right (name, color, glyph, edge, display, position, behavior, hotkey, items).
@@ -62,9 +63,52 @@ struct TabsView: View {
                 Button(action: removeSelected) { Image(systemName: "minus") }
                     .disabled(selection == nil)
                 Spacer()
+                Button(action: exportLayout) { Image(systemName: "square.and.arrow.up") }
+                    .help("Export layout…")
+                    .disabled(store.tabs.isEmpty)
+                Button(action: importLayout) { Image(systemName: "square.and.arrow.down") }
+                    .help("Import layout…")
             }
             .buttonStyle(.borderless)
             .padding(6)
+        }
+    }
+
+    // MARK: Import / export
+
+    private func exportLayout() {
+        guard let data = store.exportData() else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "MacDring Layout.json"
+        panel.message = "Export your tabs and items as a JSON layout file"
+        if panel.runModal() == .OK, let url = panel.url {
+            try? data.write(to: url)
+        }
+    }
+
+    private func importLayout() {
+        let open = NSOpenPanel()
+        open.allowedContentTypes = [.json]
+        open.canChooseFiles = true
+        open.allowsMultipleSelection = false
+        open.message = "Choose a MacDring layout to import"
+        guard open.runModal() == .OK, let url = open.url, let data = try? Data(contentsOf: url) else { return }
+
+        let confirm = NSAlert()
+        confirm.messageText = "Replace all tabs?"
+        confirm.informativeText = "Importing a layout replaces your current tabs and items. This can't be undone."
+        confirm.addButton(withTitle: "Replace")
+        confirm.addButton(withTitle: "Cancel")
+        guard confirm.runModal() == .alertFirstButtonReturn else { return }
+
+        if store.importData(data) {
+            selection = store.tabs.first?.id
+        } else {
+            let error = NSAlert()
+            error.messageText = "Couldn't import that file"
+            error.informativeText = "It doesn't look like a valid MacDring layout."
+            error.runModal()
         }
     }
 
