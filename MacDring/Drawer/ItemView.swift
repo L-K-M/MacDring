@@ -21,13 +21,15 @@ struct ItemView: View {
     /// Open the generated-icon editor for this item (available for every item).
     var onCustomizeIcon: (() -> Void)?
 
+    // Icon and broken-ness are resolved off the render path (in `.task`, once per
+    // item/nonce change) and cached here, so `body` does no disk I/O on every
+    // re-render — important for a large or network-volume folder tab. See ANALYSIS.md I2.
     @State private var icon: NSImage?
-
-    private var isBroken: Bool { BookmarkResolver.isBroken(item) }
+    @State private var broken = false
 
     var body: some View {
         cell
-            .opacity(isBroken ? 0.45 : 1)
+            .opacity(broken ? 0.45 : 1)
             .contentShape(Rectangle())
             // ⌘-click reveals the target in Finder instead of opening it (Finder-style).
             .onTapGesture(count: launchOnSingleClick ? 1 : 2) {
@@ -37,7 +39,7 @@ struct ItemView: View {
                     onLaunch()
                 }
             }
-            .help(isBroken ? "\(item.displayName) — can’t find this item" : item.displayName)
+            .help(broken ? "\(item.displayName) — can’t find this item" : item.displayName)
             .contextMenu {
                 Button(item.kind == .disk ? "Open Disk" : "Open", action: onLaunch)
                 if item.kind != .url {
@@ -70,7 +72,10 @@ struct ItemView: View {
             // — a reorder swap into this (slot-keyed, reused) cell, a rename, or a
             // custom-icon change — and whenever the drawer bumps the nonce (e.g. the
             // Trash was emptied), so the icon always follows the item's state.
-            .task(id: IconKey(item: item, nonce: iconNonce)) { icon = ItemView.resolveIcon(item) }
+            .task(id: IconKey(item: item, nonce: iconNonce)) {
+                icon = ItemView.resolveIcon(item)
+                broken = BookmarkResolver.isBroken(item)
+            }
     }
 
     /// Re-resolve key: the item plus the drawer's nonce.
@@ -97,11 +102,17 @@ struct ItemView: View {
     }
 
     private var iconImage: some View {
-        Image(nsImage: icon ?? ItemView.resolveIcon(item))
+        // Render from the cached icon; until `.task` resolves it (one frame), show a
+        // transparent placeholder rather than doing synchronous disk I/O in `body`.
+        Image(nsImage: icon ?? ItemView.placeholder)
             .resizable()
             .interpolation(.high)
             .frame(width: iconSize, height: iconSize)
     }
+
+    /// A 1×1 transparent image shown for the one frame before `.task` resolves the
+    /// real icon (avoids a blocking `resolveIcon` in `body`).
+    private static let placeholder = NSImage(size: NSSize(width: 1, height: 1), flipped: false) { _ in true }
 
     // MARK: Icon resolution
 
