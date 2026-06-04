@@ -75,7 +75,7 @@ struct DrawerView: View {
         switch model.kind {
         case .notes:
             notesEditor
-        case .items, .folder:
+        case .items, .folder, .disks:
             if model.items.isEmpty { emptyState } else { content }
         }
     }
@@ -271,7 +271,8 @@ struct DrawerView: View {
             onRemove: editable ? { model.onRemoveItem?(item) } : nil,
             onRename: editable ? { model.onRenameItem?(item) } : nil,
             onChangeIcon: editable ? { model.onChangeItemIcon?(item) } : nil,
-            onResetIcon: editable ? { model.onResetItemIcon?(item) } : nil
+            onResetIcon: editable ? { model.onResetItemIcon?(item) } : nil,
+            onEject: item.kind == .disk ? { model.onEjectItem?(item) } : nil
         )
     }
 
@@ -279,7 +280,7 @@ struct DrawerView: View {
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: model.kind == .folder ? "folder" : "tray.and.arrow.down")
+            Image(systemName: emptyIcon)
                 .font(.system(size: 26))
                 .foregroundStyle(.secondary)
             Text(emptyMessage)
@@ -291,13 +292,25 @@ struct DrawerView: View {
         .padding(.vertical, 22)
     }
 
+    private var emptyIcon: String {
+        switch model.kind {
+        case .folder: return "folder"
+        case .disks: return "externaldrive"
+        default: return "tray.and.arrow.down"
+        }
+    }
+
     private var emptyMessage: String {
-        if model.kind == .folder {
+        switch model.kind {
+        case .folder:
             return model.folderURL == nil
                 ? "No folder chosen.\nPick one with the gear above."
                 : "This folder is empty."
+        case .disks:
+            return "No ejectable disks mounted."
+        default:
+            return "Drag apps & files here"
         }
-        return "Drag apps & files here"
     }
 }
 

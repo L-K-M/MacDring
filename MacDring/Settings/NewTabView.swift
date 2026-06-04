@@ -75,6 +75,7 @@ struct NewTabView: View {
         case .items: return "Tab"
         case .notes: return "Notes"
         case .folder: return folderURL?.lastPathComponent ?? "Folder"
+        case .disks: return "Disks"
         }
     }
 
