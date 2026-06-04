@@ -33,7 +33,9 @@ enum FolderLister {
         }
 
         return sorted.prefix(limit).enumerated().map { index, fileURL in
-            var item = DrawerItem.fromFileURL(fileURL)
+            // Transient items skip the per-file bookmark — folder items are never
+            // persisted and every read path falls back to `url`. See ANALYSIS.md I1.
+            var item = DrawerItem.transientFileItem(fileURL)
             item.slot = index
             return item
         }

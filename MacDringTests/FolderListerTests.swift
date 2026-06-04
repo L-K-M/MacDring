@@ -43,6 +43,15 @@ final class FolderListerTests: XCTestCase {
         XCTAssertEqual(items.map(\.slot), Array(0..<items.count))
     }
 
+    func testItemsAreTransientWithoutBookmarksButStillResolve() throws {
+        let items = FolderLister.contents(of: folderTab())
+        XCTAssertFalse(items.isEmpty)
+        XCTAssertTrue(items.allSatisfy { $0.bookmark == nil })   // I1: no per-file bookmark
+        let sub = try XCTUnwrap(items.first { $0.displayName == "ZSub" })
+        XCTAssertEqual(BookmarkResolver.url(for: sub)?.lastPathComponent, "ZSub")  // resolves via url
+        XCTAssertFalse(BookmarkResolver.isBroken(sub))
+    }
+
     func testNonFolderTabReturnsEmpty() {
         let tab = Tab(title: "I", colorHex: "#0A84FF",
                       anchor: ScreenAnchor(displayUUID: "D", edge: .right, position: 0.5),
