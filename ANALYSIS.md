@@ -230,3 +230,47 @@ cheap, high-confidence correctness fixes (pure logic, unit-testable) go first.
 individual PRs. Larger parity features (11, 12, 17–21) are scoped here and follow once the
 correctness backlog is clear. Because this environment can't run the macOS build, each PR keeps
 its blast radius small and adds unit tests for any pure-logic change.
+
+---
+
+## 5. Status (PRs raised)
+
+Each item below shipped as its own PR against `main`. They were authored in a Linux
+container with **no macOS toolchain**, so none were compiled here — every PR notes this
+and asks CI (Xcode) to confirm the build/tests. Several touch `TabController.swift` /
+`handleFileDrop` and will need ordinary merge-conflict resolution if merged together.
+
+| Backlog | Item | PR |
+|---|---|---|
+| — | This document | #1 |
+| 1 | Resilient document decode (P0 data-loss) | #2 |
+| 2 | De-overlap tabs sharing an edge (P0) | #3 |
+| 3 | Guard drawer-open against a parked screen (P1) | #4 |
+| 4 | Accept URL / link drops (P1) | #5 |
+| 5 | Item Rename + Change Icon (P1) | #6 |
+| 6 | Debounce appearance-preference reconcile (P2) | #7 |
+| 7 | Don't reset notes on unrelated reconcile (P2) | #8 |
+| 8 | Frame-defender vs. overlapping-animation race (P2) | #9 |
+| 13 | De-duplicate items on add (P2) | #11 |
+| 15 | Esc no longer swallowed from app's own windows (P3) | #12 |
+| 10 | List-layout drop ring (P3) | #13 |
+| 9 | Reorder tabs in Settings + "Move to Edge" submenu (P2) | #14 |
+| 14 | List drawer width from icon size (P3) | #10 |
+| 11 | **Trash item** — open Trash + drop-to-delete (P1 parity) | #15 |
+| 21a | Layout import / export (JSON backup + migration) | #16 |
+
+### Deliberately deferred (need design + on-device testing, not done blind)
+
+- **B13** first-run seeding fallback / non-silent `.bak` restore — low value; the seeding
+  fallback risks the "sacred" restore logic, so left alone.
+- **B14** `LauncherDocument.version` migration switch — no schema change yet; revisit before one.
+- **#12** drawer search / type-to-find + keyboard navigation — interacts with the grid/slot
+  model and key focus in a borderless panel; needs care.
+- **#17** Recent applications / documents tab kind — new data source + kind.
+- **#18** spring-loaded folder *items* (hierarchical pop-out).
+- **#19** multiple named layouts / sets (import/export in #16 covers the backup half).
+- **#20** auto-hide / reveal-on-edge-hover tabs (Dock-style windowing).
+- **Disks** (eject-able volumes) — the Trash half of the parity gap shipped in #15.
+- **#21 remainder** — iCloud sync, Quick Look, accessibility, localization.
+
+These are the right next tranche once the PRs above are merged and green on macOS CI.
