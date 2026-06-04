@@ -32,6 +32,10 @@ struct Tab: Codable, Identifiable, Equatable {
     var folderBookmark: Data?
     var folderURL: URL?
 
+    /// How a `.folder` tab's listing is ordered, and whether it includes hidden files.
+    var folderSort: FolderSort
+    var folderShowsHidden: Bool
+
     /// Per-target generated-icon overrides for this tab's **live** items
     /// (folder/disks/network/cloud listings), keyed by the item's path. Persistent
     /// `.items` carry their override on the item itself; live items are rebuilt each
@@ -53,6 +57,8 @@ struct Tab: Codable, Identifiable, Equatable {
          notes: String = "",
          folderBookmark: Data? = nil,
          folderURL: URL? = nil,
+         folderSort: FolderSort = .name,
+         folderShowsHidden: Bool = false,
          iconStyles: [String: IconStyle] = [:]) {
         self.id = id
         self.title = title
@@ -69,6 +75,8 @@ struct Tab: Codable, Identifiable, Equatable {
         self.notes = notes
         self.folderBookmark = folderBookmark
         self.folderURL = folderURL
+        self.folderSort = folderSort
+        self.folderShowsHidden = folderShowsHidden
         self.iconStyles = iconStyles
     }
 
@@ -89,11 +97,14 @@ struct Tab: Codable, Identifiable, Equatable {
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         folderBookmark = try c.decodeIfPresent(Data.self, forKey: .folderBookmark)
         folderURL = try c.decodeIfPresent(URL.self, forKey: .folderURL)
+        folderSort = try c.decodeIfPresent(FolderSort.self, forKey: .folderSort) ?? .name
+        folderShowsHidden = try c.decodeIfPresent(Bool.self, forKey: .folderShowsHidden) ?? false
         iconStyles = try c.decodeIfPresent([String: IconStyle].self, forKey: .iconStyles) ?? [:]
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, colorHex, glyph, anchor, items, behavior, hotkey
-        case gridColumns, gridRows, locked, kind, notes, folderBookmark, folderURL, iconStyles
+        case gridColumns, gridRows, locked, kind, notes, folderBookmark, folderURL
+        case folderSort, folderShowsHidden, iconStyles
     }
 }

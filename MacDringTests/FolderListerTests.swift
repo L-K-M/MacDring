@@ -58,4 +58,40 @@ final class FolderListerTests: XCTestCase {
                       kind: .items)
         XCTAssertTrue(FolderLister.contents(of: tab).isEmpty)
     }
+
+    // MARK: Sort + show-hidden
+
+    private func entry(_ name: String, dir: Bool = false, modified: TimeInterval = 0) -> FolderLister.Entry {
+        FolderLister.Entry(url: URL(fileURLWithPath: "/d/\(name)"),
+                           isDirectory: dir, modified: Date(timeIntervalSince1970: modified))
+    }
+
+    func testSortByNameFoldersFirst() {
+        let sorted = FolderLister.sorted([
+            entry("banana.txt"), entry("Zed", dir: true), entry("apple.txt"), entry("Alpha", dir: true),
+        ], by: .name)
+        XCTAssertEqual(sorted.map(\.name), ["Alpha", "Zed", "apple.txt", "banana.txt"])
+    }
+
+    func testSortByDateModifiedNewestFirst() {
+        let sorted = FolderLister.sorted([
+            entry("old.txt", modified: 100), entry("new.txt", modified: 300), entry("mid.txt", modified: 200),
+        ], by: .dateModified)
+        XCTAssertEqual(sorted.map(\.name), ["new.txt", "mid.txt", "old.txt"])
+    }
+
+    func testSortByKindGroupsByExtensionThenName() {
+        let sorted = FolderLister.sorted([
+            entry("b.txt"), entry("a.png"), entry("a.txt"), entry("c.png"),
+        ], by: .kind)
+        XCTAssertEqual(sorted.map(\.name), ["a.png", "c.png", "a.txt", "b.txt"])
+    }
+
+    func testShowsHiddenIncludesDotfilesWhenEnabled() {
+        var tab = folderTab()
+        tab.folderShowsHidden = true
+        let items = FolderLister.contents(of: tab)
+        XCTAssertTrue(items.contains { $0.displayName == ".hidden.txt" })
+        XCTAssertEqual(items.count, 4)   // ZSub, apple, banana, .hidden
+    }
 }
