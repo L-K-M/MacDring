@@ -1,276 +1,109 @@
-# MacDring — Review, Gap Analysis & Backlog
+# MacDring — Review, DragThing Gap Analysis & Status
 
-A full review of the MacDring codebase as of branch `claude/dragthing-review-analysis-uNwgJ`,
-a gap analysis against the original **DragThing**, and a prioritized backlog of fixes
-and features. Each prioritized item is intended to ship as its own PR (see
-[§4 Prioritized backlog](#4-prioritized-backlog)).
+A full review of the MacDring codebase against the original **DragThing**, the bugs and
+gaps it surfaced, and the work shipped in response. This document is now a **status
+record**: §1 lists what was found and fixed, §2–§3 are the (updated) gap analysis, and
+**§4 is the succinct "what remains."**
 
-> **Review method.** Every source file under `MacDring/` and `MacDringTests/` was read,
-> along with `PLAN.md`, `README.md`, and `AGENTS.md`. Findings below cite `file:line`.
+> **Review method.** Every source and test file under `MacDring/` and `MacDringTests/`
+> was read, along with `PLAN.md`, `README.md`, and `AGENTS.md`. Findings cite `file:line`
+> against the code at review time.
 >
-> **Build caveat.** This review was performed in a Linux container with no macOS Swift
-> toolchain, so the project could not be compiled or its XCTest suite run here. Pure-logic
-> findings are reasoned from the code and the existing tests; on-screen/window behavior is
-> inferred from the code and the GUI notes in `PLAN.md §12`. All code changes that follow
-> from this analysis should be built and tested on macOS (Xcode 16+) before merge.
+> **Build/verification note.** The review and all fixes were authored in a Linux container
+> with **no macOS Swift toolchain**, so nothing was compiled or unit-tested locally. Every
+> change shipped as its own small PR (all since merged to `main`); macOS CI (Xcode 16+) is
+> the source of truth for build + the XCTest suite. Pure-logic changes added unit tests.
 
 ---
 
-## 1. Bugs & Issues
+## 1. Bugs & Issues — all fixed
 
-Severity key: **P0** correctness / data-loss / core-usability · **P1** notable functional gap ·
-**P2** polish / robustness · **P3** minor / cosmetic.
+Severity: **P0** correctness / data-loss / core-usability · **P1** notable functional gap ·
+**P2** polish / robustness · **P3** minor / cosmetic. Every item below is **merged**.
 
-### B1 — One malformed tab discards the *entire* launcher document (P0, data-loss)
-`Tab.init(from:)` decodes `anchor` with a non-optional `try c.decode(ScreenAnchor.self, …)`
-(`MacDring/Model/Tab.swift:73`). If a single tab is missing/has a corrupt `anchor`, the
-whole `[Tab]` decode throws, `TabStore.decode` returns `nil`
-(`MacDring/Store/TabStore.swift:78`), and the store falls back to the `.bak` — which, if it
-shares the defect, leaves the user with **zero tabs**. A launcher people have arranged is
-exactly the thing the design calls "sacred" (PLAN §2/§6), so a single bad record should not
-nuke everything. **Fix:** decode tabs leniently (decode element-by-element, skipping
-unreadable ones) so one bad tab is dropped, not the whole document.
-
-### B2 — Tabs sharing an edge overlap; `order` is never used for layout (P0, usability)
-`ScreenAnchor.order` is persisted and preserved on drag (`TabController.swift:206`) but
-**`EdgeLayout` never consumes it** — there is no de-overlap pass. Two tabs anchored to the
-same edge at the same fractional position render exactly on top of each other. PLAN §5
-explicitly promises "Tabs sharing an edge on a screen are spaced by `order` + `position`,
-de-overlapped by a layout pass." `NewTabWindowController` only papers over this by staggering
-the *initial* position (`NewTabWindowController.swift:49-50`); dragging two tabs together, or
-seeding + adding, still collides. **Fix:** add a layout pass in `TabController.reconcile` that
-groups tabs by (display, edge) and offsets stacked tabs along the edge by `order`.
-
-### B3 — A per-tab hotkey can open a drawer onto a disconnected/stale screen (P1)
-When a tab's display is unplugged under the default **park** policy, `reconcile` calls
-`wc.hide()` (`TabController.swift:78`) but never clears `TabWindowController.currentScreen`,
-which keeps pointing at the now-detached `NSScreen`. `openDrawer` guards only on
-`wc.currentScreen != nil` (`TabController.swift:120-122`), so firing that tab's Carbon hotkey
-will still try to slide a drawer out on a stale screen. **Fix:** in `openDrawer`, require the
-tab's `anchor.displayUUID` to currently resolve via the registry (or clear `currentScreen` in
-`hide()` / on park).
-
-### B4 — Web links / URLs can't be dropped onto tabs or drawers (P1, DragThing parity)
-The pill registers only `UTType.fileURL` for `.onDrop` (`TabStripView.swift:33`) and the
-drawer's AppKit destination registers only `.fileURL`
-(`DrawerWindowController.swift:109`, `droppableModel` checks `urlReadingFileURLsOnly`
-`:46`). Dragging a URL out of Safari/Chrome's address bar (a `public.url` / text payload)
-does nothing. The app *can* hold `.url` items (`DrawerItem.fromLink`), but the only way to
-create one is the **Add Link…** sheet in Settings. DragThing let you drop a link straight
-onto a dock. **Fix:** accept `public.url`/`public.utf8-plain-text`, build `.url` items.
-
-### B5 — `customIconBookmark` is dead; "Change Icon…" and "Rename" are unimplemented (P1)
-PLAN §7 and the README advertise an item context menu with **Rename** and **Change Icon…**,
-and the model carries `customIconBookmark` (`DrawerItem.swift:23`). But `ItemView.resolveIcon`
-never reads it (`ItemView.swift:69-82`) and the item context menu only offers
-Open / Reveal / Remove (`ItemView.swift:24-33`). So a documented capability and a persisted
-field are both inert. **Fix:** add Rename + Change Icon… actions, honor `customIconBookmark`
-in `resolveIcon`, and wire the callbacks through `DrawerModel`/`TabController`/`TabStore`.
-
-### B6 — Every appearance-preference change triggers a full window reconcile (P2, perf)
-`TabController` subscribes to `preferences.objectWillChange` and calls `reconcile()` on *any*
-change (`TabController.swift:43-45`). Dragging the Icon-size, Corner-radius, Tab-thickness, or
-Animation sliders in Settings fires this continuously; each `reconcile` re-measures and
-repositions **every** tab window (`place` → `layoutSubtreeIfNeeded` + `fittingSize`, then
-`applyFrame`) and **re-lists every folder tab's directory** (`apply` → `FolderLister.contents`).
-That's a lot of work per slider tick, and it churns disk I/O for folder tabs. **Fix:** debounce
-the preference-driven reconcile, and/or only reconcile on settings that actually change layout.
-
-### B7 — Notes text can be reset mid-edit by an unrelated reconcile (P2)
-Typing in a notes drawer is intentionally decoupled (`TabStore.setNotes` skips `onChange`,
-`TabStore.swift:179-185`). But if a reconcile is triggered for *any other* reason while a notes
-drawer is open — a screen-parameters change, a preference change, or a mutation to a different
-tab — `refreshOpenDrawer` → `DrawerWindowController.apply` resets `model.notes = tab.notes`
-(`DrawerWindowController.swift:236-238`), disrupting the `TextEditor` (selection/scroll, and any
-in-flight IME composition). **Fix:** when refreshing an open notes drawer, don't overwrite
-`model.notes` from the store (the model is already the live source while editing).
-
-### B8 — Frame-defender vs. overlapping pill animations race (P2)
-`animate(to:)` sets `isAdjustingFrame = true` and clears it in the completion handler
-(`TabWindowController.swift:171-183`). If a second animation starts before the first finishes
-(rapid open/close/switch), the *first* completion clears the flag while the *second* is still
-running, so `defendFrame` (`:101-110`) can wrongly fire and snap the pill to a half-animated
-`intendedFrame`. **Fix:** track a generation/counter or suppress the defender via a depth count
-rather than a single bool.
-
-### B9 — Esc and click-outside monitors are app-global while a drawer is open (P2)
-`startMonitoring` installs an app-wide local key monitor that consumes **Esc** and returns
-`nil` (`TabController.swift:379-385`). If a drawer is open and the user presses Esc while
-interacting with the **Settings** window (e.g. to dismiss a sheet/popover), the drawer eats the
-Esc instead. Similarly the global mouse monitor closes the drawer on the click that the user
-meant for Settings. Low-frequency, but surprising. **Fix:** ignore Esc when the key window
-belongs to the app's own ordinary windows (Settings/New Tab).
-
-### B10 — List layout has no drop feedback for empty space (P3)
-In `.list` layout, only occupied rows highlight on file-drag
-(`DrawerView.swift:151-153`); there's no "drop here / append" affordance for the empty area, and
-no per-row "into folder / open-with" ring like the grid has (`:174-179`). Cosmetic
-inconsistency. **Fix:** render a list-tail drop indicator and the into/open-with ring in list
-mode too.
-
-### B11 — Adding the same app/file twice silently duplicates it (P3)
-`handleFileDrop` and the Settings "Add Files…" path append unconditionally
-(`TabController.swift:269-272`, `TabsView.swift:286-288`). Dropping an app that's already in the
-tab makes a second copy. DragThing de-duplicated optionally. **Fix:** skip (or offer to skip)
-adding an item whose resolved URL already exists in the tab.
-
-### B12 — `DrawerMetrics` list width is a hardcoded 300 pt (P3)
-List-layout drawers are always 300 pt wide regardless of icon size or label length
-(`DrawerMetrics.swift:56`), so long names truncate hard. **Fix:** derive list width from icon
-size + a label allowance, clamped to the screen.
-
-### B13 — Seeding silently no-ops if no display UUID resolves (P3)
-`seedStarterTab` returns silently when `mainScreenUUID()` is `nil`
-(`AppDelegate.swift:132`), so a first-run user on an odd display setup gets an empty menu-bar
-app with no tab and no hint. Rare, but there's no fallback or message. **Fix:** fall back to a
-best-effort anchor and/or surface a first-run hint.
-
-### B14 — Minor robustness / cleanups (P3)
-- `LauncherDocument.version` exists but no migration switch is keyed off it
-  (`LauncherDocument.swift`); only slot-normalization migrates. Fine today, but document the
-  intent or wire a version switch before the schema changes.
-- The `.bak` recovery is silent (PLAN §9 envisioned "offer to restore"); there's no user-facing
-  indication the primary file was corrupt. Consider a one-line notification.
-- `BookmarkResolver.makeBookmark` uses non-security-scoped options — correct for the v1
-  Developer-ID build, but the App Store path (PLAN §10) is still entirely TODO.
+| # | Pri | Issue | Fix | PR |
+|---|-----|-------|-----|----|
+| **B1** | P0 | One malformed tab discarded the *entire* launcher (`Tab.init` decoded `anchor` non-optionally → whole `[Tab]` decode threw → store fell back to empty). | Decode tabs leniently via a non-throwing `FailableTab` wrapper; a bad record is dropped, the rest survive. | #2 |
+| **B2** | P0 | Tabs sharing an edge overlapped exactly — `anchor.order` was persisted but `EdgeLayout` never used it (no de-overlap pass, contra PLAN §5). | Pure `EdgeLayout.packAlongEdge` + a `TabController` pass grouping visible tabs by (display, edge) and packing by `order`/`position`. | #3 |
+| **B3** | P1 | A per-tab hotkey could slide a drawer onto a parked/disconnected display (`currentScreen` went stale). | `openDrawer` resolves the screen live via `resolvedScreen(for:)`, mirroring `reconcile`'s placement. | #4 |
+| **B4** | P1 | Web links couldn't be dropped — only `UTType.fileURL` was registered. | Register `.url`/`.URL`, load via `NSItemProvider`'s URL loader, route links to `.url` items (or open-with). `DrawerItem.fromDroppedURL`. | #5 |
+| **B5** | P1 | `customIconBookmark` was dead; "Rename" / "Change Icon…" (PLAN §7) were unimplemented. | `resolveIcon` honors the override; item menu gains Rename / Change Icon / Reset Icon, wired through `TabController`. | #6 |
+| **B6** | P2 | Every appearance-preference change ran a full window reconcile (slider drags re-listed folder tabs per tick). | Debounce the preference-driven reconcile (80 ms). | #7 |
+| **B7** | P2 | An unrelated reconcile while a notes drawer was open reset the live text. | `apply(tab:preserveLiveNotes:)` keeps an open notes drawer's text. | #8 |
+| **B8** | P2 | Frame-defender vs. overlapping pill animations could snap a half-animated tab. | Replace the bool guard with an animation depth count. | #9 |
+| **B9** | P3 | An open drawer swallowed Esc from the app's own Settings/New-Tab windows. | Pass Esc through when a `.titled` app window is key. | #12 |
+| **B10** | P3 | List layout lacked the grid's file-into / open-with drop ring. | Add the ring to list rows. | #13 |
+| **B11** | P2 | Dropping/adding the same app/file/link twice created a duplicate. | De-dup in `TabStore.addItem` by standardized URL (+ tests). | #11 |
+| **B12** | P3 | List drawers were a fixed 300 pt wide regardless of icon size. | Width tracks icon size + label allowance (+ tests). | #10 |
 
 ---
 
-## 2. Gaps to DragThing
+## 2. DragThing parity — updated
 
-DragThing (TLA Systems, 1995–2019) did more than edge-tabs-into-drawers. Against its feature
-set, MacDring is missing:
-
-| DragThing feature | Status in MacDring | Notes |
+| DragThing feature | Status | Notes |
 |---|---|---|
-| Edge tabs that collapse to a drawer | ✅ Core feature | The thing people miss most. |
-| Hold apps / files / folders / URLs | ✅ (URL add via Settings only) | See **B4** — no URL *drop*. |
-| Multiple docks, color-coded, per-monitor | ✅ tabs | But stacking on one edge is broken — see **B2**. |
-| **Disks dock** (mounted volumes, **eject**) | ❌ Missing | A staple DragThing dock. |
-| **Trash** (show, drag-to-trash to delete, **empty**) | ❌ Missing | No delete-by-drag, no Trash item. |
-| **Recent applications / recent documents** dock | ❌ Missing | Auto-populating "recents." |
-| **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ Partial | Only whole-folder *tabs*; a folder *item* just opens in Finder. |
-| **Process dock** (running apps / switcher) | ❌ By design | Explicit non-goal (PLAN §1). |
-| **Clippings / clipboard store** | ❌ Post-v1 | Noted as a future extra. |
-| **Multiple named layouts / sets** | ❌ Missing | DragThing had switchable layouts. |
-| **Separators / spacers / labels** within a dock | ❌ Missing | Only freeform grid gaps. |
-| Customizable icon size, name display, label position | ✅ Mostly | Global, not per-item. |
-| Per-dock / per-item **hot keys** | ✅ Per-tab | Carbon, no Accessibility. |
-| Auto-updating aliases (survive move/rename) | ✅ Bookmarks | |
-| **Auto-hide / reveal-on-edge-hover** docks | ❌ Post-v1 | PLAN §13 candidate. |
-| Launch at login | ✅ | `SMAppService`. |
-| Sound effects, AppleScript dictionary | ❌ Non-goals | Intentionally dropped. |
-| Drag a dock anywhere (not just edges) | ❌ By design | Edge-anchored only. |
-| Running-app indicator / badges | ❌ Missing | No "app is running" dot. |
-
-The high-value parity gaps are **Disks & Trash**, **Recent apps/documents**, **spring-loaded
-folder items**, and **multiple layouts** — each captures something DragThing users relied on.
+| Edge tabs → drawer | ✅ Core | The marquee feature. |
+| Apps / files / folders / URLs, **drop a link** | ✅ | URL drop shipped in **#5**. |
+| Multiple docks, color-coded, per-monitor, **non-overlapping** | ✅ | De-overlap shipped in **#3**. |
+| Per-item **rename** / **custom icon** | ✅ | Shipped in **#6**. |
+| **Trash** (open, drop-to-delete) | ✅ | Shipped in **#15** (recoverable `trashItem`). |
+| Per-dock hotkeys, launch at login, stable multi-monitor restore | ✅ | Pre-existing. |
+| **Layout backup / migration** | ✅ | JSON import/export shipped in **#16**. |
+| **Tab reordering** + quick "Move to Edge" | ✅ | Shipped in **#14**. |
+| **Disks** (mounted volumes, **eject**) | ❌ | The Trash half is done; eject-able disks remain. |
+| **Recent applications / documents** dock | ❌ | Auto-populating recents. |
+| **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. |
+| **Multiple named layouts / sets** | ◑ | Import/export covers backup; in-app switching is still TODO. |
+| Separators / spacers / labels within a dock | ❌ | Only freeform grid gaps. |
+| Auto-hide / reveal-on-edge-hover docks | ❌ | PLAN §13 candidate. |
+| Process dock, sound effects, AppleScript, free placement off-edge | ❌ | Intentional non-goals. |
 
 ---
 
-## 3. Missing Features & Ideas
+## 3. Other ideas surfaced (status)
 
-Beyond DragThing parity, ideas that would make MacDring more versatile / complete:
+Done: drawer-search's sibling — **tab reorder** (#14); **import/export** (#16);
+**rename / change-icon** (#6). Still open:
 
-1. **Search / type-to-find in an open drawer.** A filter field (and type-select) for tabs with
-   many items. Pairs with #2.
-2. **Keyboard navigation in a drawer** (arrows + Return, type-select) — PLAN §13 candidate.
-3. **Reorder tabs in the Settings → Tabs list** (drag to reorder; `replaceTabs` already exists,
-   the UI just doesn't expose reordering).
-4. **Tab context-menu quick actions**: "Move to edge ▸", "Move to display ▸", "Duplicate",
-   "Lock" — today the pill menu only has Configure / Remove (`TabStripView.swift:37-41`).
-5. **Quick Look** an item with the space bar.
-6. **Per-item launch options**: open-with override, command-line args / open in Terminal,
-   "open at login," "reveal vs open."
-7. **Layout import / export** (the document is already clean JSON) and optional **iCloud sync**
-   — PLAN §13.
-8. **Auto-hide / reveal-on-edge-hover** tabs so they never obstruct fullscreen content.
-9. **Onboarding / welcome** on first run, and a non-silent **backup-restore** UI for a corrupt
-   document (ties to **B1/B14**).
-10. **Accessibility**: VoiceOver labels on pills and items; Dynamic-Type-aware drawer text.
-11. **Localization** scaffolding (strings are currently inline literals).
-12. **Folder-tab niceties**: sort options, show-hidden toggle, live refresh via `FSEvents`
-    (today a folder tab only re-lists on open/refresh, `FolderLister`), file-count badge.
-13. **Drop a text selection / image as a clipping** (the clippings store, modernized).
-14. **Running-app indicator** dot on application items (cheap via `NSWorkspace.runningApplications`).
-15. **"Add current Finder selection / frontmost app"** menu-bar command for fast capture.
+1. **Search / type-to-find + keyboard nav** in an open drawer.
+2. **Per-item launch options** (open-with override, args / open in Terminal).
+3. **iCloud sync** of the layout (the document is already clean JSON).
+4. **Quick Look** an item with the space bar.
+5. **Accessibility** (VoiceOver labels, Dynamic Type) and **localization** scaffolding.
+6. **Folder-tab niceties**: sort options, show-hidden toggle, live `FSEvents` refresh.
+7. **Running-app indicator** dot on application items.
+8. Non-silent **`.bak` restore** notification when a corrupt document is recovered.
 
 ---
 
-## 4. Prioritized Backlog
+## 4. What remains to do
 
-Ordered by priority. Each row is intended to land as **its own PR**. Items are sequenced so the
-cheap, high-confidence correctness fixes (pure logic, unit-testable) go first.
+Everything from §1 (bugs) and the §2 parity items marked ✅ is **merged**. What's left,
+in rough priority order:
 
-| # | Pri | Item | Type | Refs |
-|---|-----|------|------|------|
-| 1 | P0 | Resilient document decode — never lose all tabs to one bad record | bug | B1 |
-| 2 | P0 | De-overlap tabs sharing an edge (use `order`) | bug | B2 |
-| 3 | P1 | Guard drawer-open against a parked/stale screen | bug | B3 |
-| 4 | P1 | Accept URL / link drops on tabs & drawers | feature/parity | B4 |
-| 5 | P1 | Item **Rename** + **Change Icon…** (wire `customIconBookmark`) | feature | B5 |
-| 6 | P2 | Debounce / scope the appearance-preference reconcile | perf | B6 |
-| 7 | P2 | Don't reset notes text on unrelated reconcile | bug | B7 |
-| 8 | P2 | Fix frame-defender vs. overlapping-animation race | bug | B8 |
-| 9 | P2 | Reorder tabs in Settings; "Move to edge/display" pill submenu | feature | §3.3/3.4 |
-| 10 | P2 | List-layout drop feedback + into/open-with ring | bug | B10 |
-| 11 | P1 | **Disks & Trash** special items (eject / empty / drag-to-trash) | parity | §2 |
-| 12 | P1 | Search / type-to-find + keyboard nav in a drawer | feature | §3.1/3.2 |
-| 13 | P2 | De-dupe on add (skip an item already in the tab) | bug | B11 |
-| 14 | P2 | List drawer width from icon size + labels | bug | B12 |
-| 15 | P3 | Esc/click monitor ignores app's own windows | bug | B9 |
-| 16 | P3 | First-run seeding fallback + non-silent .bak restore | bug | B13/B14 |
-| 17 | P2 | **Recent applications / documents** tab kind | parity | §2 |
-| 18 | P3 | Spring-loaded folder *items* (hierarchical pop-out) | parity | §2 |
-| 19 | P3 | Multiple named layouts / sets | parity | §2 |
-| 20 | P3 | Auto-hide / reveal-on-edge-hover tabs | feature | §3.8 |
-| 21 | P3 | Import/export + iCloud sync; Quick Look; a11y; localization | feature | §3 |
+**Deliberately deferred during this pass** (small, but low value / mild risk):
+- **B13** — first-run seeding fallback + non-silent `.bak` restore. Skipped because the
+  seeding fallback risks the "sacred" restore logic for a very rare case.
+- **B14** — wire a `LauncherDocument.version` migration switch before the schema next changes.
 
-**Execution note:** items 1–8 are self-contained and low-risk and are tackled first as
-individual PRs. Larger parity features (11, 12, 17–21) are scoped here and follow once the
-correctness backlog is clear. Because this environment can't run the macOS build, each PR keeps
-its blast radius small and adds unit tests for any pure-logic change.
+**Larger features** (each needs real design + an on-device GUI session, so they were not
+attempted blind):
+- **Drawer search / type-to-find + keyboard navigation** — interacts with the grid/slot
+  model and key focus in a borderless panel.
+- **Recent applications / documents** as a new tab kind.
+- **Spring-loaded folder _items_** (hierarchical pop-out from a folder item).
+- **Multiple named layouts / sets** with in-app switching (import/export already covers
+  the backup half).
+- **Auto-hide / reveal-on-edge-hover** tabs (Dock-style windowing).
+- **Eject-able Disks** items (the Trash half shipped in #15).
+- **iCloud sync**, **Quick Look**, **accessibility**, **localization**.
 
----
+**Outstanding from the original plan (PLAN §12, phase 10) — not code I can do here:**
+- **Real-hardware GUI verification**: multi-monitor placement, Spaces, fullscreen,
+  drag-to-reposition, and all drag-and-drop behaviors (including the merged changes) on an
+  actual Mac.
+- **Developer ID signing + notarization** for distribution.
 
-## 5. Status (PRs raised)
-
-Each item below shipped as its own PR against `main`. They were authored in a Linux
-container with **no macOS toolchain**, so none were compiled here — every PR notes this
-and asks CI (Xcode) to confirm the build/tests. Several touch `TabController.swift` /
-`handleFileDrop` and will need ordinary merge-conflict resolution if merged together.
-
-| Backlog | Item | PR |
-|---|---|---|
-| — | This document | #1 |
-| 1 | Resilient document decode (P0 data-loss) | #2 |
-| 2 | De-overlap tabs sharing an edge (P0) | #3 |
-| 3 | Guard drawer-open against a parked screen (P1) | #4 |
-| 4 | Accept URL / link drops (P1) | #5 |
-| 5 | Item Rename + Change Icon (P1) | #6 |
-| 6 | Debounce appearance-preference reconcile (P2) | #7 |
-| 7 | Don't reset notes on unrelated reconcile (P2) | #8 |
-| 8 | Frame-defender vs. overlapping-animation race (P2) | #9 |
-| 13 | De-duplicate items on add (P2) | #11 |
-| 15 | Esc no longer swallowed from app's own windows (P3) | #12 |
-| 10 | List-layout drop ring (P3) | #13 |
-| 9 | Reorder tabs in Settings + "Move to Edge" submenu (P2) | #14 |
-| 14 | List drawer width from icon size (P3) | #10 |
-| 11 | **Trash item** — open Trash + drop-to-delete (P1 parity) | #15 |
-| 21a | Layout import / export (JSON backup + migration) | #16 |
-
-### Deliberately deferred (need design + on-device testing, not done blind)
-
-- **B13** first-run seeding fallback / non-silent `.bak` restore — low value; the seeding
-  fallback risks the "sacred" restore logic, so left alone.
-- **B14** `LauncherDocument.version` migration switch — no schema change yet; revisit before one.
-- **#12** drawer search / type-to-find + keyboard navigation — interacts with the grid/slot
-  model and key focus in a borderless panel; needs care.
-- **#17** Recent applications / documents tab kind — new data source + kind.
-- **#18** spring-loaded folder *items* (hierarchical pop-out).
-- **#19** multiple named layouts / sets (import/export in #16 covers the backup half).
-- **#20** auto-hide / reveal-on-edge-hover tabs (Dock-style windowing).
-- **Disks** (eject-able volumes) — the Trash half of the parity gap shipped in #15.
-- **#21 remainder** — iCloud sync, Quick Look, accessibility, localization.
-
-These are the right next tranche once the PRs above are merged and green on macOS CI.
+> Net: the correctness backlog is clear and several high-value DragThing-parity features
+> shipped. The remaining work is larger, design-led features plus the on-device verification
+> and signing that can only happen on a Mac.
