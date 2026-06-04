@@ -37,9 +37,15 @@ final class DrawerModel: ObservableObject {
     /// The linked directory (for `.folder` tabs), used by "Open in Finder".
     @Published var folderURL: URL?
 
+    /// Bumped to force drawer item icons to re-resolve in place even though the
+    /// items are unchanged — e.g. the Trash icon (full → empty) after emptying.
+    @Published var iconNonce = 0
+
     var onLaunch: ((DrawerItem) -> Void)?
     var onRemoveItem: ((DrawerItem) -> Void)?
     var onRevealItem: ((DrawerItem) -> Void)?
+    /// Empty the Trash (Trash item context menu).
+    var onEmptyTrash: (() -> Void)?
     /// Rename an item (drawer item context menu).
     var onRenameItem: ((DrawerItem) -> Void)?
     /// Choose a custom icon image for an item.

@@ -522,6 +522,7 @@ final class TabController {
             self.store.removeItem(id: item.id, fromTab: id)
         }
         drawer.model.onRevealItem = { item in ItemLauncher.revealInFinder(item) }
+        drawer.model.onEmptyTrash = { [weak self] in self?.emptyTrash() }
         drawer.model.onRenameItem = { [weak self] item in self?.renameItem(item) }
         drawer.model.onChangeItemIcon = { [weak self] item in self?.changeItemIcon(item) }
         drawer.model.onResetItemIcon = { [weak self] item in self?.resetItemIcon(item) }
@@ -606,6 +607,23 @@ final class TabController {
         var updated = item
         updated.customIconBookmark = BookmarkResolver.makeBookmark(for: url)
         store.updateItem(updated, inTab: id)
+    }
+
+    /// Empties the Trash (Trash item context menu) after a confirmation, via Finder
+    /// — the only way without Full Disk Access. The user is asked once to allow
+    /// controlling Finder; declining (or cancelling) just leaves the Trash as-is.
+    private func emptyTrash() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Empty the Trash?"
+        alert.informativeText = "This permanently erases the items in the Trash. You can’t undo this."
+        alert.addButton(withTitle: "Empty Trash")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)   // a modal alert needs key focus
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        if FileMover.emptyTrash() {
+            drawer.model.iconNonce += 1   // re-resolve the Trash icon in place (full → empty)
+        }
     }
 
     /// Clears an item's custom icon, restoring its default.

@@ -14,6 +14,9 @@ struct ItemView: View {
     var onRename: (() -> Void)?
     var onChangeIcon: (() -> Void)?
     var onResetIcon: (() -> Void)?
+    var onEmptyTrash: (() -> Void)?
+    /// Bumped by the drawer to force a fresh icon even when `item` is unchanged.
+    var iconNonce: Int = 0
     var onEject: (() -> Void)?
 
     @State private var icon: NSImage?
@@ -42,6 +45,11 @@ struct ItemView: View {
                     Divider()
                     Button("Eject", action: onEject)
                 }
+                if item.kind == .trash, let onEmptyTrash {
+                    Divider()
+                    Button("Empty Trash…", action: onEmptyTrash)
+                        .disabled(ItemView.trashIsEmpty())
+                }
                 if onRename != nil || onChangeIcon != nil {
                     Divider()
                     if let onRename { Button("Rename…", action: onRename) }
@@ -55,11 +63,15 @@ struct ItemView: View {
                     Button("Remove", role: .destructive, action: onRemove)
                 }
             }
-            // Keyed by the whole `item`: loads on appear AND reloads whenever the
-            // item changes — a reorder swap into this (slot-keyed, reused) cell, a
-            // rename, or a custom-icon change — so the icon always follows the item.
-            .task(id: item) { icon = ItemView.resolveIcon(item) }
+            // Keyed by the item AND `iconNonce`: reloads whenever the item changes
+            // — a reorder swap into this (slot-keyed, reused) cell, a rename, or a
+            // custom-icon change — and whenever the drawer bumps the nonce (e.g. the
+            // Trash was emptied), so the icon always follows the item's state.
+            .task(id: IconKey(item: item, nonce: iconNonce)) { icon = ItemView.resolveIcon(item) }
     }
+
+    /// Re-resolve key: the item plus the drawer's nonce.
+    private struct IconKey: Equatable { let item: DrawerItem; let nonce: Int }
 
     @ViewBuilder
     private var cell: some View {
@@ -126,19 +138,21 @@ struct ItemView: View {
     }
 
     /// The system Trash icon — full when the Trash holds anything, empty otherwise.
-    ///
-    /// The Trash is privacy-protected, so *listing* it fails without a permission
-    /// we deliberately don't request. Instead we **stat** the directory (always
-    /// allowed): on APFS a directory's link count is its entry count + 2, so a
-    /// count greater than 2 means the Trash isn't empty. If even the stat fails we
-    /// show the full can (a recognizable Trash) rather than guess empty.
     private static func trashIcon() -> NSImage {
+        NSImage(named: trashIsEmpty() ? "NSTrashEmpty" : "NSTrashFull") ?? symbol("trash")
+    }
+
+    /// Whether the Trash is empty, decided **without listing it** (it's
+    /// privacy-protected, so a list fails without a permission we don't request).
+    /// We stat the directory instead (always allowed): on APFS a directory's link
+    /// count is its entry count + 2, so a count of 2 means empty. If even the stat
+    /// fails we assume non-empty (a recognizable Trash) rather than guess empty.
+    static func trashIsEmpty() -> Bool {
         let trash = (try? FileManager.default.url(for: .trashDirectory, in: .userDomainMask, appropriateFor: nil, create: false))
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash", isDirectory: true)
         let attrs = try? FileManager.default.attributesOfItem(atPath: trash.path)
         let linkCount = (attrs?[.referenceCount] as? NSNumber)?.intValue
-        let isEmpty = linkCount == 2
-        return NSImage(named: isEmpty ? "NSTrashEmpty" : "NSTrashFull") ?? symbol("trash")
+        return linkCount == 2
     }
 
     private static func symbol(_ name: String) -> NSImage {

@@ -272,6 +272,8 @@ struct DrawerView: View {
             onRename: editable ? { model.onRenameItem?(item) } : nil,
             onChangeIcon: editable ? { model.onChangeItemIcon?(item) } : nil,
             onResetIcon: editable ? { model.onResetItemIcon?(item) } : nil,
+            onEmptyTrash: item.kind == .trash ? { model.onEmptyTrash?() } : nil,
+            iconNonce: model.iconNonce,
             onEject: item.kind == .disk ? { model.onEjectItem?(item) } : nil
         )
     }

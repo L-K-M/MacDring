@@ -39,6 +39,23 @@ enum FileMover {
         return allSucceeded
     }
 
+    /// Empties the Trash by asking Finder via Apple Events — the only way without
+    /// Full Disk Access, since the Trash is privacy-protected. Requires the
+    /// `com.apple.security.automation.apple-events` entitlement; macOS prompts the
+    /// user once to allow controlling Finder. Returns false if the event was
+    /// blocked (e.g. the user declined) or Finder reported an error. Main thread.
+    @discardableResult
+    static func emptyTrash() -> Bool {
+        guard let script = NSAppleScript(source: #"tell application "Finder" to empty the trash"#) else { return false }
+        var error: NSDictionary?
+        script.executeAndReturnError(&error)
+        if let error {
+            NSLog("MacDring: couldn't empty the Trash: \(error)")
+            return false
+        }
+        return true
+    }
+
     /// A non-colliding destination in `directory` for `url` (appends " 2", " 3", …).
     static func uniqueDestination(for url: URL, in directory: URL, fileManager: FileManager = .default) -> URL {
         let base = url.deletingPathExtension().lastPathComponent

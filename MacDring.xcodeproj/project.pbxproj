@@ -318,6 +318,8 @@
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				MARKETING_VERSION = 1.0;
+				CODE_SIGN_ENTITLEMENTS = MacDring/MacDring.entitlements;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "MacDring asks Finder to empty the Trash when you choose Empty Trash.";
 				PRODUCT_BUNDLE_IDENTIFIER = com.macdring.MacDring;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -341,6 +343,8 @@
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				MARKETING_VERSION = 1.0;
+				CODE_SIGN_ENTITLEMENTS = MacDring/MacDring.entitlements;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "MacDring asks Finder to empty the Trash when you choose Empty Trash.";
 				PRODUCT_BUNDLE_IDENTIFIER = com.macdring.MacDring;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
