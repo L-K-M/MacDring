@@ -16,11 +16,12 @@ them after a restart.
 
 - **Edge tabs → drawers.** Colored tabs anchored to any screen edge; click (or
   hover) to open a drawer.
-- **Five tab types** — an **items** tab (apps, files, folders, links arranged
-  freely in a grid with gaps), a **notes** tab (a quick text scratchpad), a
-  **folder** tab (a live, read-only view of a directory's contents), a **disks**
-  tab (your mounted ejectable volumes), and a **network & cloud** tab (your network
-  shares and cloud drives — see [the docs](docs/network-and-cloud-drives.md)).
+- **Six tab types** — an **items** tab (apps, files, folders, links arranged freely
+  in a grid with gaps), a **notes** tab (a quick text scratchpad), a **folder** tab
+  (a live, read-only view of a directory's contents), a **disks** tab (your mounted
+  ejectable volumes), a **network** tab (your mounted network shares), and a
+  **cloud** tab (your cloud drives — iCloud, Dropbox, …). See
+  [the docs](docs/network-and-cloud-drives.md) for the network & cloud tabs.
 - **Holds anything launchable** — applications, files, folders, and URLs. One
   click opens them.
 - **Drag-and-drop to add.** Drop files or apps from Finder — or a link dragged from
@@ -66,13 +67,12 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 3. **Drag files or apps** from Finder onto a tab to add them.
 4. **Right-click a tab** → *Configure Tab…* to rename it, change its color/glyph,
    move it to another edge or display, set behavior, or assign a hotkey.
-5. Use the menu bar → **New Items / Notes / Folder / Disks / Network & Cloud Tab…**
+5. Use the menu bar → **New Items / Notes / Folder / Disks / Network / Cloud Tab…**
    to add more (a small dialog sets the name, color, type, and folder), or
    **MacDring Settings…** to manage everything. A **Disks** tab lists your mounted
-   ejectable volumes; a **Network & Cloud** tab lists your network shares and cloud
-   drives such as iCloud Drive and Dropbox (see
-   [the docs](docs/network-and-cloud-drives.md)) — click one to open it, or use a
-   disk/share's menu to **eject**.
+   ejectable volumes; a **Network** tab lists your mounted network shares (click to
+   open, eject from the menu); a **Cloud** tab lists your cloud drives such as iCloud
+   Drive and Dropbox (click to open). See [the docs](docs/network-and-cloud-drives.md).
 
 ### Customizing
 
