@@ -266,6 +266,20 @@ final class DrawerWindowController {
                 in: visibleFrame
             )
         }
-        return EdgeLayout.openDrawerFrame(edge: currentEdge, tabFrame: currentTabFrame, contentSize: size, in: visibleFrame)
+        // Keep the drawer long enough along the edge that the tab joins its *flat*
+        // inner face rather than a rounded corner. The straight run of that face is
+        // (extent − 2·radius); make it at least the tab's length so the tab — which
+        // is centered on the drawer along the edge — meets it flush, with no rounded
+        // notch at the join (see the "tab doesn't attach to the drawer" report).
+        var content = size
+        let radius = CGFloat(preferences.cornerRadius)
+        let tabLength = currentEdge.isVertical ? currentTabFrame.height : currentTabFrame.width
+        let minExtent = tabLength + 2 * radius
+        if currentEdge.isVertical {
+            content.height = max(content.height, minExtent)
+        } else {
+            content.width = max(content.width, minExtent)
+        }
+        return EdgeLayout.openDrawerFrame(edge: currentEdge, tabFrame: currentTabFrame, contentSize: content, in: visibleFrame)
     }
 }
