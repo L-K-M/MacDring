@@ -27,6 +27,16 @@ final class TabWindowController {
     private(set) var restingFrame: CGRect = .zero
     private var anchor: ScreenAnchor
 
+    /// The tab's idle concealment style (Dock-style auto-hide / auto-fade). The
+    /// `TabController` drives *when* to conceal/reveal; this controller owns *how*.
+    var concealmentStyle: TabConcealment = .never
+    /// Whether the tab is currently concealed (slid off / faded). The controller
+    /// flips this through `conceal`/`reveal`; placement honors it so a reconcile
+    /// doesn't pop a hidden tab back onto the edge.
+    private(set) var isConcealed = false
+    /// Opacity an auto-faded tab dims to when idle.
+    private static let fadedAlpha: CGFloat = 0.18
+
     /// The frame we last set deliberately. If the panel's frame diverges from this
     /// while we're not the one changing it, an external agent (a window-management
     /// / tiling tool) grabbed it — so we snap it back. See `defendFrame`.
@@ -134,9 +144,25 @@ final class TabWindowController {
         model.colorHex = tab.colorHex
         model.glyph = tab.glyph
         model.edge = tab.anchor.edge
+
+        // On a concealment-style change, re-seed the concealed flag: a concealable
+        // style starts concealed (so the next `place` doesn't flash it onto the edge
+        // before the controller re-evaluates the cursor), and `.never` reveals.
+        // `place`/the controller then apply the matching presentation.
+        if tab.behavior.concealment != concealmentStyle {
+            concealmentStyle = tab.behavior.concealment
+            isConcealed = concealmentStyle != .never
+        }
     }
 
-    func setOpen(_ open: Bool) { model.isOpen = open }
+    func setOpen(_ open: Bool) {
+        model.isOpen = open
+        // An open tab is always fully visible, riding the drawer face; closing it
+        // returns it to its resting frame, so it's no longer concealed either way.
+        // The controller re-evaluates concealment once the drawer is closed.
+        isConcealed = false
+        if open { setAlpha(1, duration: 0) }
+    }
 
     /// Measures the pill content and computes its flush-to-edge resting frame on
     /// `screen`. Moves the panel there unless its drawer is open (in which case
@@ -153,9 +179,7 @@ final class TabWindowController {
             : CGSize(width: max(fitting.width, thickness), height: thickness)
 
         restingFrame = EdgeLayout.tabFrame(edge: model.edge, position: anchor.position, size: size, in: screen.visibleFrame)
-        if !model.isOpen {
-            applyFrame(restingFrame)
-        }
+        applyConcealmentPresentation(duration: 0)
     }
 
     /// Positions the panel at an explicit frame (e.g. the open position, riding on
@@ -175,7 +199,52 @@ final class TabWindowController {
     /// the drawer closes and the tab slides back to the edge.
     func setRestingFrame(_ frame: CGRect) {
         restingFrame = frame
-        if !model.isOpen { applyFrame(frame) }
+        applyConcealmentPresentation(duration: 0)
+    }
+
+    // MARK: Auto-hide / auto-fade
+
+    /// Conceals the tab (slide off the edge for `.hide`, dim for `.fade`). No-op
+    /// when the tab has no concealment style or its drawer is open.
+    func conceal(duration: TimeInterval) {
+        guard concealmentStyle != .never, !model.isOpen else { return }
+        isConcealed = true
+        applyConcealmentPresentation(duration: duration)
+    }
+
+    /// Reveals a concealed tab (slide back to its edge / un-dim).
+    func reveal(duration: TimeInterval) {
+        guard isConcealed else { return }
+        isConcealed = false
+        applyConcealmentPresentation(duration: duration)
+    }
+
+    /// Applies the current `(isConcealed, concealmentStyle)` as the pill's alpha
+    /// and frame. The frame is only touched while the drawer is closed — when open
+    /// the controller positions the pill on the drawer's inner face. An open tab is
+    /// always fully opaque.
+    private func applyConcealmentPresentation(duration: TimeInterval) {
+        let faded = !model.isOpen && isConcealed && concealmentStyle == .fade
+        setAlpha(faded ? Self.fadedAlpha : 1, duration: duration)
+
+        guard !model.isOpen else { return }
+        let target: CGRect
+        if isConcealed, concealmentStyle == .hide, let visible = currentScreen?.visibleFrame {
+            target = EdgeLayout.hiddenTabFrame(edge: model.edge, restingTabFrame: restingFrame, in: visible)
+        } else {
+            target = restingFrame
+        }
+        if duration > 0 { animate(to: target, duration: duration) } else { applyFrame(target) }
+    }
+
+    /// Sets the panel's opacity, optionally animated.
+    private func setAlpha(_ alpha: CGFloat, duration: TimeInterval) {
+        guard duration > 0 else { panel.alphaValue = alpha; return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = alpha
+        }
     }
 
     /// Whether the pill is currently on screen (vs. parked because its display is

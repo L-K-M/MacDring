@@ -49,6 +49,21 @@ enum EdgeLayout {
         return clamp(centerX - width / 2, vf.minX, vf.maxX - width)
     }
 
+    /// The off-edge frame for an auto-hidden tab: the resting pill slid out past
+    /// `edge` until only `reveal` points peek back onto the screen as a hover hint
+    /// (Dock-style). Only the perpendicular (flush-to-edge) axis moves; the
+    /// along-edge position is unchanged. See PLAN.md §13.
+    static func hiddenTabFrame(edge: Edge, restingTabFrame f: CGRect, in vf: CGRect, reveal: CGFloat = 3) -> CGRect {
+        var frame = f
+        switch edge {
+        case .left:   frame.origin.x = vf.minX - (f.width - reveal)
+        case .right:  frame.origin.x = vf.maxX - reveal
+        case .top:    frame.origin.y = vf.maxY - reveal
+        case .bottom: frame.origin.y = vf.minY - (f.height - reveal)
+        }
+        return frame
+    }
+
     // MARK: Drawer placement
 
     /// Frame for an opening drawer: it sits **flush against the screen edge**

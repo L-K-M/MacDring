@@ -204,8 +204,13 @@ private struct TabEditor: View {
 
             Section("Behavior") {
                 Toggle("Open on hover", isOn: $draft.behavior.openOnHover)
-                Toggle("Auto-hide when clicking elsewhere", isOn: $draft.behavior.autoHide)
+                Toggle("Close drawer when clicking elsewhere", isOn: $draft.behavior.autoHide)
                 Toggle("Keep open after launching an item", isOn: $draft.behavior.keepOpenAfterLaunch)
+                Picker("When idle", selection: $draft.behavior.concealment) {
+                    ForEach(TabConcealment.allCases) { Text($0.displayName).tag($0) }
+                }
+                Text("Auto-hide slides the tab off its edge (leaving a sliver); auto-fade dims it. Either one reveals when you move the pointer to that screen edge.")
+                    .font(.caption).foregroundStyle(.secondary)
                 LabeledContent("Hotkey") { HotkeyRecorderView(hotkey: $draft.hotkey) }
             }
 

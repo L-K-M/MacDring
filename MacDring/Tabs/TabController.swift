@@ -22,6 +22,23 @@ final class TabController {
     private var pendingHoverClose: DispatchWorkItem?
     private var pendingSpringOpen: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
+
+    /// Edge-hover monitors (no permission needed — mouse only) that drive
+    /// Dock-style auto-hide / auto-fade reveal. Active only while a concealable tab
+    /// is shown and no drawer is open. See `refreshConcealment`.
+    private var revealMonitorGlobal: Any?
+    private var revealMonitorLocal: Any?
+    /// Per-tab delayed re-conceal work, so a tab doesn't snap shut the instant the
+    /// cursor leaves its reveal zone.
+    private var pendingReConceal: [UUID: DispatchWorkItem] = [:]
+    /// The tab currently being dragged, excluded from concealment so it can't slide
+    /// out from under the cursor mid-drag.
+    private var draggingTabID: UUID?
+    /// How far past a tab's resting footprint the cursor still counts as "hovering"
+    /// it (an easier target than the thin revealed sliver).
+    private static let revealSlop: CGFloat = 6
+    /// Delay before an idle tab re-conceals after the cursor leaves its zone.
+    private static let reConcealDelay: TimeInterval = 0.45
     /// The pill's along-edge length captured at drag start, kept constant while
     /// previewing snaps to different edges.
     private var dragLength: CGFloat = 60
@@ -67,6 +84,7 @@ final class TabController {
             wc.close()
             tabWindows[id] = nil
             unregisterHotkey(id)
+            cancelReConceal(id)
             if openTabID == id { closeDrawer() }
         }
 
@@ -90,6 +108,7 @@ final class TabController {
 
         deOverlapStackedTabs()
         refreshOpenDrawer()
+        refreshConcealment(animated: false)
     }
 
     /// Spaces tabs that share a display + edge so they don't render on top of each
@@ -180,9 +199,11 @@ final class TabController {
             tabWindows[prev]?.restoreResting()
         }
         cancelHoverClose()
+        cancelReConceal(id)
         pendingSpringOpen?.cancel(); pendingSpringOpen = nil
         openTabID = id
         wc.setOpen(true)
+        refreshConcealment(animated: false)   // a drawer is open → suspend the edge-hover monitor
         let duration = animationDuration
         // The drawer slides out flush against the screen edge (centered on the
         // tab's resting position); the tab slides onto the drawer's inner face.
@@ -205,6 +226,7 @@ final class TabController {
         openTabID = nil
         drawer.hide(duration: duration)
         stopMonitoring()
+        refreshConcealment(animated: true)   // drawer closed → resume auto-hide/fade
     }
 
     /// The screen a tab should currently appear on: its anchored display if present,
@@ -247,10 +269,109 @@ final class TabController {
         pendingHoverClose = nil
     }
 
+    // MARK: Auto-hide / auto-fade (Dock-style concealment)
+
+    /// Tabs eligible for concealment right now: on screen, with a concealment style,
+    /// not the open tab, and not being dragged.
+    private func concealableTabs() -> [(id: UUID, wc: TabWindowController)] {
+        tabWindows.compactMap { id, wc in
+            guard wc.isShown, wc.concealmentStyle != .never,
+                  id != openTabID, id != draggingTabID, store.tab(id: id) != nil else { return nil }
+            return (id, wc)
+        }
+    }
+
+    /// Re-evaluates concealment for every concealable tab against the current cursor
+    /// and starts/stops the edge-hover monitor. While a drawer is open, concealment
+    /// is suspended entirely (the monitor is torn down). `animated` is false for the
+    /// instant snap on reconcile/launch and true for live transitions.
+    private func refreshConcealment(animated: Bool) {
+        guard openTabID == nil else { stopRevealMonitoring(); return }
+        let tabs = concealableTabs()
+        guard !tabs.isEmpty else { stopRevealMonitoring(); return }
+        startRevealMonitoring()
+        let mouse = NSEvent.mouseLocation
+        for (id, wc) in tabs { applyRevealState(id: id, wc: wc, mouse: mouse, animated: animated) }
+    }
+
+    /// Reveals or conceals one tab from the cursor's position relative to its reveal
+    /// zone (the resting footprint, widened a little for an easier target).
+    private func applyRevealState(id: UUID, wc: TabWindowController, mouse: CGPoint, animated: Bool) {
+        let duration = animated ? animationDuration : 0
+        if revealZone(for: wc).contains(mouse) {
+            cancelReConceal(id)
+            wc.reveal(duration: duration)
+        } else if wc.isConcealed {
+            cancelReConceal(id)   // already hidden — nothing to schedule
+        } else if animated {
+            scheduleReConceal(id)
+        } else {
+            cancelReConceal(id)
+            wc.conceal(duration: 0)
+        }
+    }
+
+    /// The screen region whose hover reveals a concealed tab.
+    private func revealZone(for wc: TabWindowController) -> CGRect {
+        wc.restingFrame.insetBy(dx: -Self.revealSlop, dy: -Self.revealSlop)
+    }
+
+    private func scheduleReConceal(_ id: UUID) {
+        guard pendingReConceal[id] == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingReConceal[id] = nil
+            guard id != self.openTabID, id != self.draggingTabID, let wc = self.tabWindows[id] else { return }
+            // Only conceal if the cursor is still away from the tab's zone.
+            if !self.revealZone(for: wc).contains(NSEvent.mouseLocation) {
+                wc.conceal(duration: self.animationDuration)
+            }
+        }
+        pendingReConceal[id] = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.reConcealDelay, execute: work)
+    }
+
+    private func cancelReConceal(_ id: UUID) {
+        pendingReConceal[id]?.cancel()
+        pendingReConceal[id] = nil
+    }
+
+    private func handleRevealMouseMoved() {
+        let mouse = NSEvent.mouseLocation
+        for (id, wc) in concealableTabs() {
+            applyRevealState(id: id, wc: wc, mouse: mouse, animated: true)
+        }
+    }
+
+    private func startRevealMonitoring() {
+        // Mouse-moved monitors need no permission (unlike key monitors / event taps).
+        if revealMonitorGlobal == nil {
+            revealMonitorGlobal = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+                self?.handleRevealMouseMoved()
+            }
+        }
+        if revealMonitorLocal == nil {
+            revealMonitorLocal = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
+                self?.handleRevealMouseMoved()
+                return event
+            }
+        }
+    }
+
+    private func stopRevealMonitoring() {
+        if let m = revealMonitorGlobal { NSEvent.removeMonitor(m); revealMonitorGlobal = nil }
+        if let m = revealMonitorLocal { NSEvent.removeMonitor(m); revealMonitorLocal = nil }
+        pendingReConceal.values.forEach { $0.cancel() }
+        pendingReConceal.removeAll()
+    }
+
     // MARK: Drag-to-reposition (snap-to-edge preview)
 
     private func beginDrag(_ id: UUID) {
         closeDrawer()
+        draggingTabID = id
+        cancelReConceal(id)
+        tabWindows[id]?.reveal(duration: 0)   // a slid-off / faded tab becomes fully grabbable
         dragLocked = store.tab(id: id)?.locked ?? false
         if let wc = tabWindows[id] { dragLength = wc.contentLength }
     }
@@ -266,6 +387,8 @@ final class TabController {
     /// Commit the snapped anchor on release; `reconcile` then re-measures and
     /// places the pill precisely. A locked tab doesn't move.
     private func endDrag(_ id: UUID) {
+        draggingTabID = nil
+        defer { refreshConcealment(animated: true) }   // re-arm auto-hide/fade for the dropped tab
         guard !dragLocked else { return }
         guard let target = dragTarget(), let uuid = registry.uuid(for: target.screen) else { return }
         let order = store.tab(id: id)?.anchor.order ?? 0
@@ -526,6 +649,7 @@ final class TabController {
     func saveAndTeardown() {
         store.saveNow()
         stopMonitoring()
+        stopRevealMonitoring()
         drawer.hide(duration: 0)     // instant on quit, no animation
         openTabID = nil
         for (_, wc) in tabWindows { wc.close() }

@@ -29,6 +29,7 @@ final class Preferences: ObservableObject {
         static let showTabLabels = true
         static let newTabOpenOnHover = false
         static let newTabAutoHide = true
+        static let newTabConcealment = TabConcealment.never
         static let launchOnSingleClick = true
         static let animationMs = 140.0
         static let tabWindowLevel = TabWindowLevel.floating
@@ -48,6 +49,7 @@ final class Preferences: ObservableObject {
         static let showTabLabels = "showTabLabels"
         static let newTabOpenOnHover = "newTabOpenOnHover"
         static let newTabAutoHide = "newTabAutoHide"
+        static let newTabConcealment = "newTabConcealment"
         static let launchOnSingleClick = "launchOnSingleClick"
         static let animationMs = "animationMs"
         static let tabWindowLevel = "tabWindowLevel"
@@ -111,6 +113,11 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(newTabAutoHide, forKey: Key.newTabAutoHide) }
     }
 
+    /// Default idle concealment (auto-hide / auto-fade) for newly created tabs.
+    @Published var newTabConcealment: TabConcealment {
+        didSet { defaults.set(newTabConcealment.rawValue, forKey: Key.newTabConcealment) }
+    }
+
     /// Launch an item on a single click (vs. requiring a double click).
     @Published var launchOnSingleClick: Bool {
         didSet { defaults.set(launchOnSingleClick, forKey: Key.launchOnSingleClick) }
@@ -138,7 +145,7 @@ final class Preferences: ObservableObject {
 
     /// New tabs inherit the current behavior defaults.
     var newTabBehavior: TabBehavior {
-        TabBehavior(openOnHover: newTabOpenOnHover, autoHide: newTabAutoHide)
+        TabBehavior(openOnHover: newTabOpenOnHover, autoHide: newTabAutoHide, concealment: newTabConcealment)
     }
 
     // MARK: Init
@@ -158,6 +165,7 @@ final class Preferences: ObservableObject {
         showTabLabels = defaults.object(forKey: Key.showTabLabels) as? Bool ?? Default.showTabLabels
         newTabOpenOnHover = defaults.object(forKey: Key.newTabOpenOnHover) as? Bool ?? Default.newTabOpenOnHover
         newTabAutoHide = defaults.object(forKey: Key.newTabAutoHide) as? Bool ?? Default.newTabAutoHide
+        newTabConcealment = TabConcealment(rawValue: defaults.string(forKey: Key.newTabConcealment) ?? "") ?? Default.newTabConcealment
         launchOnSingleClick = defaults.object(forKey: Key.launchOnSingleClick) as? Bool ?? Default.launchOnSingleClick
         animationMs = Self.clamp(defaults.object(forKey: Key.animationMs) as? Double ?? Default.animationMs, 0, 300, Default.animationMs)
         tabWindowLevel = TabWindowLevel(rawValue: defaults.string(forKey: Key.tabWindowLevel) ?? "") ?? Default.tabWindowLevel

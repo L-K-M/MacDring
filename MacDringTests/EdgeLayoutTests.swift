@@ -49,6 +49,39 @@ final class EdgeLayoutTests: XCTestCase {
         XCTAssertEqual(high, one)
     }
 
+    // MARK: Auto-hide (off-edge) frame
+
+    func testHiddenTabLeavesOnlyASliverOnScreen() {
+        let reveal: CGFloat = 3
+        for edge in Edge.allCases {
+            let resting = EdgeLayout.tabFrame(edge: edge, position: 0.5, size: pill, in: visible)
+            let hidden = EdgeLayout.hiddenTabFrame(edge: edge, restingTabFrame: resting, in: visible, reveal: reveal)
+
+            // Size is unchanged — the pill just slides out past the edge.
+            XCTAssertEqual(hidden.size.width, resting.size.width, accuracy: 0.001)
+            XCTAssertEqual(hidden.size.height, resting.size.height, accuracy: 0.001)
+
+            // Exactly `reveal` points remain inside the screen on the tab's edge.
+            switch edge {
+            case .left:   XCTAssertEqual(hidden.maxX, visible.minX + reveal, accuracy: 0.001)
+            case .right:  XCTAssertEqual(hidden.minX, visible.maxX - reveal, accuracy: 0.001)
+            case .top:    XCTAssertEqual(hidden.minY, visible.maxY - reveal, accuracy: 0.001)
+            case .bottom: XCTAssertEqual(hidden.maxY, visible.minY + reveal, accuracy: 0.001)
+            }
+        }
+    }
+
+    func testHiddenTabKeepsAlongEdgePosition() {
+        // The flush-to-edge axis moves; the along-edge axis stays put.
+        let vertical = EdgeLayout.tabFrame(edge: .right, position: 0.3, size: pill, in: visible)
+        XCTAssertEqual(EdgeLayout.hiddenTabFrame(edge: .right, restingTabFrame: vertical, in: visible).minY,
+                       vertical.minY, accuracy: 0.001)
+
+        let horizontal = EdgeLayout.tabFrame(edge: .bottom, position: 0.7, size: CGSize(width: 120, height: 40), in: visible)
+        XCTAssertEqual(EdgeLayout.hiddenTabFrame(edge: .bottom, restingTabFrame: horizontal, in: visible).minX,
+                       horizontal.minX, accuracy: 0.001)
+    }
+
     // MARK: Drawer placement (flush to edge) + opened tab
 
     func testOpenDrawerIsFlushToItsEdge() {

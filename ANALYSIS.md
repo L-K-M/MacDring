@@ -55,7 +55,7 @@ Severity: **P0** correctness / data-loss / core-usability · **P1** notable func
 | **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. |
 | **Multiple named layouts / sets** | ◑ | Import/export covers backup; in-app switching is still TODO. |
 | Separators / spacers / labels within a dock | ❌ | Only freeform grid gaps. |
-| Auto-hide / reveal-on-edge-hover docks | ❌ | PLAN §13 candidate. |
+| Auto-hide / reveal-on-edge-hover docks | ✅ | Per-tab **Auto-hide** (slide off the edge, leaving a sliver) or **Auto-fade** (dim in place); both reveal on edge-hover. PLAN §13. |
 | Process dock, sound effects, AppleScript, free placement off-edge | ❌ | Intentional non-goals. |
 
 ---
@@ -94,7 +94,6 @@ attempted blind):
 - **Spring-loaded folder _items_** (hierarchical pop-out from a folder item).
 - **Multiple named layouts / sets** with in-app switching (import/export already covers
   the backup half).
-- **Auto-hide / reveal-on-edge-hover** tabs (Dock-style windowing).
 - **Eject-able Disks** items (the Trash half shipped in #15).
 - **iCloud sync**, **Quick Look**, **accessibility**, **localization**.
 

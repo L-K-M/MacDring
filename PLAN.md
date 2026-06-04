@@ -201,8 +201,10 @@ must not steal focus or churn the active-app order).
 - `collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]` so tabs
   appear on every Space and alongside fullscreen apps.
 - `level` configurable: **Floating** (always on top, default) or **Normal** (sits with
-  windows). A future "auto-hide / reveal on edge-hover" mode (§13) keeps tabs out of the
-  way like the Dock.
+  windows). A per-tab **auto-hide / auto-fade** mode (§13) keeps tabs out of the way like
+  the Dock: when idle the pill slides off its edge (leaving a sliver) or dims in place, and
+  reveals when the pointer reaches that screen edge — driven by a permission-free
+  `.mouseMoved` monitor.
 - **Content (SwiftUI in an `NSHostingView`):** two looks, switchable globally via
   `preferences.tabStyle`:
   - **Modern** — a translucent rounded pill: the flat side kisses the screen edge,
@@ -635,7 +637,8 @@ MacDring/
 
 ## 13. Post-v1 Candidates
 
-- **Auto-hide / reveal-on-edge-hover** tabs (Dock-style) so they never obstruct.
+- **Auto-hide / reveal-on-edge-hover** tabs (Dock-style) so they never obstruct. ✅
+  (per-tab **Auto-hide** slide-off / **Auto-fade** dim, revealed on edge-hover).
 - **Notes tab** ✅ (a text-notes tab kind). Image/picture clippings remain a future extra.
 - **Folder-as-drawer** ✅ (a `.folder` tab that mirrors a directory live).
 - **Layout import/export** and optional **iCloud sync** of the document.

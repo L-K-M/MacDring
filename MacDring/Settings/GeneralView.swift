@@ -26,7 +26,10 @@ struct GeneralView: View {
 
             Section("New tab defaults") {
                 Toggle("Open on hover instead of click", isOn: $preferences.newTabOpenOnHover)
-                Toggle("Auto-hide when you click elsewhere", isOn: $preferences.newTabAutoHide)
+                Toggle("Close drawer when you click elsewhere", isOn: $preferences.newTabAutoHide)
+                Picker("When idle", selection: $preferences.newTabConcealment) {
+                    ForEach(TabConcealment.allCases) { Text($0.displayName).tag($0) }
+                }
                 Stepper("Grid columns: \(Int(preferences.gridColumns))", value: $preferences.gridColumns, in: 1...10)
                 Stepper("Grid rows: \(Int(preferences.gridRows))", value: $preferences.gridRows, in: 1...12)
                 Text("These apply to newly created tabs. Existing tabs keep their own settings (edit them in the Tabs pane).")

@@ -28,6 +28,16 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(prefs.tabThickness, Preferences.Default.tabThickness)
         XCTAssertEqual(prefs.disconnectPolicy, .park)
         XCTAssertTrue(prefs.launchOnSingleClick)
+        XCTAssertEqual(prefs.newTabConcealment, .never)
+    }
+
+    func testNewTabConcealmentRoundTripAndSeedsBehavior() {
+        let prefs = Preferences(defaults: defaults)
+        prefs.newTabConcealment = .fade
+        XCTAssertEqual(prefs.newTabBehavior.concealment, .fade)   // seeds new tabs
+
+        let reloaded = Preferences(defaults: defaults)
+        XCTAssertEqual(reloaded.newTabConcealment, .fade)
     }
 
     func testEnumRoundTrip() {

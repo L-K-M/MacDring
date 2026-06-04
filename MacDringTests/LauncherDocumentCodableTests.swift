@@ -53,6 +53,22 @@ final class LauncherDocumentCodableTests: XCTestCase {
         XCTAssertEqual(decoded.version, LauncherDocument.currentVersion)
     }
 
+    func testConcealmentRoundTripsAndDefaultsToNever() throws {
+        let tab = Tab(title: "Hidden", colorHex: "#0A84FF",
+                      anchor: ScreenAnchor(displayUUID: "U", edge: .right, position: 0.5),
+                      behavior: TabBehavior(concealment: .hide))
+        let data = try JSONEncoder().encode(LauncherDocument(tabs: [tab]))
+        XCTAssertEqual(try JSONDecoder().decode(LauncherDocument.self, from: data).tabs.first?.behavior.concealment, .hide)
+
+        // A behavior persisted before this field existed decodes as `.never`.
+        let legacy = #"""
+        {"tabs":[{"anchor":{"displayUUID":"D","edge":"right","position":0.5},
+          "behavior":{"openOnHover":true,"autoHide":false,"keepOpenAfterLaunch":false}}]}
+        """#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(LauncherDocument.self, from: legacy)
+        XCTAssertEqual(decoded.tabs.first?.behavior.concealment, .never)
+    }
+
     func testNotesAndFolderTabsRoundTrip() throws {
         let notes = Tab(title: "Scratch", colorHex: "#FFD60A",
                         anchor: ScreenAnchor(displayUUID: "U", edge: .left, position: 0.4),
