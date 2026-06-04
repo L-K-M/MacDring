@@ -266,7 +266,10 @@ struct DrawerView: View {
             launchOnSingleClick: preferences.launchOnSingleClick,
             onLaunch: { model.onLaunch?(item) },
             onReveal: { model.onRevealItem?(item) },
-            onRemove: editable ? { model.onRemoveItem?(item) } : nil
+            onRemove: editable ? { model.onRemoveItem?(item) } : nil,
+            onRename: editable ? { model.onRenameItem?(item) } : nil,
+            onChangeIcon: editable ? { model.onChangeItemIcon?(item) } : nil,
+            onResetIcon: editable ? { model.onResetItemIcon?(item) } : nil
         )
     }
 

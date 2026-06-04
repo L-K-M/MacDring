@@ -10,6 +10,9 @@ struct ItemView: View {
     var onLaunch: () -> Void
     var onReveal: () -> Void
     var onRemove: (() -> Void)?
+    var onRename: (() -> Void)?
+    var onChangeIcon: (() -> Void)?
+    var onResetIcon: (() -> Void)?
 
     @State private var icon: NSImage?
 
@@ -26,15 +29,23 @@ struct ItemView: View {
                 if item.kind != .url {
                     Button("Reveal in Finder", action: onReveal)
                 }
+                if onRename != nil || onChangeIcon != nil {
+                    Divider()
+                    if let onRename { Button("Rename…", action: onRename) }
+                    if let onChangeIcon { Button("Change Icon…", action: onChangeIcon) }
+                    if item.customIconBookmark != nil, let onResetIcon {
+                        Button("Reset Icon", action: onResetIcon)
+                    }
+                }
                 if let onRemove {
                     Divider()
                     Button("Remove", role: .destructive, action: onRemove)
                 }
             }
-            // Keyed by `item.id`: loads on appear AND reloads when a *different*
-            // item lands in this (slot-keyed, reused) cell — e.g. a reorder swap —
-            // so the icon follows the item instead of staying stale.
-            .task(id: item.id) { icon = ItemView.resolveIcon(item) }
+            // Keyed by the whole `item`: loads on appear AND reloads whenever the
+            // item changes — a reorder swap into this (slot-keyed, reused) cell, a
+            // rename, or a custom-icon change — so the icon always follows the item.
+            .task(id: item) { icon = ItemView.resolveIcon(item) }
     }
 
     @ViewBuilder
@@ -67,6 +78,12 @@ struct ItemView: View {
     // MARK: Icon resolution
 
     static func resolveIcon(_ item: DrawerItem) -> NSImage {
+        // A user-chosen icon override wins over the target's own icon.
+        if let data = item.customIconBookmark,
+           let resolved = BookmarkResolver.resolve(data),
+           let custom = NSImage(contentsOf: resolved.url) {
+            return custom
+        }
         if BookmarkResolver.isBroken(item) {
             return symbol("exclamationmark.triangle")
         }

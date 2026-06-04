@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import UniformTypeIdentifiers
 
 /// The orchestrator. Reconciles the stored tabs against the live display set
 /// into on-screen tab windows, owns the shared drawer, and routes every
@@ -341,6 +342,9 @@ final class TabController {
             self.store.removeItem(id: item.id, fromTab: id)
         }
         drawer.model.onRevealItem = { item in ItemLauncher.revealInFinder(item) }
+        drawer.model.onRenameItem = { [weak self] item in self?.renameItem(item) }
+        drawer.model.onChangeItemIcon = { [weak self] item in self?.changeItemIcon(item) }
+        drawer.model.onResetItemIcon = { [weak self] item in self?.resetItemIcon(item) }
         drawer.model.onDropFiles = { [weak self] urls, slot in
             guard let self, let id = self.openTabID else { return }
             self.handleFileDrop(urls, slot: slot, toTab: id)
@@ -379,6 +383,56 @@ final class TabController {
         ItemLauncher.launch(item)
         let keepOpen = openTabID.flatMap { store.tab(id: $0) }?.behavior.keepOpenAfterLaunch ?? false
         if !keepOpen { closeDrawer() }
+    }
+
+    // MARK: Item rename / icon
+
+    /// Renames an item via a small modal prompt, then commits it to the store.
+    private func renameItem(_ item: DrawerItem) {
+        guard let id = openTabID else { return }
+        let alert = NSAlert()
+        alert.messageText = "Rename Item"
+        alert.informativeText = "Enter a new name for “\(item.displayName)”."
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        field.stringValue = item.displayName
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        NSApp.activate(ignoringOtherApps: true)   // a text prompt needs key focus
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        var updated = item
+        updated.displayName = name
+        store.updateItem(updated, inTab: id)
+    }
+
+    /// Lets the user pick an image to use as an item's icon, then stores it as a
+    /// bookmark so it survives moves/renames.
+    private func changeItemIcon(_ item: DrawerItem) {
+        guard let id = openTabID else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        panel.message = "Choose an image to use as this item's icon"
+
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var updated = item
+        updated.customIconBookmark = BookmarkResolver.makeBookmark(for: url)
+        store.updateItem(updated, inTab: id)
+    }
+
+    /// Clears an item's custom icon, restoring its default.
+    private func resetItemIcon(_ item: DrawerItem) {
+        guard let id = openTabID else { return }
+        var updated = item
+        updated.customIconBookmark = nil
+        store.updateItem(updated, inTab: id)
     }
 
     // MARK: Dismissal monitoring
