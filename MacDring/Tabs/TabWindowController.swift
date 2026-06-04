@@ -147,7 +147,7 @@ final class TabWindowController {
 
         hostingView.layoutSubtreeIfNeeded()
         let fitting = hostingView.fittingSize
-        let thickness = CGFloat(preferences.tabThickness)
+        let thickness = CGFloat(preferences.tabThickness) * preferences.tabStyle.thicknessScale
         let size: CGSize = model.edge.isVertical
             ? CGSize(width: thickness, height: max(fitting.height, thickness))
             : CGSize(width: max(fitting.width, thickness), height: thickness)
@@ -208,7 +208,7 @@ final class TabWindowController {
     func previewSnap(edge: Edge, position: Double, length: CGFloat, on screen: NSScreen) {
         currentScreen = screen
         model.edge = edge
-        let thickness = CGFloat(preferences.tabThickness)
+        let thickness = CGFloat(preferences.tabThickness) * preferences.tabStyle.thicknessScale
         let size: CGSize = edge.isVertical
             ? CGSize(width: thickness, height: max(length, thickness))
             : CGSize(width: max(length, thickness), height: thickness)

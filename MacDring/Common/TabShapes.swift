@@ -27,7 +27,7 @@ struct ClassicTabShape: InsettableShape {
         // capped so it never eats more than a third of the length.
         let thickness = edge.isVertical ? r.width : r.height
         let length = edge.isVertical ? r.height : r.width
-        let slant = min(thickness * 0.55, length * 0.35)
+        let slant = min(thickness * 0.45, length * 0.3)
 
         var p = Path()
         switch edge {
