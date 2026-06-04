@@ -484,10 +484,19 @@ final class TabController {
             FileMover.move(fileURLs, into: directory)
             if openTabID == id { refreshOpenDrawer() } else { openDrawer(id) }
         case .items:
-            let newItems = urls.map { DrawerItem.fromDroppedURL($0) }   // files & links
-            for item in newItems { store.addItem(item, toTab: id) }
-            if slot >= 0, let first = newItems.first {
-                store.placeItem(first.id, atSlot: slot, inTab: id)   // drop into the targeted empty slot
+            let dropped = urls.map { DrawerItem.fromDroppedURL($0) }   // files & links, in drop order
+            // Add each (dedup) and collect the id actually in the tab — the existing
+            // item on a duplicate, or the new one — preserving order, de-duped.
+            var ids: [UUID] = []
+            for newItem in dropped {
+                if let itemID = store.addItem(newItem, toTab: id), !ids.contains(itemID) {
+                    ids.append(itemID)
+                }
+            }
+            if slot >= 0 {
+                // Land them in a run from the target slot (so a duplicate moves there
+                // too, and a multi-file drop doesn't scatter). See ANALYSIS.md I4.
+                store.placeItems(ids, startingAt: slot, inTab: id)
             }
             if openTabID != id { openDrawer(id) }   // a store change already refreshed an open drawer
         }

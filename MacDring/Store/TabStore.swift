@@ -149,15 +149,44 @@ final class TabStore: ObservableObject {
     /// Adds an item to a tab, skipping it if the tab already holds an item pointing
     /// at the same target — so dropping (or choosing) the same app/file/link twice
     /// doesn't create a duplicate. Items without a resolvable target are always added.
-    func addItem(_ item: DrawerItem, toTab tabID: UUID) {
+    /// Returns the id of the item now in the tab for that target — the **existing**
+    /// one on a duplicate, or the newly-added one — so a drop can place the right item
+    /// even when it dedups (`nil` only if the tab wasn't found).
+    @discardableResult
+    func addItem(_ item: DrawerItem, toTab tabID: UUID) -> UUID? {
+        var resultID: UUID?
         mutate {
-            if let i = $0.tabs.firstIndex(where: { $0.id == tabID }) {
-                if let target = BookmarkResolver.url(for: item)?.standardized,
-                   $0.tabs[i].items.contains(where: { BookmarkResolver.url(for: $0)?.standardized == target }) {
-                    return   // already present — avoid a duplicate
+            guard let i = $0.tabs.firstIndex(where: { $0.id == tabID }) else { return }
+            if let target = BookmarkResolver.url(for: item)?.standardized,
+               let existing = $0.tabs[i].items.first(where: { BookmarkResolver.url(for: $0)?.standardized == target }) {
+                resultID = existing.id   // already present — reuse it, don't duplicate
+                return
+            }
+            $0.tabs[i].items.append(item)
+            $0.tabs[i].items = $0.tabs[i].items.assigningMissingSlots()   // fill the new item's slot
+            resultID = item.id
+        }
+        return resultID
+    }
+
+    /// Places `ids` at consecutive free grid slots starting at `start` — skipping any
+    /// slot held by an item *not* in `ids` — preserving their order. Used when several
+    /// items are dropped onto a slot together so they land in a tidy run from the
+    /// target instead of scattering. See ANALYSIS.md I4.
+    func placeItems(_ ids: [UUID], startingAt start: Int, inTab tabID: UUID) {
+        guard !ids.isEmpty else { return }
+        mutate {
+            guard let ti = $0.tabs.firstIndex(where: { $0.id == tabID }) else { return }
+            let moving = Set(ids)
+            var blocked = Set($0.tabs[ti].items.filter { !moving.contains($0.id) }.map(\.slot))
+            var slot = max(0, start)
+            for id in ids {
+                while blocked.contains(slot) { slot += 1 }   // next slot free of a non-moving item
+                if let ii = $0.tabs[ti].items.firstIndex(where: { $0.id == id }) {
+                    $0.tabs[ti].items[ii].slot = slot
                 }
-                $0.tabs[i].items.append(item)
-                $0.tabs[i].items = $0.tabs[i].items.assigningMissingSlots()   // fill the new item's slot
+                blocked.insert(slot)
+                slot += 1
             }
         }
     }

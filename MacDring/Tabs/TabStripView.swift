@@ -225,21 +225,23 @@ struct TabStripView: View {
 /// `NSItemProvider`'s `URL` loader reads `public.file-url` and `public.url` alike,
 /// so a file dragged from Finder and a link dragged from a browser both arrive.
 func loadDroppedURLs(from providers: [NSItemProvider], completion: @escaping ([URL]) -> Void) {
-    var urls: [URL] = []
+    // Slot results by provider index so the callback order (non-deterministic across
+    // async loads) doesn't scramble the drop order. See ANALYSIS.md I4.
+    var results = [URL?](repeating: nil, count: providers.count)
     let lock = NSLock()
     let group = DispatchGroup()
 
-    for provider in providers {
+    for (index, provider) in providers.enumerated() {
         group.enter()
         _ = provider.loadObject(ofClass: URL.self) { url, _ in
             if let url {
                 lock.lock()
-                urls.append(url)
+                results[index] = url
                 lock.unlock()
             }
             group.leave()
         }
     }
 
-    group.notify(queue: .main) { completion(urls) }
+    group.notify(queue: .main) { completion(results.compactMap { $0 }) }
 }
