@@ -378,6 +378,10 @@ final class TabController {
         }
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             if event.keyCode == 53 {   // Escape
+                // Don't steal Esc from one of the app's own ordinary windows
+                // (Settings / New Tab); they need it to dismiss sheets, popovers,
+                // or fields. The borderless drawer/tab panels aren't `.titled`.
+                if let key = NSApp.keyWindow, key.styleMask.contains(.titled) { return event }
                 self?.closeDrawer()
                 return nil
             }
