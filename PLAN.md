@@ -487,7 +487,8 @@ MacDring/
 │   │   └── AboutView.swift
 │   ├── Common/
 │   │   ├── VisualEffectView.swift   # NSVisualEffectView wrapper (reused from Zap)
-│   │   └── TabShapes.swift          # edgeRoundedRect + ClassicTabShape (tab/drawer shapes)
+│   │   ├── TabShapes.swift          # edgeRoundedRect + ClassicTabShape (tab/drawer shapes)
+│   │   └── ActivationPolicy.swift   # shared .regular↔.accessory revert guard (Settings/New Tab)
 │   └── Resources/
 │       └── Assets.xcassets          # Info.plist generated
 ├── MacDringTests/
