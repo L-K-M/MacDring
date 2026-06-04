@@ -13,8 +13,8 @@ a concrete action plan for each item. Finished work is not tracked here — see 
 
 > **Review/build method.** Findings cite `file:line` against the code at review time. The
 > review was done by reading the source, not by running the app. macOS CI (`ci.yml`, Xcode
-> 16.2) is the source of truth for the build + the XCTest suite (currently **12 test files /
-> ~97 test methods**); on-device GUI behavior still needs a real Mac (see §5).
+> 16.2) is the source of truth for the build + the XCTest suite (the pure-logic tests
+> under `MacDringTests/`); on-device GUI behavior still needs a real Mac (see §5).
 
 Severity: **P0** correctness / data-loss · **P1** notable functional gap · **P2** robustness /
 performance / UX · **P3** polish / cleanup.
@@ -45,13 +45,10 @@ performance, and cleanup.
 
 ## 2. Documentation sync (docs vs. code)
 
-The code moved ahead of the prose in a few places. Each is a one-line fix.
-
-| Doc | Says | Reality | Fix |
-|---|---|---|---|
-| **README.md §Permissions** | "needs **no special permissions**" ([README.md:84](README.md)) | True for core launching, but the app **requests `com.apple.security.automation.apple-events`** and prompts to control Finder the first time you **Empty Trash**. | Add a sentence: Empty Trash asks once to control Finder (Apple Events); declining just leaves the Trash as-is. |
-| **PLAN.md §4** | `enum ItemKind { case application, file, folder, url }` ([PLAN.md:169](PLAN.md)) | Six cases — adds `.trash`, `.disk`. | Update the enum and the `DrawerItem`/`TabKind` notes to include trash + disks. |
-| **PLAN.md §11–§12** | "**61 unit tests passing**" ([PLAN.md:516](PLAN.md)); file tree omits some files | ~97 tests across 12 files. Tree lacks `TabConcealment.swift`, `MacDringTests/DrawerItemTests.swift`, `MacDringTests/DisksListerTests.swift`. | Refresh the count and add the missing files (or soften to "the test suite," since exact counts drift). |
+In sync. The previously-noted drift has been reconciled — README's Permissions
+section now documents the Empty-Trash Apple-Events prompt, and PLAN's `ItemKind`
+enum, `DrawerItem`/`TabKind` notes, file tree, and test-suite note match the code
+(the exact test count is left to CI, since it drifts as features land).
 
 ---
 
