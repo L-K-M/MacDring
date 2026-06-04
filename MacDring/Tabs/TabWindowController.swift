@@ -31,7 +31,10 @@ final class TabWindowController {
     /// while we're not the one changing it, an external agent (a window-management
     /// / tiling tool) grabbed it — so we snap it back. See `defendFrame`.
     private var intendedFrame: CGRect = .zero
-    private var isAdjustingFrame = false
+    /// Number of in-flight frame animations. A *count* (not a bool) so overlapping
+    /// animations — a rapid open/close/switch — don't let the first one's completion
+    /// re-arm the frame-defender while a later one is still running. See ANALYSIS.md B8.
+    private var frameAdjustmentDepth = 0
     private var frameObservers: [NSObjectProtocol] = []
 
     // Controller hooks.
@@ -99,7 +102,7 @@ final class TabWindowController {
     }
 
     private func defendFrame() {
-        guard !isAdjustingFrame, intendedFrame != .zero else { return }
+        guard frameAdjustmentDepth == 0, intendedFrame != .zero else { return }
         let current = panel.frame
         let drifted = abs(current.minX - intendedFrame.minX) > 1
             || abs(current.minY - intendedFrame.minY) > 1
@@ -171,14 +174,18 @@ final class TabWindowController {
     func animate(to frame: CGRect, duration: TimeInterval) {
         guard duration > 0 else { applyFrame(frame); return }
         intendedFrame = frame
-        isAdjustingFrame = true   // suppress the frame-defender during the animation
+        frameAdjustmentDepth += 1   // suppress the frame-defender during the animation
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = duration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().setFrame(frame, display: true)
         }, completionHandler: { [weak self] in
-            self?.isAdjustingFrame = false
-            self?.hostingView.frame = self?.panel.contentView?.bounds ?? .zero
+            guard let self else { return }
+            self.frameAdjustmentDepth = max(0, self.frameAdjustmentDepth - 1)
+            // Only re-sync the hosting view once the last overlapping animation ends.
+            if self.frameAdjustmentDepth == 0 {
+                self.hostingView.frame = self.panel.contentView?.bounds ?? .zero
+            }
         })
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 
 /// What a drawer item points at.
-enum ItemKind: String, Codable { case application, file, folder, url }
+enum ItemKind: String, Codable { case application, file, folder, url, trash }
 
 /// A single launchable entry inside a drawer: an app, file, folder, or URL.
 ///
@@ -118,6 +118,14 @@ extension DrawerItem {
             return DrawerItem(kind: .url, displayName: url.host ?? url.absoluteString, url: url)
         }
         return fromFileURL(url)
+    }
+  
+    /// A Trash item: opens the Trash in Finder when clicked, and deletes (moves to
+    /// Trash) any files dropped onto it — the classic DragThing Trash dock.
+    static func trash() -> DrawerItem {
+        let url = (try? FileManager.default.url(for: .trashDirectory, in: .userDomainMask, appropriateFor: nil, create: false))
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash", isDirectory: true)
+        return DrawerItem(kind: .trash, displayName: "Trash", url: url)
     }
 
     /// Builds a `.url` item from a typed link, defaulting a missing scheme to https.

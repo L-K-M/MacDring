@@ -26,6 +26,8 @@ final class TabStripModel: ObservableObject {
     var onDragEnded: (() -> Void)?
     var onRequestSettings: (() -> Void)?
     var onDelete: (() -> Void)?
+    /// Move the tab to a different screen edge (pill context menu).
+    var onMoveToEdge: ((Edge) -> Void)?
 
     init(title: String, colorHex: String, glyph: TabGlyph, edge: Edge) {
         self.title = title

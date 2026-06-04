@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import UniformTypeIdentifiers
 
 /// The orchestrator. Reconciles the stored tabs against the live display set
 /// into on-screen tab windows, owns the shared drawer, and routes every
@@ -40,8 +41,14 @@ final class TabController {
         wireDrawer()
         store.onChange = { [weak self] in self?.reconcile() }
         registry.onChange = { [weak self] in self?.reconcile() }
+        // A preference change reconciles every tab window (re-measure + reposition,
+        // and re-list every folder tab). Dragging an appearance slider fires
+        // `objectWillChange` continuously, so debounce to coalesce a burst into a
+        // single reconcile once the value settles — `objectWillChange` fires *before*
+        // the change, and a debounced main-queue delivery reads the updated value.
         preferences.objectWillChange
-            .sink { [weak self] in DispatchQueue.main.async { self?.reconcile() } }
+            .debounce(for: .milliseconds(80), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reconcile() }
             .store(in: &cancellables)
     }
 
@@ -107,7 +114,17 @@ final class TabController {
         wc.onDragEnded = { [weak self] in self?.endDrag(id) }
         wc.model.onRequestSettings = { [weak self] in self?.onOpenSettings?(id) }
         wc.model.onDelete = { [weak self] in self?.store.removeTab(id: id) }
+        wc.model.onMoveToEdge = { [weak self] edge in self?.moveTab(id, toEdge: edge) }
         return wc
+    }
+
+    /// Re-anchors a tab to a different edge (pill context menu), keeping its
+    /// display, fractional position, and stack order.
+    private func moveTab(_ id: UUID, toEdge edge: Edge) {
+        guard let tab = store.tab(id: id), tab.anchor.edge != edge else { return }
+        var anchor = tab.anchor
+        anchor.edge = edge
+        store.setAnchor(anchor, forTab: id)
     }
 
     // MARK: Drawer open / close
@@ -256,6 +273,11 @@ final class TabController {
             ItemLauncher.open(urls, withApp: target)   // files *or* links → open-with
             return
         }
+        if let target, target.kind == .trash {
+            FileMover.trash(urls)   // drop onto Trash → move the files to the Trash
+            if tab.kind == .folder { refreshOpenDrawer() }
+            return
+        }
         if let target, target.kind == .folder, let directory = BookmarkResolver.url(for: target) {
             FileMover.move(fileURLs, into: directory)   // only files can be filed in
             if tab.kind == .folder { refreshOpenDrawer() }
@@ -323,6 +345,9 @@ final class TabController {
             self.store.removeItem(id: item.id, fromTab: id)
         }
         drawer.model.onRevealItem = { item in ItemLauncher.revealInFinder(item) }
+        drawer.model.onRenameItem = { [weak self] item in self?.renameItem(item) }
+        drawer.model.onChangeItemIcon = { [weak self] item in self?.changeItemIcon(item) }
+        drawer.model.onResetItemIcon = { [weak self] item in self?.resetItemIcon(item) }
         drawer.model.onDropFiles = { [weak self] urls, slot in
             guard let self, let id = self.openTabID else { return }
             self.handleFileDrop(urls, slot: slot, toTab: id)
@@ -363,6 +388,56 @@ final class TabController {
         if !keepOpen { closeDrawer() }
     }
 
+    // MARK: Item rename / icon
+
+    /// Renames an item via a small modal prompt, then commits it to the store.
+    private func renameItem(_ item: DrawerItem) {
+        guard let id = openTabID else { return }
+        let alert = NSAlert()
+        alert.messageText = "Rename Item"
+        alert.informativeText = "Enter a new name for “\(item.displayName)”."
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        field.stringValue = item.displayName
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        NSApp.activate(ignoringOtherApps: true)   // a text prompt needs key focus
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        var updated = item
+        updated.displayName = name
+        store.updateItem(updated, inTab: id)
+    }
+
+    /// Lets the user pick an image to use as an item's icon, then stores it as a
+    /// bookmark so it survives moves/renames.
+    private func changeItemIcon(_ item: DrawerItem) {
+        guard let id = openTabID else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        panel.message = "Choose an image to use as this item's icon"
+
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var updated = item
+        updated.customIconBookmark = BookmarkResolver.makeBookmark(for: url)
+        store.updateItem(updated, inTab: id)
+    }
+
+    /// Clears an item's custom icon, restoring its default.
+    private func resetItemIcon(_ item: DrawerItem) {
+        guard let id = openTabID else { return }
+        var updated = item
+        updated.customIconBookmark = nil
+        store.updateItem(updated, inTab: id)
+    }
+
     // MARK: Dismissal monitoring
 
     private func startMonitoring() {
@@ -381,6 +456,10 @@ final class TabController {
         }
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             if event.keyCode == 53 {   // Escape
+                // Don't steal Esc from one of the app's own ordinary windows
+                // (Settings / New Tab); they need it to dismiss sheets, popovers,
+                // or fields. The borderless drawer/tab panels aren't `.titled`.
+                if let key = NSApp.keyWindow, key.styleMask.contains(.titled) { return event }
                 self?.closeDrawer()
                 return nil
             }

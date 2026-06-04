@@ -146,11 +146,21 @@ struct DrawerView: View {
         } else {
             VStack(spacing: 2) {
                 ForEach(model.items.sorted { $0.slot < $1.slot }) { item in
+                    let fileDropHere = model.fileDropSlot == item.slot
+                    // Match the grid: a file dragged onto a folder/app is a
+                    // "file into / open with" target — give it a distinct ring.
+                    let intoTarget = fileDropHere && (item.kind == .folder || item.kind == .application)
                     inCellItem(item)
                         .padding(.vertical, 3)
                         .padding(.horizontal, 4)
                         .background(RoundedRectangle(cornerRadius: 8)
-                            .fill(.white.opacity(model.fileDropSlot == item.slot ? 0.16 : 0)))
+                            .fill(.white.opacity(fileDropHere ? 0.16 : 0)))
+                        .overlay {
+                            if intoTarget {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(Color(hexString: model.colorHex), lineWidth: 2)
+                            }
+                        }
                         .background(slotFrameReporter(item.slot))
                 }
             }
@@ -163,7 +173,7 @@ struct DrawerView: View {
         let fileDropHere = model.fileDropSlot == slot
         // A file dragged onto a folder/app is a "file into / open with" target, not a
         // plain slot drop — give it a distinct ring so the difference is obvious.
-        let intoTarget = fileDropHere && (item?.kind == .folder || item?.kind == .application)
+        let intoTarget = fileDropHere && (item?.kind == .folder || item?.kind == .application || item?.kind == .trash)
         return ZStack {
             RoundedRectangle(cornerRadius: 10)
                 .fill(.white.opacity((reorderHere || fileDropHere) ? 0.16 : 0))
@@ -256,7 +266,10 @@ struct DrawerView: View {
             launchOnSingleClick: preferences.launchOnSingleClick,
             onLaunch: { model.onLaunch?(item) },
             onReveal: { model.onRevealItem?(item) },
-            onRemove: editable ? { model.onRemoveItem?(item) } : nil
+            onRemove: editable ? { model.onRemoveItem?(item) } : nil,
+            onRename: editable ? { model.onRenameItem?(item) } : nil,
+            onChangeIcon: editable ? { model.onChangeItemIcon?(item) } : nil,
+            onResetIcon: editable ? { model.onResetItemIcon?(item) } : nil
         )
     }
 

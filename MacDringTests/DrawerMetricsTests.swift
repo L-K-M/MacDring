@@ -39,10 +39,16 @@ final class DrawerMetricsTests: XCTestCase {
         XCTAssertGreaterThan(size.height, 0)
     }
 
-    func testListWidthIsFixed() {
+    func testListWidthIsIndependentOfItemCount() {
         let a = DrawerMetrics.contentSize(itemCount: 3, maxSlot: 2, configuredRows: 2, layout: .list, iconSize: 48, columns: 4, in: visible)
         let b = DrawerMetrics.contentSize(itemCount: 30, maxSlot: 29, configuredRows: 2, layout: .list, iconSize: 48, columns: 4, in: visible)
-        XCTAssertEqual(a.width, b.width)
-        XCTAssertGreaterThan(b.height, a.height)
+        XCTAssertEqual(a.width, b.width)         // width tracks icon size, not count
+        XCTAssertGreaterThan(b.height, a.height) // height grows with count
+    }
+
+    func testListWidthGrowsWithIconSize() {
+        let small = DrawerMetrics.contentSize(itemCount: 4, maxSlot: 3, configuredRows: 2, layout: .list, iconSize: 32, columns: 4, in: visible)
+        let large = DrawerMetrics.contentSize(itemCount: 4, maxSlot: 3, configuredRows: 2, layout: .list, iconSize: 128, columns: 4, in: visible)
+        XCTAssertGreaterThan(large.width, small.width)
     }
 }
