@@ -60,12 +60,23 @@ final class PreferencesTests: XCTestCase {
         prefs.gridColumns = 6
         prefs.cornerRadius = 20
         prefs.tabThickness = 50
+        prefs.fadedOpacity = 0.35
 
         let reloaded = Preferences(defaults: defaults)
         XCTAssertEqual(reloaded.iconSize, 96)
         XCTAssertEqual(reloaded.gridColumns, 6)
         XCTAssertEqual(reloaded.cornerRadius, 20)
         XCTAssertEqual(reloaded.tabThickness, 50)
+        XCTAssertEqual(reloaded.fadedOpacity, 0.35)
+    }
+
+    func testFadedOpacityDefaultAndClamp() {
+        XCTAssertEqual(Preferences(defaults: defaults).fadedOpacity, Preferences.Default.fadedOpacity)
+
+        defaults.set(5.0, forKey: "fadedOpacity")
+        XCTAssertLessThanOrEqual(Preferences(defaults: defaults).fadedOpacity, 0.9)
+        defaults.set(0.0, forKey: "fadedOpacity")
+        XCTAssertGreaterThanOrEqual(Preferences(defaults: defaults).fadedOpacity, 0.05)
     }
 
     func testOutOfRangeValuesAreClamped() {

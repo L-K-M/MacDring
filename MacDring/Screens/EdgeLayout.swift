@@ -64,6 +64,35 @@ enum EdgeLayout {
         return frame
     }
 
+    /// A thin sliver flush at `edge`, shrunk to `reveal` points on the
+    /// perpendicular axis and kept entirely on the tab's own screen (the along-edge
+    /// axis is unchanged). Used to auto-hide a tab on an edge it *shares* with
+    /// another display, where sliding off would spill onto the neighbor — this
+    /// reclaims the space without leaving its screen, instead of fading. Pure, so
+    /// it's unit-tested. See PLAN.md §13.
+    static func sliverTabFrame(edge: Edge, restingTabFrame f: CGRect, reveal: CGFloat = 3) -> CGRect {
+        var frame = f
+        switch edge {
+        case .left:   frame.size.width = reveal
+        case .right:  frame.origin.x = f.maxX - reveal; frame.size.width = reveal
+        case .top:    frame.origin.y = f.maxY - reveal; frame.size.height = reveal
+        case .bottom: frame.size.height = reveal
+        }
+        return frame
+    }
+
+    /// Whether auto-hiding by sliding the resting tab off `edge` would leave it
+    /// visible on *another* display — true when a screen butts against that edge
+    /// over the tab's span. On such a shared edge the pill can't actually go
+    /// off-screen (it would land on the neighbor), so the caller shrinks it to a
+    /// `sliverTabFrame` instead. Pure, so it's unit-tested. See PLAN.md §13.
+    static func hiddenFrameSpillsOntoOtherScreens(edge: Edge, restingTabFrame: CGRect,
+                                                  screenVisibleFrame: CGRect,
+                                                  otherScreenFrames: [CGRect], reveal: CGFloat = 3) -> Bool {
+        let hidden = hiddenTabFrame(edge: edge, restingTabFrame: restingTabFrame, in: screenVisibleFrame, reveal: reveal)
+        return otherScreenFrames.contains { $0.intersects(hidden) }
+    }
+
     // MARK: Drawer placement
 
     /// Frame for an opening drawer: it sits **flush against the screen edge**
@@ -91,6 +120,25 @@ enum EdgeLayout {
             return CGRect(x: alignHorizontal(center: tabFrame.midX, width: w, in: visibleFrame),
                           y: visibleFrame.minY,
                           width: w, height: h)
+        }
+    }
+
+    /// Which inner corners of an open drawer must be squared so its tab joins the
+    /// drawer flush. The tab rides the drawer's inward face; if it sits within
+    /// `radius` of a corner (e.g. the drawer was clamped toward a screen edge, so
+    /// the tab is no longer centered on it), that corner has to be square or a
+    /// rounded notch shows at the seam. `start`/`end` run along the inward face:
+    /// top→bottom for left/right edges, leading→trailing for top/bottom. Pure, so
+    /// it's unit-tested. See PLAN.md §5.
+    static func drawerInnerCornersToSquare(edge: Edge, tabFrame: CGRect, drawerFrame: CGRect,
+                                           radius: CGFloat) -> (start: Bool, end: Bool) {
+        let tolerance: CGFloat = 0.5   // ignore float noise when a centered tab just touches the curve
+        if edge.isVertical {
+            return (start: tabFrame.maxY > drawerFrame.maxY - radius + tolerance,   // near the top corner
+                    end:   tabFrame.minY < drawerFrame.minY + radius - tolerance)   // near the bottom corner
+        } else {
+            return (start: tabFrame.minX < drawerFrame.minX + radius - tolerance,   // near the leading corner
+                    end:   tabFrame.maxX > drawerFrame.maxX - radius + tolerance)   // near the trailing corner
         }
     }
 

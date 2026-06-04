@@ -26,6 +26,7 @@ final class Preferences: ObservableObject {
         static let gridRows = 2.0
         static let cornerRadius = 14.0
         static let tabThickness = 36.0
+        static let fadedOpacity = 0.2
         static let showTabLabels = true
         static let newTabOpenOnHover = false
         static let newTabAutoHide = true
@@ -46,6 +47,7 @@ final class Preferences: ObservableObject {
         static let gridRows = "gridRows"
         static let cornerRadius = "cornerRadius"
         static let tabThickness = "tabThickness"
+        static let fadedOpacity = "fadedOpacity"
         static let showTabLabels = "showTabLabels"
         static let newTabOpenOnHover = "newTabOpenOnHover"
         static let newTabAutoHide = "newTabAutoHide"
@@ -98,6 +100,13 @@ final class Preferences: ObservableObject {
     /// Thickness (in points) of a tab pill measured perpendicular to its edge.
     @Published var tabThickness: Double {
         didSet { defaults.set(tabThickness, forKey: Key.tabThickness) }
+    }
+
+    /// Opacity an auto-faded tab dims to when idle (1 = no fade). Applied live to
+    /// any tab whose concealment is `.fade` (and to auto-hide tabs that fall back
+    /// to fading on a shared edge).
+    @Published var fadedOpacity: Double {
+        didSet { defaults.set(fadedOpacity, forKey: Key.fadedOpacity) }
     }
 
     /// Whether the tab pill shows its title text next to the glyph.
@@ -162,6 +171,7 @@ final class Preferences: ObservableObject {
         gridRows = Self.clamp(defaults.object(forKey: Key.gridRows) as? Double ?? Default.gridRows, 1, 16, Default.gridRows)
         cornerRadius = Self.clamp(defaults.object(forKey: Key.cornerRadius) as? Double ?? Default.cornerRadius, 0, 24, Default.cornerRadius)
         tabThickness = Self.clamp(defaults.object(forKey: Key.tabThickness) as? Double ?? Default.tabThickness, 24, 64, Default.tabThickness)
+        fadedOpacity = Self.clamp(defaults.object(forKey: Key.fadedOpacity) as? Double ?? Default.fadedOpacity, 0.05, 0.9, Default.fadedOpacity)
         showTabLabels = defaults.object(forKey: Key.showTabLabels) as? Bool ?? Default.showTabLabels
         newTabOpenOnHover = defaults.object(forKey: Key.newTabOpenOnHover) as? Bool ?? Default.newTabOpenOnHover
         newTabAutoHide = defaults.object(forKey: Key.newTabAutoHide) as? Bool ?? Default.newTabAutoHide

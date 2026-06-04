@@ -30,12 +30,14 @@ final class TabWindowController {
     /// The tab's idle concealment style (Dock-style auto-hide / auto-fade). The
     /// `TabController` drives *when* to conceal/reveal; this controller owns *how*.
     var concealmentStyle: TabConcealment = .never
-    /// Whether the tab is currently concealed (slid off / faded). The controller
-    /// flips this through `conceal`/`reveal`; placement honors it so a reconcile
-    /// doesn't pop a hidden tab back onto the edge.
+    /// Whether the tab is currently concealed (slid off / shrunk / faded). The
+    /// controller flips this through `conceal`/`reveal`; placement honors it so a
+    /// reconcile doesn't pop a hidden tab back onto the edge.
     private(set) var isConcealed = false
-    /// Opacity an auto-faded tab dims to when idle.
-    private static let fadedAlpha: CGFloat = 0.18
+    /// Whether the tab is currently shrunk to an edge sliver (the shared-edge
+    /// auto-hide case). The window is smaller than the pill here, so we snap in/out
+    /// of this state rather than animate (the clipped content doesn't slide cleanly).
+    private var isSliverHidden = false
 
     /// The frame we last set deliberately. If the panel's frame diverges from this
     /// while we're not the one changing it, an external agent (a window-management
@@ -81,11 +83,16 @@ final class TabWindowController {
         panel.isReleasedWhenClosed = false
         panel.isRestorable = false
         panel.isMovable = false   // we position it programmatically; deter window drags
+        panel.minSize = .zero     // allow shrinking to a thin auto-hide sliver
         panel.level = preferences.tabWindowLevel.nsWindowLevel
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
         let container = NSView(frame: panel.frame)
         container.autoresizesSubviews = true
+        // Clip to the window so the auto-hide sliver shows only the pill's clean
+        // edge strip; the full-size hosting view behind it is cropped to the sliver.
+        container.wantsLayer = true
+        container.layer?.masksToBounds = true
         hosting.frame = container.bounds
         container.addSubview(hosting)
         panel.contentView = container
@@ -174,9 +181,20 @@ final class TabWindowController {
         hostingView.layoutSubtreeIfNeeded()
         let fitting = hostingView.fittingSize
         let thickness = CGFloat(preferences.tabThickness) * preferences.tabStyle.thicknessScale
-        let size: CGSize = model.edge.isVertical
-            ? CGSize(width: thickness, height: max(fitting.height, thickness))
-            : CGSize(width: max(fitting.width, thickness), height: thickness)
+        let size: CGSize
+        if preferences.tabStyle == .classic {
+            // Classic hugs its content along the thin (perpendicular) axis for a
+            // compact folder-tab look; the along-edge axis keeps a thickness floor
+            // so a short-label tab stays easy to click. Matches the view, which
+            // drops its thin-axis frame for classic.
+            size = model.edge.isVertical
+                ? CGSize(width: fitting.width, height: max(fitting.height, thickness))
+                : CGSize(width: max(fitting.width, thickness), height: fitting.height)
+        } else {
+            size = model.edge.isVertical
+                ? CGSize(width: thickness, height: max(fitting.height, thickness))
+                : CGSize(width: max(fitting.width, thickness), height: thickness)
+        }
 
         restingFrame = EdgeLayout.tabFrame(edge: model.edge, position: anchor.position, size: size, in: screen.visibleFrame)
         applyConcealmentPresentation(duration: 0)
@@ -224,17 +242,62 @@ final class TabWindowController {
     /// the controller positions the pill on the drawer's inner face. An open tab is
     /// always fully opaque.
     private func applyConcealmentPresentation(duration: TimeInterval) {
-        let faded = !model.isOpen && isConcealed && concealmentStyle == .fade
-        setAlpha(faded ? Self.fadedAlpha : 1, duration: duration)
+        var targetAlpha: CGFloat = 1
+        var target = restingFrame
+        var sliver = false
 
-        guard !model.isOpen else { return }
-        let target: CGRect
-        if isConcealed, concealmentStyle == .hide, let visible = currentScreen?.visibleFrame {
-            target = EdgeLayout.hiddenTabFrame(edge: model.edge, restingTabFrame: restingFrame, in: visible)
-        } else {
-            target = restingFrame
+        if isConcealed && !model.isOpen {
+            switch concealmentStyle {
+            case .never:
+                break
+            case .fade:
+                targetAlpha = CGFloat(preferences.fadedOpacity)
+            case .hide:
+                if let screen = currentScreen {
+                    // Sliding off an edge shared with another display would land the
+                    // pill on the neighbor instead of off-screen — so on a shared
+                    // edge, shrink to a sliver on our own screen (a true hide, not a
+                    // fade). Otherwise slide the whole pill off. See EdgeLayout.
+                    let others = NSScreen.screens.filter { $0.frame != screen.frame }.map(\.frame)
+                    if EdgeLayout.hiddenFrameSpillsOntoOtherScreens(edge: model.edge, restingTabFrame: restingFrame,
+                                                                    screenVisibleFrame: screen.visibleFrame,
+                                                                    otherScreenFrames: others) {
+                        target = EdgeLayout.sliverTabFrame(edge: model.edge, restingTabFrame: restingFrame)
+                        sliver = true
+                    } else {
+                        target = EdgeLayout.hiddenTabFrame(edge: model.edge, restingTabFrame: restingFrame, in: screen.visibleFrame)
+                    }
+                }
+            }
         }
-        if duration > 0 { animate(to: target, duration: duration) } else { applyFrame(target) }
+
+        setAlpha(targetAlpha, duration: duration)
+        guard !model.isOpen else { return }
+        // The sliver window is smaller than the pill, so snap into and out of it
+        // (a frame animation would distort the clipped content); slide-off and fade
+        // animate normally.
+        let instant = sliver || isSliverHidden
+        isSliverHidden = sliver
+        if sliver {
+            applySliverFrame(target)
+        } else if instant || duration <= 0 {
+            applyFrame(target)
+        } else {
+            animate(to: target, duration: duration)
+        }
+    }
+
+    /// Shows the tab as a thin edge sliver while keeping the hosting view at the
+    /// full pill size — shifted so the window exposes only the clean edge strip
+    /// (within the tab's padding), never the centered glyph/label cropped into it.
+    private func applySliverFrame(_ sliverFrame: CGRect) {
+        intendedFrame = sliverFrame
+        panel.setFrame(sliverFrame, display: false)
+        hostingView.frame = CGRect(x: restingFrame.minX - sliverFrame.minX,
+                                   y: restingFrame.minY - sliverFrame.minY,
+                                   width: restingFrame.width,
+                                   height: restingFrame.height)
+        panel.display()
     }
 
     /// Sets the panel's opacity, optionally animated.

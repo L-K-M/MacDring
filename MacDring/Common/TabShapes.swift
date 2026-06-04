@@ -4,12 +4,20 @@ import SwiftUI
 /// are rounded by `radius`, while the two corners touching the screen edge stay
 /// sharp. Used by both the modern tab pill and the open drawer so each reads as
 /// emerging flush from the edge.
-func edgeRoundedRect(edge: Edge, radius r: CGFloat) -> UnevenRoundedRectangle {
+///
+/// `squareStart` / `squareEnd` square an individual inner corner so the open
+/// drawer joins its tab flush when the tab sits at that corner (no rounded notch
+/// at the seam). They run along the inward face: top→bottom for left/right edges,
+/// leading→trailing for top/bottom. Both default off (the plain edge-rounded look).
+func edgeRoundedRect(edge: Edge, radius r: CGFloat,
+                     squareStart: Bool = false, squareEnd: Bool = false) -> UnevenRoundedRectangle {
+    let start: CGFloat = squareStart ? 0 : r
+    let end: CGFloat = squareEnd ? 0 : r
     switch edge {
-    case .right:  return UnevenRoundedRectangle(topLeadingRadius: r, bottomLeadingRadius: r, style: .continuous)
-    case .left:   return UnevenRoundedRectangle(bottomTrailingRadius: r, topTrailingRadius: r, style: .continuous)
-    case .top:    return UnevenRoundedRectangle(bottomLeadingRadius: r, bottomTrailingRadius: r, style: .continuous)
-    case .bottom: return UnevenRoundedRectangle(topLeadingRadius: r, topTrailingRadius: r, style: .continuous)
+    case .right:  return UnevenRoundedRectangle(topLeadingRadius: start, bottomLeadingRadius: end, style: .continuous)
+    case .left:   return UnevenRoundedRectangle(bottomTrailingRadius: end, topTrailingRadius: start, style: .continuous)
+    case .top:    return UnevenRoundedRectangle(bottomLeadingRadius: start, bottomTrailingRadius: end, style: .continuous)
+    case .bottom: return UnevenRoundedRectangle(topLeadingRadius: start, topTrailingRadius: end, style: .continuous)
     }
 }
 

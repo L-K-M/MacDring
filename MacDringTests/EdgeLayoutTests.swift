@@ -82,6 +82,64 @@ final class EdgeLayoutTests: XCTestCase {
                        horizontal.minX, accuracy: 0.001)
     }
 
+    func testAutoHideSpillIsDetectedOnAnEdgeSharedWithAnotherDisplay() {
+        // A right display whose left edge butts against a left display: hiding a
+        // left-edge tab there would slide onto the neighbor.
+        let rightVisible = CGRect(x: 1000, y: 0, width: 1000, height: 760)
+        let leftFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let resting = EdgeLayout.tabFrame(edge: .left, position: 0.5, size: pill, in: rightVisible)
+
+        XCTAssertTrue(EdgeLayout.hiddenFrameSpillsOntoOtherScreens(
+            edge: .left, restingTabFrame: resting, screenVisibleFrame: rightVisible, otherScreenFrames: [leftFrame]))
+    }
+
+    func testAutoHideDoesNotSpillOnAnOuterEdge() {
+        // The right display's *right* edge is the outer edge of the desktop.
+        let rightVisible = CGRect(x: 1000, y: 0, width: 1000, height: 760)
+        let leftFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let resting = EdgeLayout.tabFrame(edge: .right, position: 0.5, size: pill, in: rightVisible)
+
+        XCTAssertFalse(EdgeLayout.hiddenFrameSpillsOntoOtherScreens(
+            edge: .right, restingTabFrame: resting, screenVisibleFrame: rightVisible, otherScreenFrames: [leftFrame]))
+    }
+
+    func testAutoHideDoesNotSpillWhenNeighborMissesTheTabSpan() {
+        // A neighbor stacked far above doesn't overlap a mid-height left-edge tab,
+        // so sliding off the (locally outer) left edge truly leaves the screen.
+        let rightVisible = CGRect(x: 1000, y: 0, width: 1000, height: 760)
+        let neighborAbove = CGRect(x: 0, y: 2000, width: 1000, height: 800)
+        let resting = EdgeLayout.tabFrame(edge: .left, position: 0.5, size: pill, in: rightVisible)
+
+        XCTAssertFalse(EdgeLayout.hiddenFrameSpillsOntoOtherScreens(
+            edge: .left, restingTabFrame: resting, screenVisibleFrame: rightVisible, otherScreenFrames: [neighborAbove]))
+    }
+
+    func testSliverTabFrameStaysOnScreenFlushToEdge() {
+        let reveal: CGFloat = 3
+        for edge in Edge.allCases {
+            let resting = EdgeLayout.tabFrame(edge: edge, position: 0.5, size: pill, in: visible)
+            let sliver = EdgeLayout.sliverTabFrame(edge: edge, restingTabFrame: resting, reveal: reveal)
+
+            // Entirely within its own screen — never spills onto a neighbor.
+            XCTAssertTrue(visible.insetBy(dx: -0.01, dy: -0.01).contains(sliver), "sliver left the screen on \(edge): \(sliver)")
+            switch edge {
+            case .left:
+                XCTAssertEqual(sliver.minX, visible.minX, accuracy: 0.001)   // flush, on-screen
+                XCTAssertEqual(sliver.width, reveal, accuracy: 0.001)
+                XCTAssertEqual(sliver.minY, resting.minY, accuracy: 0.001)   // along-edge unchanged
+            case .right:
+                XCTAssertEqual(sliver.maxX, visible.maxX, accuracy: 0.001)
+                XCTAssertEqual(sliver.width, reveal, accuracy: 0.001)
+            case .top:
+                XCTAssertEqual(sliver.maxY, visible.maxY, accuracy: 0.001)
+                XCTAssertEqual(sliver.height, reveal, accuracy: 0.001)
+            case .bottom:
+                XCTAssertEqual(sliver.minY, visible.minY, accuracy: 0.001)
+                XCTAssertEqual(sliver.height, reveal, accuracy: 0.001)
+            }
+        }
+    }
+
     // MARK: Drawer placement (flush to edge) + opened tab
 
     func testOpenDrawerIsFlushToItsEdge() {
@@ -129,6 +187,54 @@ final class EdgeLayoutTests: XCTestCase {
             XCTAssertFalse(opened.insetBy(dx: 0.5, dy: 0.5).intersects(drawer),
                            "opened tab overlaps drawer interior on \(edge)")
         }
+    }
+
+    // MARK: Drawer inner-corner squaring (flush tab join)
+
+    func testCenteredTabKeepsBothDrawerCornersRounded() {
+        // Drawer centered on the tab with the straight run ≥ tab length → neither
+        // inner corner needs squaring.
+        let radius: CGFloat = 14
+        let tab = EdgeLayout.tabFrame(edge: .left, position: 0.5, size: pill, in: visible)
+        let drawer = EdgeLayout.openDrawerFrame(edge: .left, tabFrame: tab,
+                                                contentSize: CGSize(width: 300, height: pill.height + 2 * radius), in: visible)
+        let corners = EdgeLayout.drawerInnerCornersToSquare(edge: .left, tabFrame: tab, drawerFrame: drawer, radius: radius)
+        XCTAssertFalse(corners.start)
+        XCTAssertFalse(corners.end)
+    }
+
+    func testTabAtBottomSquaresOnlyTheBottomInnerCorner() {
+        // A clamped drawer near the bottom: the tab sits at the bottom corner (the
+        // reported bug), so only the bottom (end) inner corner is squared.
+        let radius: CGFloat = 14
+        let tab = EdgeLayout.tabFrame(edge: .left, position: 1.0, size: pill, in: visible)   // flush to the bottom
+        let drawer = EdgeLayout.openDrawerFrame(edge: .left, tabFrame: tab,
+                                                contentSize: CGSize(width: 300, height: 400), in: visible)
+        let corners = EdgeLayout.drawerInnerCornersToSquare(edge: .left, tabFrame: tab, drawerFrame: drawer, radius: radius)
+        XCTAssertFalse(corners.start)
+        XCTAssertTrue(corners.end)
+    }
+
+    func testTabAtTopSquaresOnlyTheTopInnerCorner() {
+        let radius: CGFloat = 14
+        let tab = EdgeLayout.tabFrame(edge: .right, position: 0.0, size: pill, in: visible)   // flush to the top
+        let drawer = EdgeLayout.openDrawerFrame(edge: .right, tabFrame: tab,
+                                                contentSize: CGSize(width: 300, height: 400), in: visible)
+        let corners = EdgeLayout.drawerInnerCornersToSquare(edge: .right, tabFrame: tab, drawerFrame: drawer, radius: radius)
+        XCTAssertTrue(corners.start)
+        XCTAssertFalse(corners.end)
+    }
+
+    func testTabAtTrailingEndSquaresOnlyTheTrailingInnerCorner() {
+        // Horizontal edge: a tab clamped to the right squares the trailing corner.
+        let radius: CGFloat = 14
+        let wide = CGSize(width: 120, height: 40)
+        let tab = EdgeLayout.tabFrame(edge: .bottom, position: 1.0, size: wide, in: visible)
+        let drawer = EdgeLayout.openDrawerFrame(edge: .bottom, tabFrame: tab,
+                                                contentSize: CGSize(width: 300, height: 300), in: visible)
+        let corners = EdgeLayout.drawerInnerCornersToSquare(edge: .bottom, tabFrame: tab, drawerFrame: drawer, radius: radius)
+        XCTAssertFalse(corners.start)
+        XCTAssertTrue(corners.end)
     }
 
     func testNudgedDrawerStaysOnScreenSameSize() {

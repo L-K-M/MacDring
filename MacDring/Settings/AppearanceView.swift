@@ -33,8 +33,12 @@ struct AppearanceView: View {
                     Text("Tab thickness: \(Int(preferences.tabThickness)) pt")
                     Slider(value: $preferences.tabThickness, in: 24...64, step: 1)
                 }
+                VStack(alignment: .leading) {
+                    Text("Auto-fade opacity: \(Int(preferences.fadedOpacity * 100))%")
+                    Slider(value: $preferences.fadedOpacity, in: 0.05...0.9, step: 0.05)
+                }
                 Toggle("Show tab labels", isOn: $preferences.showTabLabels)
-                Text("Side tabs (left/right edges) print their name vertically, so longer names fit.")
+                Text("Side tabs (left/right edges) print their name vertically, so longer names fit. Auto-fade opacity sets how faint an idle auto-fading tab gets (Tabs → When idle).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 ColorPicker("Default color for new tabs", selection: defaultColorBinding, supportsOpacity: false)

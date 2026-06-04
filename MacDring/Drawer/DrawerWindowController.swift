@@ -268,8 +268,8 @@ final class DrawerWindowController {
         }
         // Keep the drawer long enough along the edge that the tab joins its *flat*
         // inner face rather than a rounded corner. The straight run of that face is
-        // (extent − 2·radius); make it at least the tab's length so the tab — which
-        // is centered on the drawer along the edge — meets it flush, with no rounded
+        // (extent − 2·radius); make it at least the tab's length so the tab — when
+        // centered on the drawer along the edge — meets it flush, with no rounded
         // notch at the join (see the "tab doesn't attach to the drawer" report).
         var content = size
         let radius = CGFloat(preferences.cornerRadius)
@@ -280,6 +280,15 @@ final class DrawerWindowController {
         } else {
             content.width = max(content.width, minExtent)
         }
-        return EdgeLayout.openDrawerFrame(edge: currentEdge, tabFrame: currentTabFrame, contentSize: content, in: visibleFrame)
+        let frame = EdgeLayout.openDrawerFrame(edge: currentEdge, tabFrame: currentTabFrame, contentSize: content, in: visibleFrame)
+
+        // When the drawer is clamped toward a screen edge the tab is no longer
+        // centered on it and ends up beside an inner corner; square that corner so
+        // the tab still joins flush (the minExtent run only covers the centered case).
+        let corners = EdgeLayout.drawerInnerCornersToSquare(edge: currentEdge, tabFrame: currentTabFrame,
+                                                            drawerFrame: frame, radius: radius)
+        model.squareInnerStart = corners.start
+        model.squareInnerEnd = corners.end
+        return frame
     }
 }

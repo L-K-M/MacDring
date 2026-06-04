@@ -2,9 +2,8 @@
 //
 // GenerateAppIcon.swift — renders the MacDring app icon at every macOS size.
 //
-// A gradient squircle (the "screen") with three colored tabs riding on the right
-// edge — the signature color-per-tab edge tabs — the middle one opened into a
-// white drawer of app icons.
+// A gradient squircle (the "screen") with a single rounded drawer pulled up from
+// its bottom edge — the signature edge drawer, rendered as one clean white panel.
 //
 // Usage:
 //   swift Tools/GenerateAppIcon.swift <output-appiconset-dir>
@@ -38,19 +37,21 @@ func roundedRect(_ rect: CGRect, _ radius: CGFloat) -> CGPath {
     CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
 }
 
-/// A rectangle with only its left (leading) corners rounded — the right side
-/// stays square so the tab reads as flush against the screen's right edge.
-func roundedLeftRect(_ rect: CGRect, _ radius: CGFloat) -> CGPath {
-    let r = min(radius, rect.height / 2)
-    let p = CGMutablePath()
+/// A rectangle with independently-rounded top and bottom corners — lets the
+/// drawer carry a generous top radius while keeping its base tucked tight.
+func roundedRect(_ rect: CGRect, top: CGFloat, bottom: CGFloat) -> CGPath {
+    let t = min(top, rect.width / 2, rect.height / 2)
+    let b = min(bottom, rect.width / 2, rect.height / 2)
     let tl = CGPoint(x: rect.minX, y: rect.maxY)
     let tr = CGPoint(x: rect.maxX, y: rect.maxY)
     let br = CGPoint(x: rect.maxX, y: rect.minY)
     let bl = CGPoint(x: rect.minX, y: rect.minY)
-    p.move(to: tr)
-    p.addLine(to: br)
-    p.addArc(tangent1End: bl, tangent2End: tl, radius: r)
-    p.addArc(tangent1End: tl, tangent2End: tr, radius: r)
+    let p = CGMutablePath()
+    p.move(to: CGPoint(x: rect.minX, y: rect.minY + b))
+    p.addArc(tangent1End: tl, tangent2End: tr, radius: t)  // top-left
+    p.addArc(tangent1End: tr, tangent2End: br, radius: t)  // top-right
+    p.addArc(tangent1End: br, tangent2End: bl, radius: b)  // bottom-right
+    p.addArc(tangent1End: bl, tangent2End: tl, radius: b)  // bottom-left
     p.closeSubpath()
     return p
 }
@@ -99,57 +100,19 @@ func drawIcon(px: Int) -> NSBitmapImageRep {
                width: fw * rect.width, height: fh * rect.height)
     }
 
-    // Keep everything inside the rounded "screen".
+    // Keep the drawer inside the rounded "screen".
     ctx.saveGState()
     ctx.addPath(squircle); ctx.clip()
 
-    // Drawer panel (white), pulled out from the middle (open) tab.
-    let drawerRect = frac(0.15, 0.34, 0.47, 0.32)
+    // A single rounded drawer pulled up from the screen's bottom edge — the
+    // signature edge drawer. Generous top corners, a tighter base, tucked close
+    // to the bottom so it reads as riding that edge.
+    let drawerRect = frac(0.20, 0.085, 0.60, 0.45)
     ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: s * 0.004, height: -s * 0.006), blur: s * 0.022, color: rgb(0, 0, 0, 0.22))
-    ctx.addPath(roundedRect(drawerRect, drawerRect.height * 0.16))
-    ctx.setFillColor(rgb(255, 255, 255, 0.98)); ctx.fillPath()
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.006), blur: s * 0.03, color: rgb(0, 0, 0, 0.28))
+    ctx.addPath(roundedRect(drawerRect, top: drawerRect.width * 0.20, bottom: drawerRect.width * 0.11))
+    ctx.setFillColor(rgb(255, 255, 255, 0.97)); ctx.fillPath()
     ctx.restoreGState()
-
-    // A 2×2 grid of app icons inside the drawer (only legible at larger sizes).
-    if px >= 64 {
-        let dotColors = [rgb(255, 159, 10), rgb(48, 209, 88), rgb(10, 132, 255), rgb(255, 69, 58)]
-        let pad = drawerRect.width * 0.15
-        let cellW = (drawerRect.width - pad * 2) / 2
-        let cellH = (drawerRect.height - pad * 2) / 2
-        let dot = min(cellW, cellH) * 0.66
-        var i = 0
-        for row in 0..<2 {
-            for col in 0..<2 {
-                let cx = drawerRect.minX + pad + (CGFloat(col) + 0.5) * cellW
-                let cy = drawerRect.minY + pad + (CGFloat(row) + 0.5) * cellH
-                let r = CGRect(x: cx - dot / 2, y: cy - dot / 2, width: dot, height: dot)
-                ctx.addPath(roundedRect(r, dot * 0.28)); ctx.setFillColor(dotColors[i % 4]); ctx.fillPath()
-                i += 1
-            }
-        }
-    }
-
-    // Three colored tabs riding flush on the right edge — the color-per-tab
-    // signature. The middle one is "open" and overlaps the drawer; the others
-    // sit closed. Each is rounded on its inward (left) side only, square on the
-    // right so it reads as flush against the screen edge (the rounded screen
-    // corner clips the top/bottom tabs).
-    let tabSpecs: [(fy: CGFloat, fw: CGFloat, color: CGColor)] = [
-        (0.655, 0.36, rgb(48, 209, 88)),    // green  (top, closed)
-        (0.415, 0.43, rgb(255, 159, 10)),   // orange (middle, open — reaches the drawer)
-        (0.175, 0.36, rgb(10, 210, 225)),   // cyan   (bottom, closed)
-    ]
-    for spec in tabSpecs {
-        // Flush to the screen's right edge (rect.maxX); the squircle clip trims
-        // the top/bottom tabs to the rounded corner.
-        let tabRect = frac(1.0 - spec.fw, spec.fy, spec.fw, 0.17)
-        ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: -s * 0.004, height: 0), blur: s * 0.016, color: rgb(0, 0, 0, 0.22))
-        ctx.addPath(roundedLeftRect(tabRect, tabRect.height * 0.42))
-        ctx.setFillColor(spec.color); ctx.fillPath()
-        ctx.restoreGState()
-    }
 
     ctx.restoreGState()   // unclip
     NSGraphicsContext.restoreGraphicsState()

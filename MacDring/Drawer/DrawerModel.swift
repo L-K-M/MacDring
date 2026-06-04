@@ -7,6 +7,11 @@ final class DrawerModel: ObservableObject {
     @Published var title: String = ""
     @Published var colorHex: String = "#0A84FF"
     @Published var edge: Edge = .right
+    /// Inner corners to square so the riding tab joins the drawer flush (set by the
+    /// window controller from the tab/drawer geometry). `start`/`end` run along the
+    /// inward face: top→bottom for left/right, leading→trailing for top/bottom.
+    @Published var squareInnerStart: Bool = false
+    @Published var squareInnerEnd: Bool = false
     @Published var items: [DrawerItem] = []
     @Published var isDropTargeted: Bool = false
     /// The grid slot a file drag is currently hovering over (drives the per-slot

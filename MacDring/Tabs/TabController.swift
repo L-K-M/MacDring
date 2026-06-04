@@ -202,6 +202,7 @@ final class TabController {
         cancelReConceal(id)
         pendingSpringOpen?.cancel(); pendingSpringOpen = nil
         openTabID = id
+        wc.reveal(duration: 0)   // restore a concealed (slid-off / sliver) tab to full size before opening
         wc.setOpen(true)
         refreshConcealment(animated: false)   // a drawer is open → suspend the edge-hover monitor
         let duration = animationDuration

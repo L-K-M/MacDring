@@ -40,24 +40,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = item
     }
 
-    /// A template menu-bar glyph that echoes the app's motif: a "screen" outline
-    /// with two filled tabs riding on its right edge — color-per-tab edge tabs.
+    /// A template menu-bar glyph that echoes the app icon: a rounded "screen"
+    /// outline with a single drawer pulled up from its bottom edge.
     private static func statusBarImage() -> NSImage {
-        let size = NSSize(width: 18, height: 16)
+        let size = NSSize(width: 16, height: 16)
         let image = NSImage(size: size, flipped: false) { _ in
             // The screen.
-            let body = NSRect(x: 2, y: 2.5, width: 9, height: 11)
-            let bodyPath = NSBezierPath(roundedRect: body, xRadius: 2.3, yRadius: 2.3)
-            bodyPath.lineWidth = 1.3
+            let body = NSRect(x: 2, y: 2, width: 12, height: 12)
+            let bodyPath = NSBezierPath(roundedRect: body, xRadius: 3, yRadius: 3)
+            bodyPath.lineWidth = 1.4
             NSColor.black.setStroke()
             bodyPath.stroke()
 
-            // Two tabs protruding from the right edge.
+            // A drawer riding the bottom edge, filled so it reads at small sizes.
+            let drawer = NSRect(x: 4.75, y: 3, width: 6.5, height: 4)
             NSColor.black.setFill()
-            for y in [body.midY + 0.6, body.midY - 4.0] {
-                let tab = NSRect(x: body.maxX - 1.4, y: y, width: 5.2, height: 3.4)
-                NSBezierPath(roundedRect: tab, xRadius: 1.4, yRadius: 1.4).fill()
-            }
+            NSBezierPath(roundedRect: drawer, xRadius: 1.6, yRadius: 1.6).fill()
             return true
         }
         image.isTemplate = true

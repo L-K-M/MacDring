@@ -18,18 +18,22 @@ struct TabStripView: View {
     @State private var isDragging = false
 
     private var isVertical: Bool { model.edge.isVertical }
+    private var isClassic: Bool { preferences.tabStyle == .classic }
     /// The pill's thickness, scaled down for the (more compact) classic style. Must
     /// match `TabWindowController`'s window sizing, which applies the same scale.
     private var thickness: CGFloat { CGFloat(preferences.tabThickness) * preferences.tabStyle.thicknessScale }
     /// Glyph size relative to thickness — a little smaller for classic so its icon
     /// reads as a compact folder-tab marker rather than filling the pill.
-    private var glyphScale: CGFloat { preferences.tabStyle == .classic ? 0.36 : 0.42 }
+    private var glyphScale: CGFloat { isClassic ? 0.36 : 0.42 }
 
     var body: some View {
         styledTab
+            // Modern pins the thin (perpendicular) axis to `thickness`; classic
+            // leaves it free so the folder tab hugs its content and stays compact
+            // (the window controller sizes to the same fitting size).
             .frame(
-                width: isVertical ? thickness : nil,
-                height: isVertical ? nil : thickness
+                width: (isVertical && !isClassic) ? thickness : nil,
+                height: (!isVertical && !isClassic) ? thickness : nil
             )
             .contentShape(Rectangle())
             .onTapGesture { model.onTap?() }
@@ -91,11 +95,11 @@ struct TabStripView: View {
         let shape = ClassicTabShape(edge: model.edge)
         return contentStack
             .foregroundStyle(base.readableForeground)
-            // More breathing room on the perpendicular sides (so the angled
-            // shoulders don't crowd the content), less along the edge — keeping
-            // classic shorter and more compact than modern.
-            .padding(.vertical, isVertical ? 7 : 4)
-            .padding(.horizontal, isVertical ? 7 : 14)
+            // Generous padding *along* the edge so the label has clear side
+            // breathing room (à la DragThing's folder tabs), and a thin
+            // perpendicular padding so the tab hugs the label and stays short.
+            .padding(.vertical, isVertical ? 14 : 4)
+            .padding(.horizontal, isVertical ? 4 : 18)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
                 shape.fill(

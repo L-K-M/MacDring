@@ -35,8 +35,10 @@ struct DrawerView: View {
 
     var body: some View {
         // The two corners touching the screen edge stay sharp; the inward corners
-        // are rounded — so the drawer reads as sliding flush out of the edge.
-        let shape = edgeRoundedRect(edge: model.edge, radius: CGFloat(preferences.cornerRadius))
+        // are rounded — so the drawer reads as sliding flush out of the edge. An
+        // inner corner the tab sits against is squared so the tab joins flush.
+        let shape = edgeRoundedRect(edge: model.edge, radius: CGFloat(preferences.cornerRadius),
+                                    squareStart: model.squareInnerStart, squareEnd: model.squareInnerEnd)
 
         VStack(alignment: .leading, spacing: 10) {
             header

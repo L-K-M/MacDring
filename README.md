@@ -38,8 +38,9 @@ them after a restart.
   **no Accessibility permission**.
 - **Auto-hide / auto-fade tabs.** Set a tab to get out of the way when idle
   (**Settings → Tabs → When idle**): **Auto-hide** slides it off its edge leaving a
-  thin sliver, **Auto-fade** dims it in place. Either reveals the moment you move the
-  pointer to that screen edge — Dock-style, and still no special permission.
+  thin sliver, **Auto-fade** dims it in place (opacity adjustable in **Settings →
+  Appearance**). Either reveals the moment you move the pointer to that screen edge —
+  Dock-style, and still no special permission.
 - **Two tab looks** — a **Modern** translucent rounded pill, or a **Classic** angled
   "folder tab" à la DragThing (**Settings → Appearance**). Tabs on the left/right
   edges print their name **vertically**, so long names fit and the tab stays thin.
