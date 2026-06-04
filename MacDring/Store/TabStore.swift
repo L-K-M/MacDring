@@ -132,9 +132,16 @@ final class TabStore: ObservableObject {
         return true
     }
 
+    /// Adds an item to a tab, skipping it if the tab already holds an item pointing
+    /// at the same target — so dropping (or choosing) the same app/file/link twice
+    /// doesn't create a duplicate. Items without a resolvable target are always added.
     func addItem(_ item: DrawerItem, toTab tabID: UUID) {
         mutate {
             if let i = $0.tabs.firstIndex(where: { $0.id == tabID }) {
+                if let target = BookmarkResolver.url(for: item)?.standardized,
+                   $0.tabs[i].items.contains(where: { BookmarkResolver.url(for: $0)?.standardized == target }) {
+                    return   // already present — avoid a duplicate
+                }
                 $0.tabs[i].items.append(item)
                 $0.tabs[i].items = $0.tabs[i].items.assigningMissingSlots()   // fill the new item's slot
             }

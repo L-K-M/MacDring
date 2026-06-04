@@ -75,6 +75,26 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(store.tab(id: tab.id)?.items.map(\.slot).sorted(), [0, 1])
     }
 
+    func testAddItemSkipsDuplicateTarget() {
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab()
+        store.addTab(tab)
+        let url = URL(fileURLWithPath: "/Applications/Safari.app")
+        store.addItem(DrawerItem(kind: .application, displayName: "Safari", url: url), toTab: tab.id)
+        // Same target, different display name / id — should not be added again.
+        store.addItem(DrawerItem(kind: .application, displayName: "Safari again", url: url), toTab: tab.id)
+        XCTAssertEqual(store.tab(id: tab.id)?.items.count, 1)
+    }
+
+    func testAddItemAllowsDistinctTargets() {
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab()
+        store.addTab(tab)
+        store.addItem(DrawerItem(kind: .url, displayName: "A", url: URL(string: "https://a.example")), toTab: tab.id)
+        store.addItem(DrawerItem(kind: .url, displayName: "B", url: URL(string: "https://b.example")), toTab: tab.id)
+        XCTAssertEqual(store.tab(id: tab.id)?.items.count, 2)
+    }
+
     func testPlaceItemMovesToEmptySlotLeavingGap() {
         let store = TabStore(storeURL: storeURL)
         let tab = makeTab()
