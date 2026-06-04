@@ -97,3 +97,8 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 MacDring needs **no special permissions** for its core features — launching uses
 `NSWorkspace`, and optional hotkeys use Carbon (no Accessibility grant). It ships
 as a menu-bar agent (`LSUIElement`).
+
+The one exception is **Empty Trash**: it asks Finder to empty the Trash via Apple
+Events, so the first time you use it macOS prompts once to allow MacDring to control
+Finder (the app carries the `com.apple.security.automation.apple-events`
+entitlement). Declining just leaves the Trash as-is — nothing else needs it.

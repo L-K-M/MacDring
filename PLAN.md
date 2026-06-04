@@ -161,7 +161,7 @@ struct Tab: Codable, Identifiable {
 
 struct DrawerItem: Codable, Identifiable {
     let id: UUID
-    var kind: ItemKind                     // .application | .file | .folder | .url | .trash | .disk
+    var kind: ItemKind                     // .application | .file | .folder | .url | .trash | .disk | .cloud
     var displayName: String                // overridable label
     var bookmark: Data?                    // URL bookmark (survives moves/renames)
     var url: URL?                          // for .url kind, or fallback path
@@ -174,7 +174,10 @@ struct DrawerItem: Codable, Identifiable {
 // Rendered to an NSImage by IconRenderer (shared by the drawer and the editor preview).
 // Persistent items carry it on the item; live items keep it on Tab.iconStyles by path.
 
-enum ItemKind: String, Codable { case application, file, folder, url }
+enum ItemKind: String, Codable { case application, file, folder, url, trash, disk, cloud }
+//   .trash — the desktop Trash (open it; drop files to delete; Empty Trash)
+//   .disk  — a mounted volume (open in Finder; eject) — Disks / Network tabs
+//   .cloud — a cloud-storage root (open in Finder) — Cloud tab
 
 struct ScreenAnchor: Codable {             // see §6 — the stable-restore core
     var displayUUID: String                // CGDisplayCreateUUIDFromDisplayID, stable across reboots
@@ -458,7 +461,8 @@ MacDring/
 │   │   ├── ScreenAnchor.swift
 │   │   ├── Edge.swift
 │   │   ├── TabGlyph.swift         # SF Symbol or monogram
-│   │   ├── TabBehavior.swift      # per-tab open/hide/keep-open
+│   │   ├── TabBehavior.swift      # per-tab open/hide/keep-open (+ global-default overrides)
+│   │   ├── TabConcealment.swift   # pill idle auto-hide / auto-fade
 │   │   ├── TabKind.swift          # items / notes / folder / disks / network / cloud
 │   │   ├── HotkeySpec.swift       # keyCode + Carbon modifier mask
 │   │   ├── IconStyle.swift        # generated icon: base + color + optional SF Symbol
@@ -519,14 +523,17 @@ MacDring/
 │   ├── ScreenAnchorTests.swift      # fraction clamping + Codable
 │   ├── LauncherDocumentCodableTests.swift  # encode/decode + forward-compat
 │   ├── BookmarkResolverTests.swift  # bookmark round-trip, stale/broken handling
-│   ├── TabStoreTests.swift          # load/save/mutations/reorder + .bak recovery
+│   ├── TabStoreTests.swift          # load/save/mutations/reorder/slot-drop + .bak recovery
+│   ├── TabBehaviorTests.swift       # resolved() global-default overrides + Codable
 │   ├── DrawerMetricsTests.swift     # deterministic drawer sizing
 │   ├── DrawerModelTests.swift       # item(atSlot:) lookup
+│   ├── DrawerItemTests.swift        # DrawerItem Codable + factories (fromFileURL/fromLink)
 │   ├── FolderListerTests.swift      # directory listing (sort/hidden/slots)
 │   ├── DisksListerTests.swift       # ejectable-volume filtering/sort/slots
 │   ├── NetworkListerTests.swift     # network-share filtering/sort/slots
 │   ├── CloudListerTests.swift       # cloud-root listing/sort/slots
 │   ├── IconStyleTests.swift         # IconStyle Codable, applyingIconStyles, IconRenderer
+│   ├── TrashInspectorTests.swift    # trash entry-count / emptiness across volumes
 │   ├── FileMoverTests.swift         # move-into-directory + collision rename
 │   └── PreferencesTests.swift       # defaults, clamping
 ├── Tools/
@@ -541,8 +548,9 @@ MacDring/
 ## 12. Implementation Phases / Milestones
 
 > **Status:** Phases 1–9 implemented; at the last successful build the project
-> **built clean** with all **61 unit tests passing**. Several GUI test passes refined
-> the behaviors below. Release signing is out of scope per the owner.
+> **built clean** with the **unit-test suite passing** (the pure-logic tests under
+> `MacDringTests/`; exact counts drift as features land, so see CI). Several GUI test
+> passes refined the behaviors below. Release signing is out of scope per the owner.
 >
 > **⚠️ Build-environment note (2026-06):** Xcode 26.5's build service
 > (`SWBBuildService`) currently **deadlocks on the initial `clang -v -E -dM`
