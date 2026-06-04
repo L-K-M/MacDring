@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// One launchable entry inside a drawer — icon + label, with a context menu and
 /// single/double-click launch. Broken items (missing target) render dimmed.
@@ -22,7 +23,14 @@ struct ItemView: View {
         cell
             .opacity(isBroken ? 0.45 : 1)
             .contentShape(Rectangle())
-            .onTapGesture(count: launchOnSingleClick ? 1 : 2, perform: onLaunch)
+            // ⌘-click reveals the target in Finder instead of opening it (Finder-style).
+            .onTapGesture(count: launchOnSingleClick ? 1 : 2) {
+                if NSEvent.modifierFlags.contains(.command), item.kind != .url {
+                    onReveal()
+                } else {
+                    onLaunch()
+                }
+            }
             .help(isBroken ? "\(item.displayName) — can’t find this item" : item.displayName)
             .contextMenu {
                 Button("Open", action: onLaunch)
