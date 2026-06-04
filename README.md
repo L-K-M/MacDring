@@ -8,6 +8,9 @@ drawer slides out with whatever you put there. Drag files onto a tab to add them
 Works across multiple monitors, and your tabs return to exactly where you left
 them after a restart.
 
+> [!IMPORTANT]
+> LLM Disclosure: MacDring was built with substantial help from large language models — primarily Anthropic's Claude, via Claude Code. Much of the code arrived through AI-authored commits and `claude/*` pull-request branches, with agent guidance kept in [`AGENTS.md`](AGENTS.md)
+
 ## Features
 
 - **Edge tabs → drawers.** Colored tabs anchored to any screen edge; click (or
