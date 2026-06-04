@@ -487,7 +487,8 @@ MacDring/
 │   ├── Drawer/
 │   │   ├── DrawerWindowController.swift
 │   │   ├── DrawerModel.swift
-│   │   ├── DrawerView.swift        # SwiftUI grid/list + drag-to-reorder
+│   │   ├── DrawerSearch.swift      # pure type-to-find filter / selection / key helpers
+│   │   ├── DrawerView.swift        # SwiftUI grid/list + drag-to-reorder + search
 │   │   ├── DrawerMetrics.swift     # deterministic drawer sizing (pure)
 │   │   └── ItemView.swift
 │   ├── Launch/
@@ -527,6 +528,7 @@ MacDring/
 │   ├── TabBehaviorTests.swift       # resolved() global-default overrides + Codable
 │   ├── DrawerMetricsTests.swift     # deterministic drawer sizing
 │   ├── DrawerModelTests.swift       # item(atSlot:) lookup
+│   ├── DrawerSearchTests.swift      # type-to-find filter / nextIndex / key classification
 │   ├── DrawerItemTests.swift        # DrawerItem Codable + factories (fromFileURL/fromLink)
 │   ├── FolderListerTests.swift      # directory listing (sort/hidden/slots)
 │   ├── DisksListerTests.swift       # ejectable-volume filtering/sort/slots
@@ -696,7 +698,9 @@ MacDring/
   Symbol, or an image file — on any item via *Customize Icon…*; `IconStyle` +
   `IconRenderer`; see docs/custom-icons.md). Image/picture *clippings* remain a future extra.
 - **Layout import/export** and optional **iCloud sync** of the document.
-- **Per-tab keyboard navigation** within an open drawer (type-to-select, arrows).
+- **Type-to-find in an open drawer** ✅ (`DrawerSearch` + `DrawerModel`: type to filter,
+  ↑/↓ select, Return launches, Esc clears/closes; input driven by `TabController`'s key
+  monitor). 2-D arrow nav over the *unfiltered* slot grid is a separate follow-up.
 - **Stage Manager / Mission Control** awareness and tuning.
 
 ---
