@@ -75,8 +75,7 @@ final class NewTabWindowController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         // Return to agent behavior only if no other ordinary window (e.g. Settings)
-        // is still open.
-        let othersOpen = NSApp.windows.contains { $0 != window && $0.isVisible && $0.canBecomeMain }
-        if !othersOpen { NSApp.setActivationPolicy(.accessory) }
+        // is still open. Shared with SettingsWindowController so both guard alike.
+        NSApp.revertToAccessoryIfNoOrdinaryWindows(excluding: window)
     }
 }

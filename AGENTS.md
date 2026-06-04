@@ -69,7 +69,8 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
 - `Launch/` — `ItemLauncher`. `Hotkeys/` — `CarbonHotkey`, `KeyCodes`.
 - `Settings/` — the SwiftUI settings window and panes.
 - `Common/` — `VisualEffectView`; `TabShapes` (`edgeRoundedRect` for the
-  inward-rounded/edge-sharp tab pill + drawer, and `ClassicTabShape`).
+  inward-rounded/edge-sharp tab pill + drawer, and `ClassicTabShape`);
+  `ActivationPolicy` (the shared `.regular`↔`.accessory` revert guard).
 
 ## Conventions
 

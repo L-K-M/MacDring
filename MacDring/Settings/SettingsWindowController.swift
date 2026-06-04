@@ -55,6 +55,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        // Only drop back to the menu-bar agent policy if no other ordinary window
+        // (e.g. an open New Tab dialog) still needs the app to be `.regular`.
+        NSApp.revertToAccessoryIfNoOrdinaryWindows(excluding: window)
     }
 }
