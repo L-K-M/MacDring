@@ -82,9 +82,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         newDisks.target = self
         menu.addItem(newDisks)
 
-        let newNetwork = NSMenuItem(title: "New Network & Cloud Tab…", action: #selector(newNetworkTab), keyEquivalent: "")
+        let newNetwork = NSMenuItem(title: "New Network Tab…", action: #selector(newNetworkTab), keyEquivalent: "")
         newNetwork.target = self
         menu.addItem(newNetwork)
+
+        let newCloud = NSMenuItem(title: "New Cloud Tab…", action: #selector(newCloudTab), keyEquivalent: "")
+        newCloud.target = self
+        menu.addItem(newCloud)
 
         menu.addItem(.separator())
 
@@ -120,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func newFolderTab() { newTabWindow.show(kind: .folder) }
     @objc private func newDisksTab() { newTabWindow.show(kind: .disks) }
     @objc private func newNetworkTab() { newTabWindow.show(kind: .network) }
+    @objc private func newCloudTab() { newTabWindow.show(kind: .cloud) }
 
     @objc private func openSettings() {
         settingsWindow.show(selectTab: nil)

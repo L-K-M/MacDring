@@ -123,6 +123,11 @@ struct ItemView: View {
             }
             return symbol("externaldrive")
         }
+        // A cloud drive shows a cloud-flavored icon. Handled before the broken check
+        // for the same reason as `.disk` (a provider can drop out between re-lists).
+        if item.kind == .cloud {
+            return cloudIcon(for: item)
+        }
         if BookmarkResolver.isBroken(item) {
             return symbol("exclamationmark.triangle")
         }
@@ -140,6 +145,19 @@ struct ItemView: View {
     /// The system Trash icon — full when the Trash holds anything, empty otherwise.
     private static func trashIcon() -> NSImage {
         NSImage(named: trashIsEmpty() ? "NSTrashEmpty" : "NSTrashFull") ?? symbol("trash")
+    }
+
+    /// A cloud-drive's icon: the system iCloud glyph for iCloud Drive (whose raw
+    /// folder otherwise reads as a generic folder), and the provider's own folder
+    /// icon for third-party providers (Dropbox / Drive / OneDrive set one), falling
+    /// back to a cloud glyph when the folder can't be resolved.
+    private static func cloudIcon(for item: DrawerItem) -> NSImage {
+        guard let url = BookmarkResolver.url(for: item),
+              FileManager.default.fileExists(atPath: url.path) else {
+            return symbol("cloud.fill")
+        }
+        if url.path.contains("com~apple~CloudDocs") { return symbol("icloud.fill") }
+        return NSWorkspace.shared.icon(forFile: url.path)
     }
 
     /// Whether the Trash is empty, decided **without listing it** (it's

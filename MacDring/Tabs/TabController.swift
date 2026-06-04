@@ -462,8 +462,8 @@ final class TabController {
         }
 
         switch tab.kind {
-        case .notes, .disks, .network:
-            return   // notes take no drops; Disks/Network are live, read-only listings
+        case .notes, .disks, .network, .cloud:
+            return   // notes take no drops; Disks/Network/Cloud are live, read-only listings
         case .folder:
             guard let directory = FolderLister.resolveFolder(tab) else { return }
             FileMover.move(fileURLs, into: directory)

@@ -271,8 +271,15 @@ private struct TabEditor: View {
             }
 
             if draft.kind == .network {
-                Section("Network & Cloud") {
-                    Text("The drawer lists your network shares and cloud drives live — mounted SMB/AFP/NFS shares (click to open, eject from the menu) and cloud providers such as iCloud Drive, Dropbox, Google Drive, and OneDrive (click to open in Finder).")
+                Section("Network") {
+                    Text("The drawer lists your mounted network shares live — SMB / AFP / NFS / WebDAV mounts. Click one to open it in Finder, or use its menu to eject (disconnect).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if draft.kind == .cloud {
+                Section("Cloud") {
+                    Text("The drawer lists your cloud drives live — iCloud Drive and the providers under ~/Library/CloudStorage (Dropbox, Google Drive, OneDrive, Box, …). Click one to open it in Finder.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

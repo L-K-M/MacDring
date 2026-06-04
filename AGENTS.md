@@ -58,7 +58,7 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
   `TabGlyph`, `TabBehavior`, `HotkeySpec`, `LauncherDocument`), `ColorHex`,
   `Preferences`, and the small UI enums in `PreferenceEnums.swift`.
 - `Store/` — `TabStore` (JSON load/save), `BookmarkResolver`, and the live
-  transient listers (`FolderLister`, `DisksLister`, `NetworkLister`).
+  transient listers (`FolderLister`, `DisksLister`, `NetworkLister`, `CloudLister`).
 - `Screens/` — `DisplayRegistry` (UUID mapping) and the pure `EdgeLayout` math.
 - `Tabs/` — `TabController` (the orchestrator), `TabWindowController`,
   `TabStripView` (modern pill / classic folder tab; vertical side labels),
