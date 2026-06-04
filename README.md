@@ -72,12 +72,15 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 ### Customizing
 
 - **Per tab** (right-click → *Configure Tab…*, or **Settings → Tabs**): name,
-  color, glyph, edge, display, position, open-on-hover/auto-hide/keep-open, and an
-  optional hotkey.
+  color, glyph, edge, display, position, keep-open, how it idles, and an optional
+  hotkey. **Open-on-hover** and **close-when-you-click-elsewhere** follow the global
+  default unless you override them here — pick *On* / *Off* for the tab, or *Use
+  global default* to follow the global setting again (the clear way to revert).
 - **Global** (**Settings → Appearance / General**): **tab style (modern/classic)**,
   drawer material, grid vs. list layout, icon size, corner radius, tab thickness,
-  labels, single vs. double-click to open, animation speed, the multi-display
-  disconnect policy, and launch at login.
+  labels, single vs. double-click to open, the **open-on-hover / close-on-click
+  defaults** (overridable per tab), animation speed, the multi-display disconnect
+  policy, and launch at login.
 
 ## Permissions & Distribution
 

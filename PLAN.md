@@ -350,6 +350,15 @@ Global appearance/behavior live in `UserDefaults` (Zap-style `Preferences`
 position, **drawer grid size (columns × rows)**, **locked**, open mode (click/hover),
 auto-hide, pinned-open, optional hotkey.
 
+> **Open-on-hover / auto-hide are global defaults a tab can override.** Both fields
+> on `TabBehavior` carry an `overrides…` flag (default off): a tab follows the global
+> default (`Preferences.newTabOpenOnHover` / `newTabAutoHide`, set in General →
+> Drawers) until you pin a per-tab value in the Tabs pane; "Use global default"
+> reverts it. `TabBehavior.resolved(openOnHoverDefault:autoHideDefault:)` does the
+> fallback, read live by `TabController` at interaction time — so changing a global
+> default takes effect at once without rewriting any stored tab (the old
+> `updateAllBehaviors` bulk-overwrite is gone). See ANALYSIS.md I3.
+
 **Global (`Preferences`):**
 
 | Setting | Type | Default |

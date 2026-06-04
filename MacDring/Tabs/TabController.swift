@@ -251,10 +251,21 @@ final class TabController {
         return max(0, preferences.animationMs / 1000.0)
     }
 
+    // MARK: Effective behavior
+
+    /// A tab's behavior with the hover / auto-hide fields it doesn't override filled
+    /// in from the global defaults (`Preferences.newTabOpenOnHover` / `newTabAutoHide`).
+    /// Read live at interaction time, so changing a global default takes effect on the
+    /// next hover / click-outside without touching any stored tab. See ANALYSIS.md I3.
+    private func effectiveBehavior(_ tab: Tab) -> TabBehavior {
+        tab.behavior.resolved(openOnHoverDefault: preferences.newTabOpenOnHover,
+                              autoHideDefault: preferences.newTabAutoHide)
+    }
+
     // MARK: Hover (hover-to-open tabs)
 
     private func handleHover(_ id: UUID, inside: Bool) {
-        guard let tab = store.tab(id: id), tab.behavior.openOnHover else { return }
+        guard let tab = store.tab(id: id), effectiveBehavior(tab).openOnHover else { return }
         if inside {
             cancelHoverClose()
             openDrawer(id)
@@ -534,7 +545,7 @@ final class TabController {
         drawer.model.onMouseEntered = { [weak self] in self?.cancelHoverClose() }
         drawer.model.onMouseExited = { [weak self] in
             guard let self, let id = self.openTabID, let tab = self.store.tab(id: id) else { return }
-            if tab.behavior.openOnHover { self.scheduleHoverClose() }
+            if self.effectiveBehavior(tab).openOnHover { self.scheduleHoverClose() }
         }
         drawer.model.onPlaceItem = { [weak self] itemID, slot in
             guard let self, let id = self.openTabID else { return }
@@ -681,7 +692,7 @@ final class TabController {
                     self.closeDrawer()
                     return
                 }
-                if tab.behavior.autoHide { self.closeDrawer() }
+                if self.effectiveBehavior(tab).autoHide { self.closeDrawer() }
             }
         }
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in

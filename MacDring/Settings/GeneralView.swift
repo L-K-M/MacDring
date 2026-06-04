@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// General behavior: launch at login, drawer interaction (applies to all tabs),
-/// new-tab defaults, and the multi-display policy.
+/// General behavior: launch at login, the global drawer-interaction defaults (which
+/// every tab follows unless it overrides them in the Tabs pane), new-tab defaults,
+/// and the multi-display policy.
 struct GeneralView: View {
     @ObservedObject var preferences: Preferences
-    @ObservedObject var store: TabStore
 
     var body: some View {
         Form {
@@ -19,13 +19,13 @@ struct GeneralView: View {
 
             Section("Drawers") {
                 Toggle("Open items with a single click", isOn: $preferences.launchOnSingleClick)
-                Toggle("Open on hover instead of click", isOn: openOnHoverBinding)
-                Toggle("Close drawer when you click elsewhere", isOn: autoHideBinding)
+                Toggle("Open on hover instead of click", isOn: $preferences.newTabOpenOnHover)
+                Toggle("Close drawer when you click elsewhere", isOn: $preferences.newTabAutoHide)
                 VStack(alignment: .leading) {
                     Text("Open / close animation: \(Int(preferences.animationMs)) ms")
                     Slider(value: $preferences.animationMs, in: 0...300, step: 10)
                 }
-                Text("Hover and close behavior apply to all tabs; you can still override an individual tab in the Tabs pane.")
+                Text("Hover and close are the default for every tab. A tab set to a specific value in the Tabs pane keeps it regardless of this — change it back to “Use global default” there to follow this again.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -56,34 +56,5 @@ struct GeneralView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .onAppear { preferences.refreshLaunchAtLoginStatus() }
-    }
-
-    // MARK: Global drawer-behavior bindings
-
-    // These set the new-tab default *and* apply to every existing tab, so toggling
-    // them takes effect immediately (the Tabs pane still overrides per tab).
-
-    // The displayed state reflects the existing tabs (on only when *every* tab has
-    // it on), so it can't show "off" while a tab still closes; it falls back to the
-    // new-tab default when there are no tabs yet.
-
-    private var openOnHoverBinding: Binding<Bool> {
-        Binding(
-            get: { store.tabs.isEmpty ? preferences.newTabOpenOnHover : store.tabs.allSatisfy { $0.behavior.openOnHover } },
-            set: { newValue in
-                preferences.newTabOpenOnHover = newValue
-                store.updateAllBehaviors { $0.openOnHover = newValue }
-            }
-        )
-    }
-
-    private var autoHideBinding: Binding<Bool> {
-        Binding(
-            get: { store.tabs.isEmpty ? preferences.newTabAutoHide : store.tabs.allSatisfy { $0.behavior.autoHide } },
-            set: { newValue in
-                preferences.newTabAutoHide = newValue
-                store.updateAllBehaviors { $0.autoHide = newValue }
-            }
-        )
     }
 }
