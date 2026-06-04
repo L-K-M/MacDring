@@ -105,6 +105,46 @@ enum EdgeLayout {
         }
     }
 
+    // MARK: De-overlap (tabs sharing an edge)
+
+    /// Packs `frames` — already in the desired visual order along `edge` — so none
+    /// overlap. Each frame keeps its along-edge position unless it would overlap the
+    /// previous one, in which case it's pushed just past it (plus `gap`). If the
+    /// packed run overflows the far end of `visibleFrame`, the whole run is shifted
+    /// back so the last frame fits on-screen. The cross-edge axis (flush to the edge)
+    /// is left untouched. Pure, so it's unit-tested. See PLAN.md §5.
+    static func packAlongEdge(frames: [CGRect], edge: Edge, gap: CGFloat, in vf: CGRect) -> [CGRect] {
+        guard frames.count > 1 else { return frames }
+        let horizontal = !edge.isVertical
+
+        // `a` is the distance from the edge's start (left for top/bottom, top for
+        // left/right), so increasing `a` reads left→right or top→bottom.
+        func a(of f: CGRect) -> CGFloat { horizontal ? f.minX - vf.minX : vf.maxY - f.maxY }
+        func len(of f: CGRect) -> CGFloat { horizontal ? f.width : f.height }
+        let axisMax = horizontal ? vf.width : vf.height
+
+        var positions = [CGFloat](repeating: 0, count: frames.count)
+        var cursor = -CGFloat.greatestFiniteMagnitude
+        for i in frames.indices {
+            let start = Swift.max(a(of: frames[i]), cursor)
+            positions[i] = start
+            cursor = start + len(of: frames[i]) + gap
+        }
+        // Shift the whole packed run back on-screen if it ran off the far end.
+        let lastEnd = positions[frames.count - 1] + len(of: frames[frames.count - 1])
+        if lastEnd > axisMax {
+            let shift = lastEnd - axisMax
+            for i in positions.indices { positions[i] = Swift.max(0, positions[i] - shift) }
+        }
+
+        return frames.indices.map { i in
+            var f = frames[i]
+            if horizontal { f.origin.x = vf.minX + positions[i] }
+            else { f.origin.y = vf.maxY - positions[i] - f.height }
+            return f
+        }
+    }
+
     private static func alignVertical(center: CGFloat, height: CGFloat, in vf: CGRect) -> CGFloat {
         clamp(center - height / 2, vf.minY, vf.maxY - height)
     }

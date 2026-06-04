@@ -88,7 +88,41 @@ final class TabController {
             registerHotkeyIfNeeded(for: tab)
         }
 
+        deOverlapStackedTabs()
         refreshOpenDrawer()
+    }
+
+    /// Spaces tabs that share a display + edge so they don't render on top of each
+    /// other. Tabs keep their fractional position unless they'd overlap, in which
+    /// case later ones (by `order`, then `position`) are nudged along the edge.
+    /// The open tab is left riding on the drawer face; its new resting frame takes
+    /// effect when it closes. See PLAN.md §5.
+    private func deOverlapStackedTabs() {
+        struct Key: Hashable { let screen: Int; let edge: Edge }
+        var groups: [Key: [(wc: TabWindowController, tab: Tab)]] = [:]
+
+        for (id, wc) in tabWindows {
+            guard wc.isShown,
+                  let screen = wc.currentScreen,
+                  let number = screenNumber(screen),
+                  let tab = store.tab(id: id) else { continue }
+            groups[Key(screen: number, edge: tab.anchor.edge), default: []].append((wc, tab))
+        }
+
+        for (key, group) in groups where group.count > 1 {
+            let sorted = group.sorted {
+                ($0.tab.anchor.order, $0.tab.anchor.position, $0.tab.id.uuidString)
+                    < ($1.tab.anchor.order, $1.tab.anchor.position, $1.tab.id.uuidString)
+            }
+            guard let visible = sorted.first?.wc.currentScreen?.visibleFrame else { continue }
+            let packed = EdgeLayout.packAlongEdge(frames: sorted.map { $0.wc.restingFrame },
+                                                  edge: key.edge, gap: 6, in: visible)
+            for (entry, frame) in zip(sorted, packed) { entry.wc.setRestingFrame(frame) }
+        }
+    }
+
+    private func screenNumber(_ screen: NSScreen) -> Int? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.intValue
     }
 
     private func refreshOpenDrawer() {

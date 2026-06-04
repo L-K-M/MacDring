@@ -169,6 +169,19 @@ final class TabWindowController {
     /// Returns the pill to its flush-to-edge resting position.
     func restoreResting() { applyFrame(restingFrame) }
 
+    /// Overrides the flush-to-edge resting frame (used by the de-overlap layout
+    /// pass for tabs that share an edge), moving the pill there unless its drawer
+    /// is currently open — in which case the new resting frame takes effect when
+    /// the drawer closes and the tab slides back to the edge.
+    func setRestingFrame(_ frame: CGRect) {
+        restingFrame = frame
+        if !model.isOpen { applyFrame(frame) }
+    }
+
+    /// Whether the pill is currently on screen (vs. parked because its display is
+    /// disconnected). Used to scope the de-overlap pass to visible tabs.
+    var isShown: Bool { panel.isVisible }
+
     /// Animates the pill to `frame` over `duration` seconds (0 = instant). Used to
     /// slide the tab onto / off the drawer's inner face in sync with the drawer.
     func animate(to frame: CGRect, duration: TimeInterval) {
