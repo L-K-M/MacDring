@@ -34,6 +34,9 @@ final class DrawerModel: ObservableObject {
     @Published var kind: TabKind = .items
     /// The note text (for `.notes` tabs).
     @Published var notes: String = ""
+    /// Whether a `.notes` tab is showing the rendered-Markdown **preview** (vs. the
+    /// editor). Transient per open (reset to editing each time the drawer opens).
+    @Published var notesPreview = false
     /// The linked directory (for `.folder` tabs), used by "Open in Finder".
     @Published var folderURL: URL?
 

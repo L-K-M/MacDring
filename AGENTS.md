@@ -72,7 +72,8 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
 - `Common/` — `VisualEffectView`; `TabShapes` (`edgeRoundedRect` for the
   inward-rounded/edge-sharp tab pill + drawer, and `ClassicTabShape`);
   `ActivationPolicy` (the shared `.regular`↔`.accessory` revert guard);
-  `IconRenderer` (draws an `IconStyle` to an `NSImage`).
+  `IconRenderer` (draws an `IconStyle` to an `NSImage`); `MarkdownText` (the notes
+  preview's basic-Markdown renderer).
 
 ## Conventions
 

@@ -1,0 +1,33 @@
+import XCTest
+@testable import MacDring
+
+final class MarkdownTextTests: XCTestCase {
+
+    func testBlankLines() {
+        XCTAssertEqual(MarkdownText.classify(""), .blank)
+        XCTAssertEqual(MarkdownText.classify("   "), .blank)
+    }
+
+    func testHeadings() {
+        XCTAssertEqual(MarkdownText.classify("# Title"), .heading(level: 1, text: "Title"))
+        XCTAssertEqual(MarkdownText.classify("## Sub"), .heading(level: 2, text: "Sub"))
+        XCTAssertEqual(MarkdownText.classify("### Deep"), .heading(level: 3, text: "Deep"))
+        // 4–6 collapse to level 3 (we render at most three heading sizes).
+        XCTAssertEqual(MarkdownText.classify("##### Five"), .heading(level: 3, text: "Five"))
+    }
+
+    func testHashWithoutSpaceOrTooManyIsParagraph() {
+        XCTAssertEqual(MarkdownText.classify("#nospace"), .paragraph(text: "#nospace"))
+        XCTAssertEqual(MarkdownText.classify("####### seven"), .paragraph(text: "####### seven"))
+    }
+
+    func testBullets() {
+        XCTAssertEqual(MarkdownText.classify("- one"), .bullet(text: "one"))
+        XCTAssertEqual(MarkdownText.classify("* two"), .bullet(text: "two"))
+    }
+
+    func testParagraphKeepsRawInlineMarkup() {
+        XCTAssertEqual(MarkdownText.classify("Just **bold** and `code`."),
+                       .paragraph(text: "Just **bold** and `code`."))
+    }
+}

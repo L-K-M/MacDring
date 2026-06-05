@@ -17,10 +17,11 @@ them after a restart.
 - **Edge tabs → drawers.** Colored tabs anchored to any screen edge; click (or
   hover) to open a drawer.
 - **Six tab types** — an **items** tab (apps, files, folders, links arranged freely
-  in a grid with gaps), a **notes** tab (a quick text scratchpad), a **folder** tab
-  (a live, read-only view of a directory's contents), a **disks** tab (your mounted
-  ejectable volumes), a **network** tab (your mounted network shares), and a
-  **cloud** tab (your cloud drives — iCloud, Dropbox, …). See
+  in a grid with gaps), a **notes** tab (a quick text scratchpad with a Markdown
+  **preview** toggle — headings, lists, bold/italic/links), a **folder** tab (a live,
+  read-only view of a directory's contents), a **disks** tab (your mounted ejectable
+  volumes), a **network** tab (your mounted network shares), and a **cloud** tab (your
+  cloud drives — iCloud, Dropbox, …). See
   [the docs](docs/network-and-cloud-drives.md) for the network & cloud tabs.
 - **Holds anything launchable** — applications, files, folders, and URLs. One
   click opens them.

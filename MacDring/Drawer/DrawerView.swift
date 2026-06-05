@@ -74,7 +74,7 @@ struct DrawerView: View {
     private var bodyContent: some View {
         switch model.kind {
         case .notes:
-            notesEditor
+            if model.notesPreview { notesPreview } else { notesEditor }
         case .items, .folder, .disks, .network, .cloud:
             if model.items.isEmpty { emptyState } else { content }
         }
@@ -99,6 +99,12 @@ struct DrawerView: View {
                 headerButton("folder", help: "Open folder in Finder") { model.onOpenFolder?() }
                     .disabled(model.folderURL == nil)
             }
+            if model.kind == .notes {
+                headerButton(model.notesPreview ? "pencil" : "eye",
+                             help: model.notesPreview ? "Edit notes" : "Preview Markdown") {
+                    model.notesPreview.toggle()
+                }
+            }
             headerButton(model.locked ? "lock.fill" : "lock.open",
                          help: model.locked ? "Unlock this tab's position" : "Lock this tab's position") {
                 model.onToggleLocked?()
@@ -117,13 +123,32 @@ struct DrawerView: View {
     // MARK: Notes
 
     private var notesEditor: some View {
+        // No extra inner padding around the editor — the TextEditor's own text inset
+        // is enough; the previous `.padding(8)` double-inset the text from the box.
         TextEditor(text: notesBinding)
             .font(.body)
             .scrollContentBackground(.hidden)
-            .padding(8)
             .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.06)))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.08)))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Rendered-Markdown preview of the note (toggled from the header).
+    private var notesPreview: some View {
+        ScrollView {
+            if model.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Nothing to preview yet.")
+                    .foregroundStyle(.secondary).font(.callout)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+            } else {
+                MarkdownText(text: model.notes)
+                    .padding(10)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.08)))
     }
 
     private var notesBinding: Binding<String> {
