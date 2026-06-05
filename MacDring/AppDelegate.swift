@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !Self.isRunningTests else { return }
 
+        installMainMenu()
         if !store.loadedFromDisk && store.tabs.isEmpty {
             seedStarterTab()
         }
@@ -29,6 +30,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         controller.saveAndTeardown()
+    }
+
+    // MARK: Main menu
+
+    /// Installs an App + Edit menu so the standard text-editing shortcuts
+    /// (⌘C/⌘V/⌘X/⌘A, ⌘Z/⇧⌘Z) reach the first responder. Without it, an `LSUIElement`
+    /// agent has no menu at all, so those keys do nothing in the notes editor, the
+    /// rename field, or Settings fields. The Edit-menu items target the first
+    /// responder (`nil` target), so their key equivalents route to whatever text view
+    /// is focused. The menu bar stays hidden while the app is `.accessory` — only the
+    /// key-equivalent routing matters here; it shows normally when Settings switches
+    /// the app to `.regular`.
+    private func installMainMenu() {
+        let mainMenu = NSMenu()
+
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Quit MacDring", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        mainMenu.addItem(appItem)
+
+        let editItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: Selector(("cut:")), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: Selector(("copy:")), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: Selector(("paste:")), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: Selector(("selectAll:")), keyEquivalent: "a")
+        editItem.submenu = editMenu
+        mainMenu.addItem(editItem)
+
+        NSApp.mainMenu = mainMenu
     }
 
     // MARK: Status item
