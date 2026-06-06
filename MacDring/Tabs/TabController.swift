@@ -30,6 +30,11 @@ final class TabController {
     /// reflects the live set of mounted volumes. Torn down in `saveAndTeardown`.
     private var volumeObservers: [NSObjectProtocol] = []
 
+    /// Live-refresh watch on the open folder tab's directory (FSEvents via a
+    /// `DispatchSource`); `nil` when no folder drawer is open.
+    private var folderWatch: DispatchSourceFileSystemObject?
+    private var folderWatchPath: String?
+    private var pendingFolderRefresh: DispatchWorkItem?
     /// Observers for app launch/terminate, so application items show a live "running"
     /// dot. Torn down in `saveAndTeardown`.
     private var runningAppObservers: [NSObjectProtocol] = []
@@ -166,6 +171,7 @@ final class TabController {
         wc.applyFrame(EdgeLayout.openedTabFrame(edge: tab.anchor.edge,
                                                 restingTabFrame: wc.restingFrame,
                                                 drawerFrame: drawer.openFrame))
+        updateFolderWatch()   // the open tab may have changed folder/sort
     }
 
     private func makeWindow(for tab: Tab) -> TabWindowController {
@@ -227,6 +233,7 @@ final class TabController {
                                                   drawerFrame: drawer.openFrame)
         wc.animate(to: openedTab, duration: duration)
         startMonitoring()
+        updateFolderWatch()   // live-refresh a folder tab while its drawer is open
     }
 
     private func closeDrawer() {
@@ -240,6 +247,7 @@ final class TabController {
         openTabID = nil
         drawer.hide(duration: duration)
         stopMonitoring()
+        stopFolderWatch()
         refreshConcealment(animated: true)   // drawer closed → resume auto-hide/fade
     }
 
@@ -729,6 +737,48 @@ final class TabController {
         volumeObservers.removeAll()
     }
 
+    // MARK: Folder live-refresh (FSEvents)
+
+    /// Watches the open folder tab's directory (via a `DispatchSource` on its fd) and
+    /// re-lists the drawer when its contents change — so a folder tab updates live,
+    /// not only when re-opened. Watches one directory at a time (the open tab's).
+    private func updateFolderWatch() {
+        guard let id = openTabID, let tab = store.tab(id: id), tab.kind == .folder,
+              let url = FolderLister.resolveFolder(tab) else { stopFolderWatch(); return }
+        startFolderWatch(url)
+    }
+
+    private func startFolderWatch(_ url: URL) {
+        if folderWatchPath == url.path { return }   // already watching this directory
+        stopFolderWatch()
+        let fd = open(url.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd, eventMask: [.write, .delete, .rename, .extend], queue: .main)
+        source.setEventHandler { [weak self] in self?.scheduleFolderRefresh() }
+        source.setCancelHandler { close(fd) }
+        folderWatch = source
+        folderWatchPath = url.path
+        source.resume()
+    }
+
+    private func stopFolderWatch() {
+        folderWatch?.cancel()   // its cancel handler closes the fd
+        folderWatch = nil
+        folderWatchPath = nil
+        pendingFolderRefresh?.cancel()
+        pendingFolderRefresh = nil
+    }
+
+    /// Coalesces a burst of directory-change events into a single re-list.
+    private func scheduleFolderRefresh() {
+        pendingFolderRefresh?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let id = self.openTabID, self.store.tab(id: id)?.kind == .folder else { return }
+            self.refreshOpenDrawer()
+        }
+        pendingFolderRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
     // MARK: Running-app indicator
 
     /// Tracks the set of running apps' bundle IDs so application items show a live
@@ -827,6 +877,7 @@ final class TabController {
         stopMonitoring()
         stopRevealMonitoring()
         stopVolumeMonitoring()
+        stopFolderWatch()
         stopRunningAppMonitoring()
         drawer.hide(duration: 0)     // instant on quit, no animation
         openTabID = nil

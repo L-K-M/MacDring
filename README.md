@@ -18,7 +18,8 @@ them after a restart.
   hover) to open a drawer.
 - **Six tab types** — an **items** tab (apps, files, folders, links arranged freely
   in a grid with gaps), a **notes** tab (a quick text scratchpad), a **folder** tab
-  (a live, read-only view of a directory's contents), a **disks** tab (your mounted
+  (a live, read-only view of a directory's contents — sortable, optional hidden
+  files, auto-refreshing as the folder changes), a **disks** tab (your mounted
   ejectable volumes), a **network** tab (your mounted network shares), and a
   **cloud** tab (your cloud drives — iCloud, Dropbox, …). See
   [the docs](docs/network-and-cloud-drives.md) for the network & cloud tabs.

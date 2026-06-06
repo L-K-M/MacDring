@@ -49,6 +49,7 @@ polish. **Nothing P0–P1 is open** — the code is clean and well-tested.
 | **2-D grid keyboard nav** (no filter) | ❌ | Type-to-find ships (filtered list + Up/Down/Return); arrowing the *full* slot grid with gaps when **not** filtering is a separate, fiddlier follow-up. |
 | **Named layouts / sets** with in-app switching | ◑ | Import/export already covers backup; the remaining half is storing named snapshots + a Settings switcher (the document is already clean JSON). |
 | **Separators / spacers / labels** in a dock | ❌ | A non-launchable item kind rendered as a divider/heading; fits the existing slot grid. Small. |
+| **Running-app indicator** dot on app items | ❌ | Observe `NSWorkspace.runningApplications`; dot items whose bundle ID is active. Small, additive. |
 | **Folder-tab niceties** — sort, show-hidden, live refresh | ❌ | Per-tab sort/hidden flags; `FSEvents` / `DispatchSource` to refresh the open drawer on directory change (today it re-lists only on open). |
 | **iCloud sync · Quick Look · accessibility · localization** | ❌ | Each is its own project. Accessibility (labelling the SwiftUI controls) is the cheapest, most user-visible start. |
 | Process dock · sound effects · AppleScript · free off-edge placement | — | Intentional non-goals (PLAN §1). |
