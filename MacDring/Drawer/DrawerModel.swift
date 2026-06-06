@@ -44,6 +44,61 @@ final class DrawerModel: ObservableObject {
     /// items are unchanged — e.g. the Trash icon (full → empty) after emptying.
     @Published var iconNonce = 0
 
+    /// Bundle IDs of currently-running apps (kept current by `TabController`), so an
+    /// application item shows a Dock-style "running" dot. Updated live as apps
+    /// launch/quit.
+    @Published var runningBundleIDs: Set<String> = []
+    // MARK: Type-to-find
+
+    /// The live filter query (type-to-find). Empty = not searching. Driven by
+    /// `TabController`'s key monitor (the borderless panel makes proper text-field
+    /// focus unreliable), so this is the single source of truth for the query.
+    @Published var searchQuery = ""
+    /// The keyboard-selected result while searching (Up/Down/Return nav).
+    @Published var selectedItemID: UUID?
+
+    /// Whether this drawer offers search — a non-notes listing with enough items to
+    /// be worth filtering. Gates both the search bar and keystroke capture.
+    var isSearchable: Bool { kind != .notes && items.count >= DrawerSearch.minItemsToShow }
+    var isSearching: Bool { !searchQuery.isEmpty }
+    /// The items matching the current query (prefix matches first; see `DrawerSearch`).
+    var searchResults: [DrawerItem] { DrawerSearch.filter(items, query: searchQuery) }
+
+    /// Appends typed text to the query and selects the top result.
+    func appendSearch(_ text: String) {
+        searchQuery += text
+        selectedItemID = searchResults.first?.id
+    }
+
+    /// Removes the last query character (Delete), re-selecting the top result.
+    func deleteSearchCharacter() {
+        guard !searchQuery.isEmpty else { return }
+        searchQuery.removeLast()
+        selectedItemID = searchResults.first?.id
+    }
+
+    /// Clears the query and selection (the search bar's ✕, or Esc while searching).
+    func clearSearch() {
+        searchQuery = ""
+        selectedItemID = nil
+    }
+
+    /// Moves the keyboard selection among the current results.
+    func moveSelection(down: Bool) {
+        let ids = searchResults.map(\.id)
+        let current = selectedItemID.flatMap { ids.firstIndex(of: $0) }
+        if let next = DrawerSearch.nextIndex(count: ids.count, current: current, down: down) {
+            selectedItemID = ids[next]
+        }
+    }
+
+    /// Launches the selected result (Return) — or the top result if none is selected.
+    func launchSelection() {
+        let results = searchResults
+        let target = selectedItemID.flatMap { id in results.first { $0.id == id } } ?? results.first
+        if let target { onLaunch?(target) }
+    }
+
     var onLaunch: ((DrawerItem) -> Void)?
     var onRemoveItem: ((DrawerItem) -> Void)?
     var onRevealItem: ((DrawerItem) -> Void)?
@@ -74,6 +129,8 @@ final class DrawerModel: ObservableObject {
     var onNotesChanged: ((String) -> Void)?
     /// Open the linked directory in Finder (for `.folder` tabs).
     var onOpenFolder: (() -> Void)?
+    /// Clear the recent items (for `.recents` tabs).
+    var onClearRecents: (() -> Void)?
 
     /// The item occupying a grid slot, if any.
     func item(atSlot slot: Int) -> DrawerItem? {

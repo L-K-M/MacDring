@@ -40,11 +40,11 @@ private final class DrawerHostingView: NSHostingView<DrawerView> {
     }
 
     /// The model iff this drag is acceptable here (items/folder tab + has file URLs
-    /// or web links). Notes, Disks, Network, and Cloud tabs are read-only live
-    /// listings, so they take no drops.
+    /// or web links). Notes, Disks, Network, Cloud, and Recents tabs are read-only
+    /// live listings, so they take no drops.
     private func droppableModel(_ sender: NSDraggingInfo) -> DrawerModel? {
         guard let model, model.kind != .notes, model.kind != .disks,
-              model.kind != .network, model.kind != .cloud,
+              model.kind != .network, model.kind != .cloud, model.kind != .recents,
               sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self],
                                                       options: [.urlReadingFileURLsOnly: false])
         else { return nil }
@@ -153,6 +153,7 @@ final class DrawerWindowController {
     /// never bleeds onto an adjacent display at a shared edge.
     func show(tab: Tab, tabFrame: CGRect, edge: Edge, on screen: NSScreen, duration: TimeInterval) {
         apply(tab: tab)
+        model.clearSearch()   // each open starts unfiltered
         model.edge = edge
         currentEdge = edge
         currentScreen = screen
@@ -204,6 +205,7 @@ final class DrawerWindowController {
             panel.orderOut(nil)
             panel.alphaValue = 1
             model.items = []
+            model.clearSearch()
             return
         }
         let end = EdgeLayout.nudgedDrawerFrame(edge: currentEdge, openFrame: openFrame, by: Self.nudge)
@@ -218,6 +220,7 @@ final class DrawerWindowController {
             self.panel.orderOut(nil)
             self.panel.alphaValue = 1   // reset while hidden, ready for next open
             self.model.items = []
+            self.model.clearSearch()
         })
     }
 
@@ -253,6 +256,10 @@ final class DrawerWindowController {
             model.folderURL = nil
         case .cloud:
             model.items = CloudLister.contents(of: tab).applyingIconStyles(from: tab.iconStyles)
+            model.notes = ""
+            model.folderURL = nil
+        case .recents:
+            model.items = RecentsLister.contents(of: tab).applyingIconStyles(from: tab.iconStyles)
             model.notes = ""
             model.folderURL = nil
         case .notes:

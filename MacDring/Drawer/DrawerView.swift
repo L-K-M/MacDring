@@ -42,6 +42,7 @@ struct DrawerView: View {
 
         VStack(alignment: .leading, spacing: 10) {
             header
+            if model.isSearchable { searchBar }
             bodyContent
         }
         .padding(14)
@@ -75,8 +76,60 @@ struct DrawerView: View {
         switch model.kind {
         case .notes:
             if model.notesPreview { notesPreview } else { notesEditor }
-        case .items, .folder, .disks, .network, .cloud:
-            if model.items.isEmpty { emptyState } else { content }
+        case .items, .folder, .disks, .network, .cloud, .recents:
+            if model.isSearching { searchResultsList }
+            else if model.items.isEmpty { emptyState }
+            else { content }
+        }
+    }
+
+    // MARK: Type-to-find
+
+    /// A read-only display of the current query — input is driven by `TabController`'s
+    /// key monitor (focus is unreliable in the borderless panel), so this isn't an
+    /// editable field. The ✕ clears it.
+    private var searchBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").font(.callout).foregroundStyle(.secondary)
+            if model.searchQuery.isEmpty {
+                Text("Type to filter…").foregroundStyle(.secondary)
+            } else {
+                Text(model.searchQuery)
+            }
+            Spacer(minLength: 0)
+            if !model.searchQuery.isEmpty {
+                Button { model.clearSearch() } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .help("Clear filter")
+            }
+        }
+        .font(.callout)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.10)))
+    }
+
+    /// The filtered results as a compact, keyboard-navigable list (Up/Down select,
+    /// Return launches — handled by the key monitor). The selected row is tinted.
+    private var searchResultsList: some View {
+        let results = model.searchResults
+        return ScrollView {
+            if results.isEmpty {
+                Text("No matches for “\(model.searchQuery)”")
+                    .foregroundStyle(.secondary).font(.callout)
+                    .frame(maxWidth: .infinity).padding(.vertical, 20)
+            } else {
+                VStack(spacing: 2) {
+                    ForEach(results) { item in
+                        itemView(item, layout: .list)
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 8)
+                                .fill(item.id == model.selectedItemID ? Color.accentColor.opacity(0.30) : .clear))
+                    }
+                }
+            }
         }
     }
 
@@ -104,6 +157,9 @@ struct DrawerView: View {
                              help: model.notesPreview ? "Edit notes" : "Preview Markdown") {
                     model.notesPreview.toggle()
                 }
+            if model.kind == .recents {
+                headerButton("trash", help: "Clear recent items") { model.onClearRecents?() }
+                    .disabled(model.items.isEmpty)
             }
             headerButton(model.locked ? "lock.fill" : "lock.open",
                          help: model.locked ? "Unlock this tab's position" : "Lock this tab's position") {
@@ -285,11 +341,11 @@ struct DrawerView: View {
         return NSItemProvider()
     }
 
-    private func itemView(_ item: DrawerItem) -> some View {
+    private func itemView(_ item: DrawerItem, layout: DrawerLayout? = nil) -> some View {
         ItemView(
             item: item,
             iconSize: CGFloat(preferences.iconSize),
-            layout: preferences.drawerLayout,
+            layout: layout ?? preferences.drawerLayout,
             launchOnSingleClick: preferences.launchOnSingleClick,
             onLaunch: { model.onLaunch?(item) },
             onReveal: { model.onRevealItem?(item) },
@@ -300,7 +356,8 @@ struct DrawerView: View {
             onEmptyTrash: item.kind == .trash ? { model.onEmptyTrash?() } : nil,
             iconNonce: model.iconNonce,
             onEject: item.kind == .disk ? { model.onEjectItem?(item) } : nil,
-            onCustomizeIcon: { model.onCustomizeItemIcon?(item) }   // any item, any tab kind
+            onCustomizeIcon: { model.onCustomizeItemIcon?(item) },   // any item, any tab kind
+            runningBundleIDs: model.runningBundleIDs
         )
     }
 
@@ -326,6 +383,7 @@ struct DrawerView: View {
         case .disks: return "externaldrive"
         case .network: return "externaldrive.connected.to.line.below"
         case .cloud: return "icloud"
+        case .recents: return "clock.arrow.circlepath"
         default: return "tray.and.arrow.down"
         }
     }
@@ -342,6 +400,8 @@ struct DrawerView: View {
             return "No network shares mounted."
         case .cloud:
             return "No cloud drives found."
+        case .recents:
+            return "Nothing opened from MacDring yet."
         default:
             return "Drag apps & files here"
         }

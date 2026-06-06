@@ -267,7 +267,11 @@ private struct TabEditor: View {
                             .lineLimit(1).truncationMode(.middle)
                     }
                     Button("Choose Folder…", action: chooseFolder)
-                    Text("The drawer shows this folder's contents live (read-only).")
+                    Picker("Sort by", selection: $draft.folderSort) {
+                        ForEach(FolderSort.allCases) { Text($0.displayName).tag($0) }
+                    }
+                    Toggle("Show hidden files", isOn: $draft.folderShowsHidden)
+                    Text("The drawer shows this folder's contents live (read-only); it refreshes automatically when the folder changes. Folders sort before files.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -296,6 +300,13 @@ private struct TabEditor: View {
             if draft.kind == .cloud {
                 Section("Cloud") {
                     Text("The drawer lists your cloud drives live — iCloud Drive and the providers under ~/Library/CloudStorage (Dropbox, Google Drive, OneDrive, Box, …). Click one to open it in Finder.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if draft.kind == .recents {
+                Section("Recents") {
+                    Text("The drawer lists the apps, files, folders, and links you've recently opened from MacDring, most recent first. Clear them from the drawer's header.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

@@ -20,12 +20,17 @@ struct ItemView: View {
     var onEject: (() -> Void)?
     /// Open the generated-icon editor for this item (available for every item).
     var onCustomizeIcon: (() -> Void)?
+    /// Bundle IDs of currently-running apps — drives the "running" dot on app items.
+    var runningBundleIDs: Set<String> = []
 
     // Icon and broken-ness are resolved off the render path (in `.task`, once per
     // item/nonce change) and cached here, so `body` does no disk I/O on every
     // re-render — important for a large or network-volume folder tab. See ANALYSIS.md I2.
     @State private var icon: NSImage?
     @State private var broken = false
+    /// An app item's bundle id (resolved off the render path, like the icon), so the
+    /// running dot is a cheap `Set.contains` in `body`.
+    @State private var bundleID: String?
 
     var body: some View {
         cell
@@ -75,6 +80,7 @@ struct ItemView: View {
             .task(id: IconKey(item: item, nonce: iconNonce)) {
                 icon = ItemView.resolveIcon(item)
                 broken = BookmarkResolver.isBroken(item)
+                bundleID = ItemView.appBundleID(item)
             }
     }
 
@@ -108,6 +114,33 @@ struct ItemView: View {
             .resizable()
             .interpolation(.high)
             .frame(width: iconSize, height: iconSize)
+            .overlay(alignment: .bottom) { runningDot }
+    }
+
+    /// A small green dot on the bottom edge of a **running** app's icon (Dock-style).
+    @ViewBuilder
+    private var runningDot: some View {
+        if isAppRunning {
+            let dot = max(5, iconSize * 0.12)
+            Circle()
+                .fill(Color.green)
+                .overlay(Circle().strokeBorder(.black.opacity(0.25), lineWidth: 0.5))
+                .frame(width: dot, height: dot)
+                .offset(y: -dot * 0.3)   // mostly inside the icon's lower edge
+                .shadow(color: .black.opacity(0.3), radius: 0.5)
+        }
+    }
+
+    /// Whether this item is a running application (its bundle id is in the live set).
+    private var isAppRunning: Bool {
+        guard item.kind == .application, let bundleID else { return false }
+        return runningBundleIDs.contains(bundleID)
+    }
+
+    /// An application item's bundle identifier (read off the render path), or `nil`.
+    private static func appBundleID(_ item: DrawerItem) -> String? {
+        guard item.kind == .application, let url = BookmarkResolver.url(for: item) else { return nil }
+        return Bundle(url: url)?.bundleIdentifier
     }
 
     /// A 1×1 transparent image shown for the one frame before `.task` resolves the
