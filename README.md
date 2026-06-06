@@ -34,6 +34,8 @@ them after a restart.
   with a handful of items or more.
 - **Trash item.** Add a Trash to any tab (Settings → Tabs → *Add Trash*): click it to
   open the Trash, or drop files onto it to throw them away.
+- **Running-app dot.** Application items show a small green dot when the app is
+  running, updating live as apps launch and quit.
 - **Per-tab color, name, and glyph** (SF Symbol or letters).
 - **Custom item icons.** Right-click any item → *Customize Icon…* to give it a
   colored **folder** or **rounded tile** with an SF Symbol burned in (or pick an

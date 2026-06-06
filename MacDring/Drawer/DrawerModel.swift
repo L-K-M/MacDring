@@ -41,6 +41,10 @@ final class DrawerModel: ObservableObject {
     /// items are unchanged — e.g. the Trash icon (full → empty) after emptying.
     @Published var iconNonce = 0
 
+    /// Bundle IDs of currently-running apps (kept current by `TabController`), so an
+    /// application item shows a Dock-style "running" dot. Updated live as apps
+    /// launch/quit.
+    @Published var runningBundleIDs: Set<String> = []
     // MARK: Type-to-find
 
     /// The live filter query (type-to-find). Empty = not searching. Driven by
