@@ -267,7 +267,11 @@ private struct TabEditor: View {
                             .lineLimit(1).truncationMode(.middle)
                     }
                     Button("Choose Folder…", action: chooseFolder)
-                    Text("The drawer shows this folder's contents live (read-only).")
+                    Picker("Sort by", selection: $draft.folderSort) {
+                        ForEach(FolderSort.allCases) { Text($0.displayName).tag($0) }
+                    }
+                    Toggle("Show hidden files", isOn: $draft.folderShowsHidden)
+                    Text("The drawer shows this folder's contents live (read-only); it refreshes automatically when the folder changes. Folders sort before files.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

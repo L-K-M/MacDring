@@ -464,6 +464,7 @@ MacDring/
 │   │   ├── TabGlyph.swift         # SF Symbol or monogram
 │   │   ├── TabBehavior.swift      # per-tab open/hide/keep-open (+ global-default overrides)
 │   │   ├── TabConcealment.swift   # pill idle auto-hide / auto-fade
+│   │   ├── FolderSort.swift       # folder-tab listing order (name / date / kind)
 │   │   ├── TabKind.swift          # items / notes / folder / disks / network / cloud
 │   │   ├── HotkeySpec.swift       # keyCode + Carbon modifier mask
 │   │   ├── IconStyle.swift        # generated icon: base + color + optional SF Symbol
@@ -474,7 +475,7 @@ MacDring/
 │   ├── Store/
 │   │   ├── TabStore.swift         # load/save JSON, observable, debounced atomic write
 │   │   ├── BookmarkResolver.swift # bookmark ⇄ URL, staleness, broken-item handling
-│   │   ├── FolderLister.swift     # live directory listing for folder tabs
+│   │   ├── FolderLister.swift     # live directory listing for folder tabs (sort/hidden)
 │   │   ├── DisksLister.swift      # live mounted-ejectable-volume listing for disks tabs
 │   │   ├── NetworkLister.swift    # live network-share listing for network tabs
 │   │   ├── CloudLister.swift      # live cloud-drive listing for cloud tabs
@@ -491,7 +492,8 @@ MacDring/
 │   ├── Drawer/
 │   │   ├── DrawerWindowController.swift
 │   │   ├── DrawerModel.swift
-│   │   ├── DrawerView.swift        # SwiftUI grid/list + drag-to-reorder
+│   │   ├── DrawerSearch.swift      # pure type-to-find filter / selection / key helpers
+│   │   ├── DrawerView.swift        # SwiftUI grid/list + drag-to-reorder + search
 │   │   ├── DrawerMetrics.swift     # deterministic drawer sizing (pure)
 │   │   └── ItemView.swift
 │   ├── Launch/
@@ -531,6 +533,7 @@ MacDring/
 │   ├── TabBehaviorTests.swift       # resolved() global-default overrides + Codable
 │   ├── DrawerMetricsTests.swift     # deterministic drawer sizing
 │   ├── DrawerModelTests.swift       # item(atSlot:) lookup
+│   ├── DrawerSearchTests.swift      # type-to-find filter / nextIndex / key classification
 │   ├── DrawerItemTests.swift        # DrawerItem Codable + factories (fromFileURL/fromLink)
 │   ├── FolderListerTests.swift      # directory listing (sort/hidden/slots)
 │   ├── DisksListerTests.swift       # ejectable-volume filtering/sort/slots
@@ -611,7 +614,8 @@ MacDring/
 > - **Tab types** (`TabKind`) — besides the default **items** tab, a **notes** tab
 >   (drawer is a text editor; edits persist via `setNotes` without reconciling the
 >   open drawer), a **folder** tab (drawer shows a directory's live contents,
->   read-only: launch + reveal, with an Open-in-Finder header button), and a
+>   read-only: launch + reveal, with an Open-in-Finder header button; per-tab sort
+>   order + show-hidden, and live FSEvents refresh on directory change), and a
 >   **disks** tab (drawer shows the mounted **ejectable** volumes live via
 >   `DisksLister`, read-only: open in Finder + **eject** from each volume's menu;
 >   it refreshes on mount/unmount via `NSWorkspace` notifications), a **network**
@@ -704,7 +708,9 @@ MacDring/
   Symbol, or an image file — on any item via *Customize Icon…*; `IconStyle` +
   `IconRenderer`; see docs/custom-icons.md). Image/picture *clippings* remain a future extra.
 - **Layout import/export** and optional **iCloud sync** of the document.
-- **Per-tab keyboard navigation** within an open drawer (type-to-select, arrows).
+- **Type-to-find in an open drawer** ✅ (`DrawerSearch` + `DrawerModel`: type to filter,
+  ↑/↓ select, Return launches, Esc clears/closes; input driven by `TabController`'s key
+  monitor). 2-D arrow nav over the *unfiltered* slot grid is a separate follow-up.
 - **Stage Manager / Mission Control** awareness and tuning.
 
 ---

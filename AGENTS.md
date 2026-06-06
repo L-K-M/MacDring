@@ -66,7 +66,8 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
   `TabStripModel`.
 - `Drawer/` — `DrawerWindowController` (incl. `DrawerHostingView`, the AppKit
   `NSDraggingDestination` that handles spring-loaded per-slot file drops),
-  `DrawerView`, `DrawerModel`, `ItemView`.
+  `DrawerView`, `DrawerModel`, `ItemView`, and `DrawerSearch` (pure type-to-find
+  filter / selection / key-classification helpers).
 - `Launch/` — `ItemLauncher`. `Hotkeys/` — `CarbonHotkey`, `KeyCodes`.
 - `Settings/` — the SwiftUI settings window and panes, plus the small modal
   windows (`NewTabView`/Controller, `IconEditorView`/Controller).

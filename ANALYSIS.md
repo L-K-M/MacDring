@@ -46,6 +46,9 @@ polish. **Nothing P0–P1 is open** — the code is clean and well-tested.
 |---|---|---|
 | **Search / type-to-find + keyboard nav** in an open drawer | ❌ | The headline gap. A focusable field in the borderless key-but-non-activating drawer, arrow/return selection over the slot grid, and a filtered view. Touches the slot model + key focus — design on-device. |
 | **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. Hover-to-expand a nested drawer is a larger interaction — defer until search lands. |
+| **Recents tab** (recent apps / documents) | ❌ | New `TabKind.recents` from `NSWorkspace` / `LSSharedFileList`-style recents, listed transiently like the other listers. Mostly additive. |
+| **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. Hover-to-expand a nested drawer is a larger interaction — defer. |
+| **2-D grid keyboard nav** (no filter) | ❌ | Type-to-find ships (filtered list + Up/Down/Return); arrowing the *full* slot grid with gaps when **not** filtering is a separate, fiddlier follow-up. |
 | **Named layouts / sets** with in-app switching | ◑ | Import/export already covers backup; the remaining half is storing named snapshots + a Settings switcher (the document is already clean JSON). |
 | **Separators / spacers / labels** in a dock | ❌ | A non-launchable item kind rendered as a divider/heading; fits the existing slot grid. Small. |
 | **Running-app indicator** dot on app items | ❌ | Observe `NSWorkspace.runningApplications`; dot items whose bundle ID is active. Small, additive. |
