@@ -521,7 +521,8 @@ MacDring/
 │   │   ├── VisualEffectView.swift   # NSVisualEffectView wrapper (reused from Zap)
 │   │   ├── TabShapes.swift          # edgeRoundedRect + ClassicTabShape (tab/drawer shapes)
 │   │   ├── ActivationPolicy.swift   # shared .regular↔.accessory revert guard (Settings/New Tab)
-│   │   └── IconRenderer.swift       # draws an IconStyle to an NSImage (drawer + editor)
+│   │   ├── IconRenderer.swift       # draws an IconStyle to an NSImage (drawer + editor)
+│   │   └── MarkdownText.swift       # basic-Markdown renderer for the notes preview
 │   └── Resources/
 │       └── Assets.xcassets          # Info.plist generated
 ├── MacDringTests/
@@ -542,6 +543,7 @@ MacDring/
 │   ├── RecentsStoreTests.swift      # recents merge/dedup/cap + persistence
 │   ├── RecentsListerTests.swift     # recents listing (mapping/order/slots)
 │   ├── IconStyleTests.swift         # IconStyle Codable, applyingIconStyles, IconRenderer
+│   ├── MarkdownTextTests.swift      # notes-preview Markdown line classification
 │   ├── TrashInspectorTests.swift    # trash entry-count / emptiness across volumes
 │   ├── FileMoverTests.swift         # move-into-directory + collision rename
 │   └── PreferencesTests.swift       # defaults, clamping
@@ -613,6 +615,9 @@ MacDring/
 >   pane shows the real app icon.
 > - **Tab types** (`TabKind`) — besides the default **items** tab, a **notes** tab
 >   (drawer is a text editor; edits persist via `setNotes` without reconciling the
+>   open drawer; a header toggle flips to a basic-Markdown **preview** via
+>   `MarkdownText`), a **folder** tab (drawer shows a directory's live contents,
+>   read-only: launch + reveal, with an Open-in-Finder header button), and a
 >   open drawer), a **folder** tab (drawer shows a directory's live contents,
 >   read-only: launch + reveal, with an Open-in-Finder header button; per-tab sort
 >   order + show-hidden, and live FSEvents refresh on directory change), and a

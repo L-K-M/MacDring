@@ -264,7 +264,10 @@ final class DrawerWindowController {
             model.folderURL = nil
         case .notes:
             model.items = []
-            if !preserveLiveNotes { model.notes = tab.notes }
+            if !preserveLiveNotes {
+                model.notes = tab.notes
+                model.notesPreview = false   // a fresh open starts in the editor, not preview
+            }
             model.folderURL = nil
         }
     }
