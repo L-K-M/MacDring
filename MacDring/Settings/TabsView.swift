@@ -303,6 +303,13 @@ private struct TabEditor: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+
+            if draft.kind == .recents {
+                Section("Recents") {
+                    Text("The drawer lists the apps, files, folders, and links you've recently opened from MacDring, most recent first. Clear them from the drawer's header.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)

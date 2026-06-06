@@ -126,6 +126,8 @@ final class DrawerModel: ObservableObject {
     var onNotesChanged: ((String) -> Void)?
     /// Open the linked directory in Finder (for `.folder` tabs).
     var onOpenFolder: (() -> Void)?
+    /// Clear the recent items (for `.recents` tabs).
+    var onClearRecents: (() -> Void)?
 
     /// The item occupying a grid slot, if any.
     func item(atSlot slot: Int) -> DrawerItem? {

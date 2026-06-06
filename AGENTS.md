@@ -57,8 +57,9 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
 - `Model/` — Codable model (`Tab`, `DrawerItem`, `ScreenAnchor`, `Edge`,
   `TabGlyph`, `TabBehavior`, `HotkeySpec`, `IconStyle`, `LauncherDocument`),
   `ColorHex`, `Preferences`, and the small UI enums in `PreferenceEnums.swift`.
-- `Store/` — `TabStore` (JSON load/save), `BookmarkResolver`, and the live
-  transient listers (`FolderLister`, `DisksLister`, `NetworkLister`, `CloudLister`).
+- `Store/` — `TabStore` (JSON load/save), `RecentsStore` (recent-items history),
+  `BookmarkResolver`, and the live transient listers (`FolderLister`, `DisksLister`,
+  `NetworkLister`, `CloudLister`, `RecentsLister`).
 - `Screens/` — `DisplayRegistry` (UUID mapping) and the pure `EdgeLayout` math.
 - `Tabs/` — `TabController` (the orchestrator), `TabWindowController`,
   `TabStripView` (modern pill / classic folder tab; vertical side labels),

@@ -44,6 +44,8 @@ polish. **Nothing P0–P1 is open** — the code is clean and well-tested.
 
 | Feature | Status | Approach |
 |---|---|---|
+| **Search / type-to-find + keyboard nav** in an open drawer | ❌ | The headline gap. A focusable field in the borderless key-but-non-activating drawer, arrow/return selection over the slot grid, and a filtered view. Touches the slot model + key focus — design on-device. |
+| **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. Hover-to-expand a nested drawer is a larger interaction — defer until search lands. |
 | **Recents tab** (recent apps / documents) | ❌ | New `TabKind.recents` from `NSWorkspace` / `LSSharedFileList`-style recents, listed transiently like the other listers. Mostly additive. |
 | **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. Hover-to-expand a nested drawer is a larger interaction — defer. |
 | **2-D grid keyboard nav** (no filter) | ❌ | Type-to-find ships (filtered list + Up/Down/Return); arrowing the *full* slot grid with gaps when **not** filtering is a separate, fiddlier follow-up. |

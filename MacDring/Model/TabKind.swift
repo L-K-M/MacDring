@@ -14,6 +14,8 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
     case network
     /// A live listing of the user's cloud-storage drives (iCloud, Dropbox, …).
     case cloud
+    /// A live listing of the targets recently opened from MacDring.
+    case recents
 
     var id: String { rawValue }
 
@@ -25,6 +27,7 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
         case .disks: return "Disks"
         case .network: return "Network"
         case .cloud: return "Cloud"
+        case .recents: return "Recents"
         }
     }
 }
