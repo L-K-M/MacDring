@@ -10,6 +10,9 @@ enum DrawerMetrics {
     static let headerHeight: CGFloat = 30
     static let gridSpacing: CGFloat = 12
     static let gridInterColumn: CGFloat = 10
+    /// Extra height reserved for the filter field (plus its stack gap) when a drawer
+    /// is searchable, so the grid still fits without a scroll bar. See `contentSize`.
+    static let searchBarHeight: CGFloat = 40
 
     /// Size for a notes drawer, derived from the tab's grid dimensions (so the
     /// Columns/Rows steppers also size the text area), clamped to the screen.
@@ -38,8 +41,9 @@ enum DrawerMetrics {
                             layout: DrawerLayout,
                             iconSize: CGFloat,
                             columns: Int,
+                            searchable: Bool = false,
                             in visibleFrame: CGRect) -> CGSize {
-        let size: CGSize
+        var size: CGSize
         switch layout {
         case .grid:
             let cols = max(1, columns)
@@ -59,6 +63,9 @@ enum DrawerMetrics {
             let height = padding + headerHeight + CGFloat(count) * rowHeight
             size = CGSize(width: width, height: height)
         }
+        // Reserve room for the filter field when the drawer shows one, so its extra
+        // height doesn't push the items under a scroll bar.
+        if searchable { size.height += searchBarHeight }
         return CGSize(width: min(size.width, visibleFrame.width - 16),
                       height: min(size.height, visibleFrame.height - 16))
     }

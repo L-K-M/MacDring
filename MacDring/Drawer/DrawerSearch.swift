@@ -1,9 +1,9 @@
 import Foundation
 
-/// Pure helpers for the drawer's **type-to-find**: filtering items by a query,
-/// moving the keyboard selection, and classifying which keystrokes build the query.
-/// Kept free of AppKit/state so it's unit-testable; `DrawerModel` holds the state and
-/// `TabController`'s key monitor drives input.
+/// Pure helpers for the drawer's **type-to-find**: filtering items by a query and
+/// moving the keyboard selection. Kept free of AppKit/state so it's unit-testable;
+/// `DrawerModel` holds the query (bound to the drawer's filter field) and
+/// `TabController`'s key monitor drives result navigation (Up/Down/Return/Esc).
 enum DrawerSearch {
 
     /// Show the search bar (and capture type-to-find keystrokes) only once a drawer

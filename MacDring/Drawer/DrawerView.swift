@@ -22,6 +22,11 @@ struct DrawerView: View {
     // The external file-drop target slot lives on the model (`model.fileDropSlot`)
     // so the AppKit-driven drop delegate can update it during a drag.
 
+    /// Keyboard focus target. The filter field is focused on open (type-to-find); the
+    /// notes editor is focused when the user clicks into a note to edit it.
+    @FocusState private var focus: Field?
+    private enum Field { case search, notes }
+
     private let contentSpace = "macdring.drawer.content"
     private var columns: Int { max(1, model.columns) }
     private var maxSlot: Int { model.items.map(\.slot).max() ?? -1 }
@@ -75,7 +80,13 @@ struct DrawerView: View {
     private var bodyContent: some View {
         switch model.kind {
         case .notes:
-            if model.notesPreview { notesPreview } else { notesEditor }
+            // Bleed the editor/view to the drawer's left/right/bottom edges (negating
+            // the outer content padding) — the field's own text inset is enough.
+            Group {
+                if model.notesPreview { notesPreview } else { notesEditor }
+            }
+            .padding(.horizontal, -14)
+            .padding(.bottom, -14)
         case .items, .folder, .disks, .network, .cloud, .recents:
             if model.isSearching { searchResultsList }
             else if model.items.isEmpty { emptyState }
@@ -85,18 +96,16 @@ struct DrawerView: View {
 
     // MARK: Type-to-find
 
-    /// A read-only display of the current query — input is driven by `TabController`'s
-    /// key monitor (focus is unreliable in the borderless panel), so this isn't an
-    /// editable field. The ✕ clears it.
+    /// The filter field — an editable, focusable text field bound to the live query.
+    /// It's auto-focused when the drawer opens, so type-to-find works immediately; the
+    /// ✕ clears it. Result navigation (Up/Down/Return/Esc) is driven by
+    /// `TabController`'s key monitor, which swallows those keys before the field sees them.
     private var searchBar: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").font(.callout).foregroundStyle(.secondary)
-            if model.searchQuery.isEmpty {
-                Text("Type to filter…").foregroundStyle(.secondary)
-            } else {
-                Text(model.searchQuery)
-            }
-            Spacer(minLength: 0)
+            TextField("Type to filter…", text: $model.searchQuery)
+                .textFieldStyle(.plain)
+                .focused($focus, equals: .search)
             if !model.searchQuery.isEmpty {
                 Button { model.clearSearch() } label: { Image(systemName: "xmark.circle.fill") }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
@@ -107,6 +116,9 @@ struct DrawerView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.10)))
+        // Defer a tick so the field is in the responder chain before we focus it (the
+        // panel has just become key as it slides open).
+        .onAppear { DispatchQueue.main.async { focus = .search } }
     }
 
     /// The filtered results as a compact, keyboard-navigable list (Up/Down select,
@@ -152,12 +164,6 @@ struct DrawerView: View {
                 headerButton("folder", help: "Open folder in Finder") { model.onOpenFolder?() }
                     .disabled(model.folderURL == nil)
             }
-            if model.kind == .notes {
-                headerButton(model.notesPreview ? "pencil" : "eye",
-                             help: model.notesPreview ? "Edit notes" : "Preview Markdown") {
-                    model.notesPreview.toggle()
-                }
-            }
             if model.kind == .recents {
                 headerButton("trash", help: "Clear recent items") { model.onClearRecents?() }
                     .disabled(model.items.isEmpty)
@@ -180,21 +186,36 @@ struct DrawerView: View {
     // MARK: Notes
 
     private var notesEditor: some View {
-        // No extra inner padding around the editor — the TextEditor's own text inset
-        // is enough; the previous `.padding(8)` double-inset the text from the box.
+        // Full-bleed and transparent over the drawer's blur — the TextEditor's own text
+        // inset is the only spacing. A ✓ button (bottom-right) returns to view mode.
         TextEditor(text: notesBinding)
             .font(.body)
+            .focused($focus, equals: .notes)
             .scrollContentBackground(.hidden)
-            .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.06)))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.08)))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottomTrailing) { doneEditingButton }
+            .onAppear { DispatchQueue.main.async { focus = .notes } }
     }
 
-    /// Rendered-Markdown preview of the note (toggled from the header).
+    /// Finishes editing and returns the note to its rendered view (shown only while
+    /// editing). A filled, labelled button so it reads as an action, not a status badge.
+    private var doneEditingButton: some View {
+        Button { model.notesPreview = true } label: {
+            Label("Done", systemImage: "checkmark")
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .help("Finish editing and show the rendered note")
+        .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+        .padding(10)
+    }
+
+    /// Rendered-Markdown view of the note — the default when a notes drawer opens.
+    /// Clicking anywhere switches to the editor.
     private var notesPreview: some View {
         ScrollView {
             if model.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Nothing to preview yet.")
+                Text("Nothing here yet — click to edit.")
                     .foregroundStyle(.secondary).font(.callout)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
@@ -204,8 +225,8 @@ struct DrawerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.08)))
+        .contentShape(Rectangle())
+        .onTapGesture { model.notesPreview = false }
     }
 
     private var notesBinding: Binding<String> {

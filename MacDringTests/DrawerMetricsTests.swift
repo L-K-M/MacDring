@@ -51,4 +51,13 @@ final class DrawerMetricsTests: XCTestCase {
         let large = DrawerMetrics.contentSize(itemCount: 4, maxSlot: 3, configuredRows: 2, layout: .list, iconSize: 128, columns: 4, in: visible)
         XCTAssertGreaterThan(large.width, small.width)
     }
+
+    func testSearchableDrawerReservesRoomForFilterField() {
+        // A searchable drawer is taller by exactly the filter field's reserved height,
+        // so the grid still fits without a scroll bar (the filter doesn't change width).
+        let plain = DrawerMetrics.contentSize(itemCount: 8, maxSlot: 7, configuredRows: 2, layout: .grid, iconSize: 64, columns: 4, searchable: false, in: visible)
+        let filtered = DrawerMetrics.contentSize(itemCount: 8, maxSlot: 7, configuredRows: 2, layout: .grid, iconSize: 64, columns: 4, searchable: true, in: visible)
+        XCTAssertEqual(filtered.height, plain.height + DrawerMetrics.searchBarHeight, accuracy: 0.5)
+        XCTAssertEqual(filtered.width, plain.width)
+    }
 }

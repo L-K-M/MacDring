@@ -266,7 +266,7 @@ final class DrawerWindowController {
             model.items = []
             if !preserveLiveNotes {
                 model.notes = tab.notes
-                model.notesPreview = false   // a fresh open starts in the editor, not preview
+                model.notesPreview = true   // a fresh open starts in the rendered view, not the editor
             }
             model.folderURL = nil
         }
@@ -288,6 +288,7 @@ final class DrawerWindowController {
                 layout: preferences.drawerLayout,
                 iconSize: CGFloat(preferences.iconSize),
                 columns: model.columns,
+                searchable: model.isSearchable,
                 in: visibleFrame
             )
         }

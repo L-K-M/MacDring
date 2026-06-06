@@ -34,9 +34,10 @@ final class DrawerModel: ObservableObject {
     @Published var kind: TabKind = .items
     /// The note text (for `.notes` tabs).
     @Published var notes: String = ""
-    /// Whether a `.notes` tab is showing the rendered-Markdown **preview** (vs. the
-    /// editor). Transient per open (reset to editing each time the drawer opens).
-    @Published var notesPreview = false
+    /// Whether a `.notes` tab is showing the rendered-Markdown **view** (vs. the
+    /// editor). A note opens in view mode; clicking the text switches to editing, and
+    /// the editor's ✓ button (or the next open) returns to view mode.
+    @Published var notesPreview = true
     /// The linked directory (for `.folder` tabs), used by "Open in Finder".
     @Published var folderURL: URL?
 
@@ -50,10 +51,12 @@ final class DrawerModel: ObservableObject {
     @Published var runningBundleIDs: Set<String> = []
     // MARK: Type-to-find
 
-    /// The live filter query (type-to-find). Empty = not searching. Driven by
-    /// `TabController`'s key monitor (the borderless panel makes proper text-field
-    /// focus unreliable), so this is the single source of truth for the query.
-    @Published var searchQuery = ""
+    /// The live filter query (type-to-find). Empty = not searching. Bound to the
+    /// drawer's filter field, which is auto-focused on open; changing it re-selects the
+    /// top result so Return launches a sensible default.
+    @Published var searchQuery = "" {
+        didSet { if searchQuery != oldValue { selectedItemID = searchResults.first?.id } }
+    }
     /// The keyboard-selected result while searching (Up/Down/Return nav).
     @Published var selectedItemID: UUID?
 
@@ -63,19 +66,6 @@ final class DrawerModel: ObservableObject {
     var isSearching: Bool { !searchQuery.isEmpty }
     /// The items matching the current query (prefix matches first; see `DrawerSearch`).
     var searchResults: [DrawerItem] { DrawerSearch.filter(items, query: searchQuery) }
-
-    /// Appends typed text to the query and selects the top result.
-    func appendSearch(_ text: String) {
-        searchQuery += text
-        selectedItemID = searchResults.first?.id
-    }
-
-    /// Removes the last query character (Delete), re-selecting the top result.
-    func deleteSearchCharacter() {
-        guard !searchQuery.isEmpty else { return }
-        searchQuery.removeLast()
-        selectedItemID = searchResults.first?.id
-    }
 
     /// Clears the query and selection (the search bar's ✕, or Esc while searching).
     func clearSearch() {

@@ -855,33 +855,29 @@ final class TabController {
     }
 
     /// Routes a key for the open drawer: Esc closes (or clears an active filter first);
-    /// while **type-to-find** is active, Up/Down move the selection, Return launches it,
-    /// and Delete backspaces the query; on a searchable drawer, plain typing builds the
-    /// query (the borderless panel makes a focused text field unreliable, so input is
-    /// driven here). Returns `nil` to swallow a handled key, else the event passes on.
+    /// while **type-to-find** is active, Up/Down move the result selection and Return
+    /// launches it. Character input goes to the focused filter field directly — the
+    /// monitor only swallows the navigation keys. Returns `nil` to swallow a handled
+    /// key, else the event passes on.
     private func handleDrawerKey(_ event: NSEvent) -> NSEvent? {
         let model = drawer.model
+        // The filter field (a focused text field) handles character input and Delete
+        // itself; the monitor only swallows the keys that drive result navigation so
+        // they don't move the text cursor instead.
         switch event.keyCode {
-        case 53:   // Esc
+        case 53:   // Esc — clear an active filter first, else close the drawer
             if model.isSearching { model.clearSearch() } else { closeDrawer() }
             return nil
-        case 125, 126:   // Down, Up
+        case 125, 126:   // Down, Up — move the result selection while filtering
             guard model.isSearching else { return event }
             model.moveSelection(down: event.keyCode == 125)
             return nil
-        case 36, 76:   // Return, Enter
+        case 36, 76:   // Return, Enter — launch the selected result
             guard model.isSearching else { return event }
             model.launchSelection()
             return nil
-        case 51:   // Delete
-            guard model.isSearching else { return event }
-            model.deleteSearchCharacter()
-            return nil
         default:
-            guard model.isSearchable, event.isPlainTyping,
-                  let text = event.charactersIgnoringModifiers, DrawerSearch.isFilterText(text) else { return event }
-            model.appendSearch(text)
-            return nil
+            return event
         }
     }
 
@@ -909,10 +905,3 @@ final class TabController {
     }
 }
 
-private extension NSEvent {
-    /// A plain typing keystroke (no ⌘/⌃/⌥) — so type-to-find captures letters but not
-    /// shortcuts like ⌘Q. Shift is allowed (capitals).
-    var isPlainTyping: Bool {
-        modifierFlags.intersection([.command, .control, .option]).isEmpty
-    }
-}
