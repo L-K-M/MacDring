@@ -157,6 +157,7 @@ struct DrawerView: View {
                              help: model.notesPreview ? "Edit notes" : "Preview Markdown") {
                     model.notesPreview.toggle()
                 }
+            }
             if model.kind == .recents {
                 headerButton("trash", help: "Clear recent items") { model.onClearRecents?() }
                     .disabled(model.items.isEmpty)

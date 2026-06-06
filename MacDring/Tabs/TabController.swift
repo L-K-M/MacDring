@@ -798,6 +798,8 @@ final class TabController {
         }
         pendingFolderRefresh = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
     // MARK: Running-app indicator
 
     /// Tracks the set of running apps' bundle IDs so application items show a live
