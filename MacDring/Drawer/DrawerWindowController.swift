@@ -153,6 +153,7 @@ final class DrawerWindowController {
     /// never bleeds onto an adjacent display at a shared edge.
     func show(tab: Tab, tabFrame: CGRect, edge: Edge, on screen: NSScreen, duration: TimeInterval) {
         apply(tab: tab)
+        model.clearSearch()   // each open starts unfiltered
         model.edge = edge
         currentEdge = edge
         currentScreen = screen
@@ -204,6 +205,7 @@ final class DrawerWindowController {
             panel.orderOut(nil)
             panel.alphaValue = 1
             model.items = []
+            model.clearSearch()
             return
         }
         let end = EdgeLayout.nudgedDrawerFrame(edge: currentEdge, openFrame: openFrame, by: Self.nudge)
@@ -218,6 +220,7 @@ final class DrawerWindowController {
             self.panel.orderOut(nil)
             self.panel.alphaValue = 1   // reset while hidden, ready for next open
             self.model.items = []
+            self.model.clearSearch()
         })
     }
 

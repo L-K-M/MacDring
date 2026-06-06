@@ -29,6 +29,9 @@ them after a restart.
 - **Spring-loaded drops.** Drag a file onto a tab and its drawer springs open; the
   slot under your cursor **highlights**, and dropping there files the item into that
   slot — onto an app to open it with, onto a folder to move it in.
+- **Type to find.** With a drawer open, just start typing to filter it; **↑/↓** move
+  the selection, **Return** opens it, **Esc** clears (then closes). Shown on drawers
+  with a handful of items or more.
 - **Trash item.** Add a Trash to any tab (Settings → Tabs → *Add Trash*): click it to
   open the Trash, or drop files onto it to throw them away.
 - **Running-app dot.** Application items show a small green dot when the app is

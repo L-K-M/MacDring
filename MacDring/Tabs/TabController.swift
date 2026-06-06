@@ -772,15 +772,45 @@ final class TabController {
             }
         }
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            if event.keyCode == 53 {   // Escape
-                // Don't steal Esc from one of the app's own ordinary windows
-                // (Settings / New Tab); they need it to dismiss sheets, popovers,
-                // or fields. The borderless drawer/tab panels aren't `.titled`.
-                if let key = NSApp.keyWindow, key.styleMask.contains(.titled) { return event }
-                self?.closeDrawer()
-                return nil
-            }
-            return event
+            guard let self else { return event }
+            // Don't steal keys while a modal is up (the rename / Empty-Trash alerts, an
+            // open panel) — they own their own text field and Esc/Return — or from one
+            // of the app's ordinary titled windows (Settings / New Tab). The borderless
+            // drawer/tab panels are neither modal nor `.titled`.
+            if NSApp.modalWindow != nil { return event }
+            if let key = NSApp.keyWindow, key.styleMask.contains(.titled) { return event }
+            return self.handleDrawerKey(event)
+        }
+    }
+
+    /// Routes a key for the open drawer: Esc closes (or clears an active filter first);
+    /// while **type-to-find** is active, Up/Down move the selection, Return launches it,
+    /// and Delete backspaces the query; on a searchable drawer, plain typing builds the
+    /// query (the borderless panel makes a focused text field unreliable, so input is
+    /// driven here). Returns `nil` to swallow a handled key, else the event passes on.
+    private func handleDrawerKey(_ event: NSEvent) -> NSEvent? {
+        let model = drawer.model
+        switch event.keyCode {
+        case 53:   // Esc
+            if model.isSearching { model.clearSearch() } else { closeDrawer() }
+            return nil
+        case 125, 126:   // Down, Up
+            guard model.isSearching else { return event }
+            model.moveSelection(down: event.keyCode == 125)
+            return nil
+        case 36, 76:   // Return, Enter
+            guard model.isSearching else { return event }
+            model.launchSelection()
+            return nil
+        case 51:   // Delete
+            guard model.isSearching else { return event }
+            model.deleteSearchCharacter()
+            return nil
+        default:
+            guard model.isSearchable, event.isPlainTyping,
+                  let text = event.charactersIgnoringModifiers, DrawerSearch.isFilterText(text) else { return event }
+            model.appendSearch(text)
+            return nil
         }
     }
 
@@ -804,5 +834,13 @@ final class TabController {
         tabWindows.removeAll()
         for (_, entry) in hotkeys { entry.hotkey.unregister() }
         hotkeys.removeAll()
+    }
+}
+
+private extension NSEvent {
+    /// A plain typing keystroke (no ⌘/⌃/⌥) — so type-to-find captures letters but not
+    /// shortcuts like ⌘Q. Shift is allowed (capitals).
+    var isPlainTyping: Bool {
+        modifierFlags.intersection([.command, .control, .option]).isEmpty
     }
 }
