@@ -16,13 +16,15 @@ them after a restart.
 
 - **Edge tabs → drawers.** Colored tabs anchored to any screen edge; click (or
   hover) to open a drawer.
-- **Seven tab types** — an **items** tab (apps, files, folders, links arranged freely
+- **Eight tab types** — an **items** tab (apps, files, folders, links arranged freely
   in a grid with gaps), a **notes** tab (a quick text scratchpad), a **folder** tab
   (a live, read-only view of a directory's contents), a **disks** tab (your mounted
   ejectable volumes), a **network** tab (your mounted network shares), a **cloud** tab
-  (your cloud drives — iCloud, Dropbox, …), and a **recents** tab (what you've recently
-  opened from MacDring). See [the docs](docs/network-and-cloud-drives.md) for the
-  network & cloud tabs.
+  (your cloud drives — iCloud, Dropbox, …), a **recents** tab (what you've recently
+  opened — from MacDring, the whole Mac via Spotlight, or both), and a **fresh** tab
+  (files that just arrived — downloads, copies, saves). See the docs for the
+  [network & cloud](docs/network-and-cloud-drives.md) and
+  [recents & fresh](docs/recents-and-fresh.md) tabs.
 - **Holds anything launchable** — applications, files, folders, and URLs. One
   click opens them.
 - **Drag-and-drop to add.** Drop files or apps from Finder — or a link dragged from
@@ -79,12 +81,15 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
    an item** in its drawer → *Customize Icon…* to give it a colored folder/tile +
    SF Symbol icon.
 5. Use the menu bar → **New Items / Notes / Folder / Disks / Network / Cloud /
-   Recents Tab…** to add more (a small dialog sets the name, color, type, and folder),
-   or **MacDring Settings…** to manage everything. A **Disks** tab lists your mounted
-   ejectable volumes; a **Network** tab lists your mounted network shares (click to
-   open, eject from the menu); a **Cloud** tab lists your cloud drives such as iCloud
+   Recents / Fresh Tab…** to add more (a small dialog sets the name, color, type, and
+   folder), or **MacDring Settings…** to manage everything. A **Disks** tab lists your
+   mounted ejectable volumes; a **Network** tab lists your mounted network shares (click
+   to open, eject from the menu); a **Cloud** tab lists your cloud drives such as iCloud
    Drive and Dropbox (click to open); a **Recents** tab lists what you've recently
-   opened from MacDring. See [the docs](docs/network-and-cloud-drives.md).
+   opened — from MacDring, from the whole Mac via Spotlight, or both (Settings → Tabs →
+   *Source*); a **Fresh** tab lists files that just arrived (downloads, copies, saves).
+   See [network & cloud](docs/network-and-cloud-drives.md) and
+   [recents & fresh](docs/recents-and-fresh.md).
 
 ### Customizing
 

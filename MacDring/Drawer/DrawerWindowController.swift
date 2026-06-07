@@ -40,11 +40,12 @@ private final class DrawerHostingView: NSHostingView<DrawerView> {
     }
 
     /// The model iff this drag is acceptable here (items/folder tab + has file URLs
-    /// or web links). Notes, Disks, Network, Cloud, and Recents tabs are read-only
-    /// live listings, so they take no drops.
+    /// or web links). Notes, Disks, Network, Cloud, Recents, and Fresh tabs are
+    /// read-only live listings, so they take no drops.
     private func droppableModel(_ sender: NSDraggingInfo) -> DrawerModel? {
         guard let model, model.kind != .notes, model.kind != .disks,
               model.kind != .network, model.kind != .cloud, model.kind != .recents,
+              model.kind != .fresh,
               sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self],
                                                       options: [.urlReadingFileURLsOnly: false])
         else { return nil }
@@ -197,6 +198,17 @@ final class DrawerWindowController {
         panel.setFrame(openFrame, display: true)
     }
 
+    /// Replaces the open drawer's items with an asynchronously-gathered live listing
+    /// (Spotlight: the Fresh tab and the system Recents source) and resizes the panel
+    /// to fit — **without** re-running `apply` (which would re-issue the query). Called
+    /// by `TabController` when a query finishes; the controller re-seats the riding tab.
+    func updateLiveItems(_ items: [DrawerItem]) {
+        guard isVisible, let screen = currentScreen else { return }
+        model.items = items
+        openFrame = computeOpenFrame(in: screen.visibleFrame)
+        panel.setFrame(openFrame, display: true)
+    }
+
     /// Hides the drawer over `duration` seconds with a fade + small inward slide.
     func hide(duration: TimeInterval) {
         guard isVisible else { return }
@@ -259,7 +271,15 @@ final class DrawerWindowController {
             model.notes = ""
             model.folderURL = nil
         case .recents:
+            // MacDring's own history shows immediately; a `system`/`both` source folds
+            // in the Spotlight recents asynchronously via `updateLiveItems`.
             model.items = RecentsLister.contents(of: tab).applyingIconStyles(from: tab.iconStyles)
+            model.notes = ""
+            model.folderURL = nil
+        case .fresh:
+            // Gathered live from Spotlight (async) — starts empty and is filled by the
+            // controller's `updateLiveItems` when the query finishes.
+            model.items = []
             model.notes = ""
             model.folderURL = nil
         case .notes:

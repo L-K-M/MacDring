@@ -79,6 +79,7 @@ struct NewTabView: View {
         case .network: return "Network"
         case .cloud: return "Cloud"
         case .recents: return "Recents"
+        case .fresh: return "Fresh"
         }
     }
 

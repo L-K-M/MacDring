@@ -87,7 +87,7 @@ struct DrawerView: View {
             }
             .padding(.horizontal, -14)
             .padding(.bottom, -14)
-        case .items, .folder, .disks, .network, .cloud, .recents:
+        case .items, .folder, .disks, .network, .cloud, .recents, .fresh:
             if model.isSearching { searchResultsList }
             else if model.items.isEmpty { emptyState }
             else { content }
@@ -406,6 +406,7 @@ struct DrawerView: View {
         case .network: return "externaldrive.connected.to.line.below"
         case .cloud: return "icloud"
         case .recents: return "clock.arrow.circlepath"
+        case .fresh: return "sparkles"
         default: return "tray.and.arrow.down"
         }
     }
@@ -424,6 +425,8 @@ struct DrawerView: View {
             return "No cloud drives found."
         case .recents:
             return "Nothing opened from MacDring yet."
+        case .fresh:
+            return "No files have arrived recently."
         default:
             return "Drag apps & files here"
         }

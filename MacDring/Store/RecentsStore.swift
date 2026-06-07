@@ -40,6 +40,15 @@ final class RecentsStore: ObservableObject {
         return Array(result.prefix(max(0, limit)))
     }
 
+    /// Pure: orders a combined set of recents most-recent-first, drops older
+    /// duplicates of the same URL, and caps to `limit`. Folds the system (Spotlight)
+    /// recents into MacDring's own history for the `.both` source.
+    static func deduplicatedByURL(_ items: [RecentItem], limit: Int) -> [RecentItem] {
+        var seen = Set<URL>()
+        let ordered = items.sorted { $0.date > $1.date }.filter { seen.insert($0.url).inserted }
+        return Array(ordered.prefix(max(0, limit)))
+    }
+
     // MARK: Persistence
 
     private func save() {

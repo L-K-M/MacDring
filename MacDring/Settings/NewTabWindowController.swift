@@ -58,6 +58,7 @@ final class NewTabWindowController: NSObject, NSWindowDelegate {
         case .network: glyph = .symbol("externaldrive.connected.to.line.below.fill")
         case .cloud: glyph = .symbol("icloud.fill")
         case .recents: glyph = .symbol("clock.arrow.circlepath")
+        case .fresh: glyph = .symbol("sparkles")
         }
 
         let tab = Tab(

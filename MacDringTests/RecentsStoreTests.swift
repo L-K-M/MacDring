@@ -26,6 +26,27 @@ final class RecentsStoreTests: XCTestCase {
         XCTAssertEqual(merged.first?.name, "new")
     }
 
+    // MARK: Merging sources (system Spotlight recents + MacDring history)
+
+    private func dated(_ name: String, _ path: String, _ offset: TimeInterval) -> RecentItem {
+        RecentItem(url: URL(fileURLWithPath: path), kind: .file, name: name, date: Date(timeIntervalSinceNow: offset))
+    }
+
+    func testDeduplicatedByURLOrdersByDateAndKeepsTheNewestDuplicate() {
+        let merged = RecentsStore.deduplicatedByURL([
+            dated("a-old", "/a", -100),
+            dated("b", "/b", -50),
+            dated("a-new", "/a", 0),
+        ], limit: 10)
+        XCTAssertEqual(merged.map(\.name), ["a-new", "b"])   // newest /a wins; sorted newest-first
+    }
+
+    func testDeduplicatedByURLCapsToLimit() {
+        let items = (0..<5).map { dated("\($0)", "/\($0)", TimeInterval($0)) }   // larger offset = newer
+        let merged = RecentsStore.deduplicatedByURL(items, limit: 2)
+        XCTAssertEqual(merged.map(\.name), ["4", "3"])
+    }
+
     // MARK: Store (injected defaults)
 
     func testRecordDedupsAndPersists() {

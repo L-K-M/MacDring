@@ -145,9 +145,10 @@ struct Tab: Codable, Identifiable {
     var gridColumns: Int                   // drawer grid width
     var gridRows: Int                      // drawer grid height (grows if items overflow)
     var locked: Bool                       // if set, the tab can't be dragged to a new spot
-    var kind: TabKind                      // .items | .notes | .folder | .disks | .network | .cloud | .recents
+    var kind: TabKind                      // .items | .notes | .folder | .disks | .network | .cloud | .recents | .fresh
     var notes: String                      // text for a .notes tab
     var folderBookmark: Data?; var folderURL: URL?   // linked dir for a .folder tab
+    var recentsSource: RecentsSource       // .recents source: .macDring | .system | .both
     var iconStyles: [String: IconStyle]    // per-path generated-icon overrides for live items
 }
 
@@ -158,7 +159,8 @@ struct Tab: Codable, Identifiable {
 //   .disks   — a live, read-only listing of the mounted ejectable volumes (eject)
 //   .network — a live, read-only listing of mounted network shares (eject/disconnect)
 //   .cloud   — a live, read-only listing of cloud-storage drives (iCloud, Dropbox, …)
-//   .recents — a live, read-only listing of targets recently opened from MacDring
+//   .recents — recently opened targets (MacDring history / system Spotlight / both)
+//   .fresh   — a live, read-only listing of newly-arrived files (Spotlight date-added)
 
 struct DrawerItem: Codable, Identifiable {
     let id: UUID
@@ -480,7 +482,9 @@ MacDring/
 │   │   ├── NetworkLister.swift    # live network-share listing for network tabs
 │   │   ├── CloudLister.swift      # live cloud-drive listing for cloud tabs
 │   │   ├── RecentsStore.swift     # recent-items history (UserDefaults JSON)
-│   │   └── RecentsLister.swift    # live recent-items listing for recents tabs
+│   │   ├── RecentsLister.swift    # recent-items listing for recents tabs (source-aware)
+│   │   ├── SpotlightQuery.swift   # async NSMetadataQuery (Fresh tab + system recents)
+│   │   └── FreshLister.swift      # newly-arrived-file listing for fresh tabs (pure map)
 │   ├── Screens/
 │   │   ├── DisplayRegistry.swift  # NSScreen ⇄ CGDisplay UUID, change notifications
 │   │   └── EdgeLayout.swift       # pure anchor → frame math (unit-tested)
@@ -540,8 +544,9 @@ MacDring/
 │   ├── DisksListerTests.swift       # ejectable-volume filtering/sort/slots
 │   ├── NetworkListerTests.swift     # network-share filtering/sort/slots
 │   ├── CloudListerTests.swift       # cloud-root listing/sort/slots
-│   ├── RecentsStoreTests.swift      # recents merge/dedup/cap + persistence
-│   ├── RecentsListerTests.swift     # recents listing (mapping/order/slots)
+│   ├── RecentsStoreTests.swift      # recents merge/dedup/cap + multi-source dedup + persistence
+│   ├── RecentsListerTests.swift     # recents listing (mapping/order/slots/source)
+│   ├── FreshListerTests.swift       # newly-arrived listing (order/slots/cap/scopes)
 │   ├── IconStyleTests.swift         # IconStyle Codable, applyingIconStyles, IconRenderer
 │   ├── MarkdownTextTests.swift      # notes-preview Markdown line classification
 │   ├── TrashInspectorTests.swift    # trash entry-count / emptiness across volumes
