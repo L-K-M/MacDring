@@ -2,14 +2,36 @@ import Foundation
 
 /// Lists the recently-opened targets for a `.recents` tab as transient `DrawerItem`s
 /// (never stored in the document — re-read live each time the drawer opens, like the
-/// other listers). The data comes from `RecentsStore`; click an item to re-open it.
+/// other listers). A tab's `recentsSource` decides what's included: MacDring's own
+/// launch history (`RecentsStore`), the system-wide recents read from Spotlight, or
+/// both merged. Click an item to re-open it.
+///
+/// This file holds the **synchronous** part — MacDring's history. The system source
+/// is gathered asynchronously by `SpotlightQuery` (see `TabController`), then folded
+/// in through `items(from:)` / `RecentsStore.deduplicatedByURL`.
 enum RecentsLister {
-    /// The tab's recent items as launchable items, most-recent first (empty if not a
-    /// recents tab or nothing has been opened yet).
+    /// The synchronously-available items for the tab: MacDring's history when the
+    /// source includes it, otherwise empty (the system part arrives async). Empty for
+    /// a non-recents tab or when nothing has been opened yet.
     static func contents(of tab: Tab, store: RecentsStore = .shared) -> [DrawerItem] {
         guard tab.kind == .recents else { return [] }
-        return store.items.prefix(RecentsStore.limit).enumerated().map { index, recent in
+        let history = tab.recentsSource.includesMacDring ? store.items : []
+        return items(from: history)
+    }
+
+    /// Pure: maps recent records to launchable items, in order, with sequential slots.
+    static func items(from recents: [RecentItem]) -> [DrawerItem] {
+        recents.prefix(RecentsStore.limit).enumerated().map { index, recent in
             DrawerItem(kind: recent.kind, displayName: recent.name, url: recent.url, slot: index)
         }
+    }
+}
+
+extension RecentItem {
+    /// A recent record built from a Spotlight hit (the system recents source),
+    /// detecting the kind/name from the file at that location.
+    init(spotlight result: SpotlightQuery.Result) {
+        let (kind, name) = DrawerItem.kindAndName(for: result.url)
+        self.init(url: result.url, kind: kind, name: name, date: result.date)
     }
 }

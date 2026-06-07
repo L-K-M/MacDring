@@ -35,6 +35,11 @@ final class TabController {
     private var folderWatch: DispatchSourceFileSystemObject?
     private var folderWatchPath: String?
     private var pendingFolderRefresh: DispatchWorkItem?
+
+    /// One-shot Spotlight lookup backing the open **Fresh** tab and the **system**
+    /// source of a Recents tab; cancelled when the drawer closes or another tab opens.
+    private let spotlight = SpotlightQuery()
+
     /// Observers for app launch/terminate, so application items show a live "running"
     /// dot. Torn down in `saveAndTeardown`.
     private var runningAppObservers: [NSObjectProtocol] = []
@@ -172,6 +177,7 @@ final class TabController {
                                                 restingTabFrame: wc.restingFrame,
                                                 drawerFrame: drawer.openFrame))
         updateFolderWatch()   // the open tab may have changed folder/sort
+        updateSpotlightWatch()   // re-issue the Spotlight lookup for a Fresh / system-Recents tab
     }
 
     private func makeWindow(for tab: Tab) -> TabWindowController {
@@ -234,6 +240,7 @@ final class TabController {
         wc.animate(to: openedTab, duration: duration)
         startMonitoring()
         updateFolderWatch()   // live-refresh a folder tab while its drawer is open
+        updateSpotlightWatch()   // gather Fresh / system-Recents items via Spotlight
     }
 
     private func closeDrawer() {
@@ -248,6 +255,7 @@ final class TabController {
         drawer.hide(duration: duration)
         stopMonitoring()
         stopFolderWatch()
+        stopSpotlightWatch()
         refreshConcealment(animated: true)   // drawer closed → resume auto-hide/fade
     }
 
@@ -490,8 +498,8 @@ final class TabController {
         }
 
         switch tab.kind {
-        case .notes, .disks, .network, .cloud, .recents:
-            return   // notes take no drops; the live listings (Disks/Network/Cloud/Recents) are read-only
+        case .notes, .disks, .network, .cloud, .recents, .fresh:
+            return   // notes take no drops; the live listings (Disks/Network/Cloud/Recents/Fresh) are read-only
         case .folder:
             guard let directory = FolderLister.resolveFolder(tab) else { return }
             FileMover.move(fileURLs, into: directory)
@@ -798,6 +806,48 @@ final class TabController {
         }
         pendingFolderRefresh = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
+    // MARK: Spotlight live-refresh (Fresh tab & system Recents source)
+
+    /// Starts (or restarts) the Spotlight lookup backing the open drawer when it's a
+    /// **Fresh** tab or a **Recents** tab whose source includes the system; otherwise
+    /// stops any running query. Results fill the drawer asynchronously via
+    /// `applySpotlightItems`. The async sibling of `updateFolderWatch`.
+    private func updateSpotlightWatch() {
+        guard let id = openTabID, let tab = store.tab(id: id) else { stopSpotlightWatch(); return }
+        switch tab.kind {
+        case .fresh:
+            spotlight.start(mode: .dateAdded, scopes: FreshLister.scopes(), limit: FreshLister.limit) { [weak self] results in
+                self?.applySpotlightItems(FreshLister.items(from: results), forTab: id)
+            }
+        case .recents where tab.recentsSource.includesSystem:
+            let includeMacDring = tab.recentsSource.includesMacDring
+            let home = FileManager.default.homeDirectoryForCurrentUser
+            spotlight.start(mode: .lastUsed, scopes: [home], limit: RecentsStore.limit) { [weak self] results in
+                let system = results.map { RecentItem(spotlight: $0) }
+                let history = includeMacDring ? RecentsStore.shared.items : []
+                let merged = RecentsStore.deduplicatedByURL(history + system, limit: RecentsStore.limit)
+                self?.applySpotlightItems(RecentsLister.items(from: merged), forTab: id)
+            }
+        default:
+            stopSpotlightWatch()
+        }
+    }
+
+    private func stopSpotlightWatch() {
+        spotlight.cancel()
+    }
+
+    /// Applies an async live listing to the open drawer — only if the same tab is
+    /// still open — re-applying its per-target icon overrides and re-seating the
+    /// riding tab onto the (possibly resized) drawer.
+    private func applySpotlightItems(_ items: [DrawerItem], forTab id: UUID) {
+        guard openTabID == id, let wc = tabWindows[id], let tab = store.tab(id: id) else { return }
+        drawer.updateLiveItems(items.applyingIconStyles(from: tab.iconStyles))
+        wc.applyFrame(EdgeLayout.openedTabFrame(edge: tab.anchor.edge,
+                                                restingTabFrame: wc.restingFrame,
+                                                drawerFrame: drawer.openFrame))
     }
 
     // MARK: Running-app indicator

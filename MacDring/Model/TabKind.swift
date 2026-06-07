@@ -16,6 +16,9 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
     case cloud
     /// A live listing of the targets recently opened from MacDring.
     case recents
+    /// A live listing of files that recently arrived on the Mac (downloaded, copied,
+    /// or saved) — the "Fresh" pile, ranked by date added.
+    case fresh
 
     var id: String { rawValue }
 
@@ -28,6 +31,7 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
         case .network: return "Network"
         case .cloud: return "Cloud"
         case .recents: return "Recents"
+        case .fresh: return "Fresh"
         }
     }
 }

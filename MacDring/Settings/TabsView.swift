@@ -306,7 +306,17 @@ private struct TabEditor: View {
 
             if draft.kind == .recents {
                 Section("Recents") {
-                    Text("The drawer lists the apps, files, folders, and links you've recently opened from MacDring, most recent first. Clear them from the drawer's header.")
+                    Picker("Source", selection: $draft.recentsSource) {
+                        ForEach(RecentsSource.allCases) { Text($0.displayName).tag($0) }
+                    }
+                    Text(recentsSourceHelp)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if draft.kind == .fresh {
+                Section("Fresh") {
+                    Text("The drawer lists files that recently arrived on this Mac — downloaded, copied, or saved into your Downloads, Desktop, or Documents — newest first, via Spotlight. Read-only; click one to open it. No special permission needed.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -393,6 +403,19 @@ private struct TabEditor: View {
             choices.append((uuid: draft.anchor.displayUUID, name: "Disconnected display"))
         }
         return choices
+    }
+
+    // MARK: Recents tab
+
+    private var recentsSourceHelp: String {
+        switch draft.recentsSource {
+        case .macDring:
+            return "Lists what you've opened from MacDring, most recent first. Clear them from the drawer's header."
+        case .system:
+            return "Lists documents you've recently opened anywhere — Finder or any app — read live from Spotlight. No special permission needed."
+        case .both:
+            return "Merges what you've opened from MacDring with documents opened anywhere (Spotlight), most recent first."
+        }
     }
 
     // MARK: Folder tab

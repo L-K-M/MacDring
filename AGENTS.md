@@ -59,7 +59,9 @@ Mirrors `PLAN.md §11`. Keep modules aligned:
   `ColorHex`, `Preferences`, and the small UI enums in `PreferenceEnums.swift`.
 - `Store/` — `TabStore` (JSON load/save), `RecentsStore` (recent-items history),
   `BookmarkResolver`, and the live transient listers (`FolderLister`, `DisksLister`,
-  `NetworkLister`, `CloudLister`, `RecentsLister`).
+  `NetworkLister`, `CloudLister`, `RecentsLister`, `FreshLister`). `SpotlightQuery`
+  wraps `NSMetadataQuery` — the one **async** lister, backing the Fresh tab and the
+  system source of Recents (reads the Spotlight index only; no special permission).
 - `Screens/` — `DisplayRegistry` (UUID mapping) and the pure `EdgeLayout` math.
 - `Tabs/` — `TabController` (the orchestrator), `TabWindowController`,
   `TabStripView` (modern pill / classic folder tab; vertical side labels),

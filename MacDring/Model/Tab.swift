@@ -36,6 +36,10 @@ struct Tab: Codable, Identifiable, Equatable {
     var folderSort: FolderSort
     var folderShowsHidden: Bool
 
+    /// What a `.recents` tab includes: MacDring's own launch history, the system-wide
+    /// Spotlight recents, or both. Default `.macDring` keeps the original behavior.
+    var recentsSource: RecentsSource
+
     /// Per-target generated-icon overrides for this tab's **live** items
     /// (folder/disks/network/cloud listings), keyed by the item's path. Persistent
     /// `.items` carry their override on the item itself; live items are rebuilt each
@@ -59,6 +63,7 @@ struct Tab: Codable, Identifiable, Equatable {
          folderURL: URL? = nil,
          folderSort: FolderSort = .name,
          folderShowsHidden: Bool = false,
+         recentsSource: RecentsSource = .macDring,
          iconStyles: [String: IconStyle] = [:]) {
         self.id = id
         self.title = title
@@ -77,6 +82,7 @@ struct Tab: Codable, Identifiable, Equatable {
         self.folderURL = folderURL
         self.folderSort = folderSort
         self.folderShowsHidden = folderShowsHidden
+        self.recentsSource = recentsSource
         self.iconStyles = iconStyles
     }
 
@@ -99,12 +105,13 @@ struct Tab: Codable, Identifiable, Equatable {
         folderURL = try c.decodeIfPresent(URL.self, forKey: .folderURL)
         folderSort = try c.decodeIfPresent(FolderSort.self, forKey: .folderSort) ?? .name
         folderShowsHidden = try c.decodeIfPresent(Bool.self, forKey: .folderShowsHidden) ?? false
+        recentsSource = try c.decodeIfPresent(RecentsSource.self, forKey: .recentsSource) ?? .macDring
         iconStyles = try c.decodeIfPresent([String: IconStyle].self, forKey: .iconStyles) ?? [:]
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, colorHex, glyph, anchor, items, behavior, hotkey
         case gridColumns, gridRows, locked, kind, notes, folderBookmark, folderURL
-        case folderSort, folderShowsHidden, iconStyles
+        case folderSort, folderShowsHidden, recentsSource, iconStyles
     }
 }

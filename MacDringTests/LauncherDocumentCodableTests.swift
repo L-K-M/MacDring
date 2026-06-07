@@ -50,6 +50,7 @@ final class LauncherDocumentCodableTests: XCTestCase {
         XCTAssertEqual(tab.kind, .items)
         XCTAssertEqual(tab.notes, "")
         XCTAssertNil(tab.folderURL)
+        XCTAssertEqual(tab.recentsSource, .macDring)
         XCTAssertEqual(decoded.version, LauncherDocument.currentVersion)
     }
 
@@ -97,6 +98,33 @@ final class LauncherDocumentCodableTests: XCTestCase {
         let data = try JSONEncoder().encode(LauncherDocument(tabs: [disks]))
         let decoded = try JSONDecoder().decode(LauncherDocument.self, from: data)
         XCTAssertEqual(decoded.tabs.first?.kind, .disks)
+        XCTAssertTrue(decoded.tabs.first?.items.isEmpty ?? false)
+    }
+
+    func testRecentsSourceRoundTripsAndDefaultsToMacDring() throws {
+        let tab = Tab(title: "Recents", colorHex: "#0A84FF",
+                      anchor: ScreenAnchor(displayUUID: "U", edge: .right, position: 0.5),
+                      kind: .recents, recentsSource: .both)
+        let data = try JSONEncoder().encode(LauncherDocument(tabs: [tab]))
+        XCTAssertEqual(try JSONDecoder().decode(LauncherDocument.self, from: data).tabs.first?.recentsSource, .both)
+
+        // A recents tab persisted before the source field existed decodes as `.macDring`.
+        let legacy = #"""
+        {"tabs":[{"anchor":{"displayUUID":"D","edge":"right","position":0.5},"kind":"recents"}]}
+        """#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(LauncherDocument.self, from: legacy)
+        XCTAssertEqual(decoded.tabs.first?.recentsSource, .macDring)
+    }
+
+    func testFreshTabRoundTrips() throws {
+        // A Fresh tab persists only its kind — its items are listed live (Spotlight)
+        // and are never stored in the document.
+        let fresh = Tab(title: "Fresh", colorHex: "#FF9F0A",
+                        anchor: ScreenAnchor(displayUUID: "U", edge: .right, position: 0.5),
+                        kind: .fresh)
+        let data = try JSONEncoder().encode(LauncherDocument(tabs: [fresh]))
+        let decoded = try JSONDecoder().decode(LauncherDocument.self, from: data)
+        XCTAssertEqual(decoded.tabs.first?.kind, .fresh)
         XCTAssertTrue(decoded.tabs.first?.items.isEmpty ?? false)
     }
 

@@ -133,6 +133,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         newRecents.target = self
         menu.addItem(newRecents)
 
+        let newFresh = NSMenuItem(title: "New Fresh Tab…", action: #selector(newFreshTab), keyEquivalent: "")
+        newFresh.target = self
+        menu.addItem(newFresh)
+
         menu.addItem(.separator())
 
         let settingsItem = NSMenuItem(title: "MacDring Settings…", action: #selector(openSettings), keyEquivalent: ",")
@@ -173,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func newNetworkTab() { newTabWindow.show(kind: .network) }
     @objc private func newCloudTab() { newTabWindow.show(kind: .cloud) }
     @objc private func newRecentsTab() { newTabWindow.show(kind: .recents) }
+    @objc private func newFreshTab() { newTabWindow.show(kind: .fresh) }
 
     @objc private func openSettings() {
         settingsWindow.show(selectTab: nil)

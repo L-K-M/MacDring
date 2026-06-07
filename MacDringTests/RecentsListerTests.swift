@@ -37,4 +37,35 @@ final class RecentsListerTests: XCTestCase {
                       anchor: ScreenAnchor(displayUUID: "D", edge: .right, position: 0.5), kind: .items)
         XCTAssertTrue(RecentsLister.contents(of: tab, store: store()).isEmpty)
     }
+
+    // MARK: Source
+
+    private func recentsTab(source: RecentsSource) -> Tab {
+        var tab = recentsTab()
+        tab.recentsSource = source
+        return tab
+    }
+
+    func testSystemSourceHasNoSynchronousItems() {
+        let s = store()
+        s.record(RecentItem(url: URL(fileURLWithPath: "/a"), kind: .file, name: "a", date: Date()))
+        // The system source is gathered asynchronously (Spotlight), so the synchronous
+        // listing is empty — MacDring's own history is *not* included.
+        XCTAssertTrue(RecentsLister.contents(of: recentsTab(source: .system), store: s).isEmpty)
+    }
+
+    func testBothSourceShowsMacDringHistorySynchronously() {
+        let s = store()
+        s.record(RecentItem(url: URL(fileURLWithPath: "/a"), kind: .file, name: "a", date: Date()))
+        XCTAssertEqual(RecentsLister.contents(of: recentsTab(source: .both), store: s).map(\.displayName), ["a"])
+    }
+
+    func testItemsFromMapsRecordsWithSequentialSlots() {
+        let items = RecentsLister.items(from: [
+            RecentItem(url: URL(fileURLWithPath: "/a"), kind: .file, name: "a", date: Date()),
+            RecentItem(url: URL(string: "https://x.com")!, kind: .url, name: "x", date: Date()),
+        ])
+        XCTAssertEqual(items.map(\.kind), [.file, .url])
+        XCTAssertEqual(items.map(\.slot), [0, 1])
+    }
 }
