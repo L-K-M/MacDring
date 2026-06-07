@@ -6,10 +6,11 @@ struct SettingsView: View {
     @ObservedObject var store: TabStore
     let registry: DisplayRegistry
     @ObservedObject var router: SettingsRouter
+    @ObservedObject var updateChecker: UpdateChecker
 
     var body: some View {
         TabView(selection: $router.section) {
-            GeneralView(preferences: preferences)
+            GeneralView(preferences: preferences, updateChecker: updateChecker)
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag(SettingsSection.general)
 

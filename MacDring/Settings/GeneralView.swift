@@ -5,6 +5,7 @@ import SwiftUI
 /// and the multi-display policy.
 struct GeneralView: View {
     @ObservedObject var preferences: Preferences
+    @ObservedObject var updateChecker: UpdateChecker
 
     var body: some View {
         Form {
@@ -15,6 +16,29 @@ struct GeneralView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
+            }
+
+            Section("Software updates") {
+                Toggle("Automatically check for updates", isOn: $updateChecker.automaticChecksEnabled)
+                HStack {
+                    Button("Check Now") { updateChecker.checkNow() }
+                        .disabled(updateChecker.isChecking || updateChecker.isDownloading)
+                    if updateChecker.isChecking || updateChecker.isDownloading {
+                        ProgressView().controlSize(.small)
+                    }
+                    if updateChecker.isDownloading {
+                        Text("Downloading…").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let date = updateChecker.lastCheckDate {
+                        Text("Last checked \(date.formatted(.relative(presentation: .named)))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text("Checks GitHub for new releases on launch and once a day. When an update is found you can download it straight to your Downloads folder (it's revealed in Finder), skip that version, or be reminded later.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Drawers") {

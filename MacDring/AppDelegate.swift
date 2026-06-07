@@ -8,7 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = TabStore()
     private let registry = DisplayRegistry()
     private lazy var controller = TabController(store: store, preferences: preferences, registry: registry)
-    private lazy var settingsWindow = SettingsWindowController(preferences: preferences, store: store, registry: registry)
+    private let updateChecker = UpdateChecker(
+        configuration: .init(owner: "L-K-M", repo: "MacDring", appName: "MacDring")
+    )
+    private lazy var settingsWindow = SettingsWindowController(preferences: preferences, store: store, registry: registry, updateChecker: updateChecker)
     private lazy var newTabWindow = NewTabWindowController(preferences: preferences, store: store, registry: registry)
 
     private var statusItem: NSStatusItem?
@@ -26,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller.onOpenSettings = { [weak self] tabID in self?.settingsWindow.show(selectTab: tabID) }
         setUpStatusItem()
         controller.start()
+        updateChecker.start()   // check GitHub for a newer release on launch + daily
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -135,6 +139,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        let updatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updatesItem.target = self
+        menu.addItem(updatesItem)
+
         menu.addItem(.separator())
 
         let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
@@ -168,6 +176,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openSettings() {
         settingsWindow.show(selectTab: nil)
+    }
+
+    @objc private func checkForUpdates() {
+        updateChecker.checkNow()
     }
 
     @objc private func toggleLaunchAtLogin() {

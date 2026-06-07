@@ -10,12 +10,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let preferences: Preferences
     private let store: TabStore
     private let registry: DisplayRegistry
+    private let updateChecker: UpdateChecker
     private let router = SettingsRouter()
 
-    init(preferences: Preferences, store: TabStore, registry: DisplayRegistry) {
+    init(preferences: Preferences, store: TabStore, registry: DisplayRegistry, updateChecker: UpdateChecker) {
         self.preferences = preferences
         self.store = store
         self.registry = registry
+        self.updateChecker = updateChecker
     }
 
     /// Shows Settings. If `selectTab` is given, opens straight to the Tabs pane
@@ -25,7 +27,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         if window == nil {
             let hosting = NSHostingController(
-                rootView: SettingsView(preferences: preferences, store: store, registry: registry, router: router)
+                rootView: SettingsView(preferences: preferences, store: store, registry: registry, router: router, updateChecker: updateChecker)
             )
             hosting.sizingOptions = [.minSize]
 
