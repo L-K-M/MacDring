@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 #
-# Cuts a release whose Git tag matches the app's version, so the tag and the version
-# the in-app updater reads (CFBundleShortVersionString / MARKETING_VERSION) can never
-# drift apart. The updater normalises a leading "v" and trailing ".0"s, so only the
-# numbers have to match (tag "v1.3" == version "1.3.0").
+# Cuts a release by pushing a "v<version>" tag, which triggers the release workflow
+# (.github/workflows/release.yml) to build, package (.zip + .dmg), and publish the
+# GitHub Release. CI derives the released version from the tag, so the tag is the
+# source of truth — this script just keeps the committed MARKETING_VERSION in step so
+# *local/dev* builds (and the in-app updater) report the same number. The updater
+# normalises a leading "v" and trailing ".0"s, so only the numbers have to match
+# (tag "v1.3" == version "1.3.0").
 #
-# The project's MARKETING_VERSION is the single source of truth. Pass a version to bump
-# it (and commit that change) before tagging; omit it to tag the version that's already
-# set.
-#
-#   scripts/release.sh 1.3.0            # bump to 1.3.0, commit, create tag v1.3.0
-#   scripts/release.sh 1.3.0 --push     # …also push the commit + tag and open a draft release
-#   scripts/release.sh                  # tag the current MARKETING_VERSION as-is
+#   scripts/release.sh 1.3.0          # bump MARKETING_VERSION to 1.3.0, commit, tag v1.3.0
+#   scripts/release.sh 1.3.0 --push   # …also push the commit + tag (CI then publishes)
+#   scripts/release.sh                # tag the current MARKETING_VERSION as-is
 #
 # Usage: scripts/release.sh [X.Y[.Z]] [--push]
 set -euo pipefail
@@ -93,22 +92,14 @@ fi
 git tag -a "${TAG}" -m "MacDring ${TARGET}"
 echo "Created tag ${TAG}."
 
-# --- Push (optional) --------------------------------------------------------------
+# --- Push (optional) — pushing the tag is what triggers the release workflow -------
 if $PUSH; then
   git push origin HEAD
   git push origin "${TAG}"
-  echo "Pushed branch + ${TAG} to origin."
-  if command -v gh >/dev/null 2>&1; then
-    gh release create "${TAG}" --title "MacDring ${TARGET}" --generate-notes --draft
-    echo
-    echo "Opened a DRAFT release. Attach the build and publish:"
-    echo "  gh release upload ${TAG} path/to/MacDring-${TARGET}.dmg path/to/MacDring-${TARGET}.zip"
-    echo "  gh release edit ${TAG} --draft=false"
-  else
-    echo "(Install the GitHub CLI 'gh' to also open a draft release automatically.)"
-  fi
+  echo "Pushed branch + ${TAG}."
+  echo "CI (release.yml) will now build, package (.zip + .dmg), and publish the GitHub Release for ${TAG}."
 else
   echo "Local tag ${TAG} created (not pushed)."
-  echo "Push it with:  git push origin HEAD && git push origin ${TAG}"
-  echo "Or undo:       git tag -d ${TAG}$( [[ -n "$NEW_VERSION" && "$NEW_VERSION" != "$CURRENT" ]] && echo " && git reset --hard HEAD~1" )"
+  echo "Push it to trigger the release:  git push origin HEAD && git push origin ${TAG}"
+  echo "Or undo:                         git tag -d ${TAG}$( [[ -n "$NEW_VERSION" && "$NEW_VERSION" != "$CURRENT" ]] && echo " && git reset --hard HEAD~1" )"
 fi

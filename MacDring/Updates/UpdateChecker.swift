@@ -226,7 +226,11 @@ final class UpdateChecker: ObservableObject {
     /// Dock icon to click.
     @MainActor
     private func runModal(_ alert: NSAlert) -> NSApplication.ModalResponse {
-        NSApp.activate(ignoringOtherApps: true)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         alert.window.level = .floating
         return alert.runModal()
     }

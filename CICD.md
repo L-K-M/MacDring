@@ -42,6 +42,12 @@ git tag v1.2.3
 git push origin v1.2.3
 ```
 
+Or use the helper, which also bumps the committed `MARKETING_VERSION` so local/dev builds (and the in-app update checker) report the same number, then creates and pushes the tag:
+
+```
+scripts/release.sh 1.2.3 --push
+```
+
 The version is derived from the tag with the leading `v` stripped (e.g. `v1.2.3` → `1.2.3`), and the build number is the workflow run number. The job runs on `macos-14` with Xcode 16.2.
 
 It produces:

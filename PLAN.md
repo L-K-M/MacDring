@@ -521,6 +521,12 @@ MacDring/
 │   │   ├── IconEditorView.swift      # generated-icon editor (base/color/symbol + preview)
 │   │   ├── IconEditorWindowController.swift
 │   │   └── AboutView.swift
+│   ├── Updates/
+│   │   ├── UpdateChecker.swift      # GitHub release check + update alert (reusable; mirrors Zap)
+│   │   ├── GitHubReleaseClient.swift
+│   │   ├── GitHubRelease.swift
+│   │   ├── UpdateDownloader.swift    # downloads an asset to ~/Downloads
+│   │   └── SemanticVersion.swift
 │   ├── Common/
 │   │   ├── VisualEffectView.swift   # NSVisualEffectView wrapper (reused from Zap)
 │   │   ├── TabShapes.swift          # edgeRoundedRect + ClassicTabShape (tab/drawer shapes)
@@ -551,6 +557,9 @@ MacDring/
 │   ├── MarkdownTextTests.swift      # notes-preview Markdown line classification
 │   ├── TrashInspectorTests.swift    # trash entry-count / emptiness across volumes
 │   ├── FileMoverTests.swift         # move-into-directory + collision rename
+│   ├── SemanticVersionTests.swift   # version parse/compare (update checker)
+│   ├── GitHubReleaseTests.swift     # release JSON decode + asset pick
+│   ├── UpdateDownloaderTests.swift  # unique Downloads filename
 │   └── PreferencesTests.swift       # defaults, clamping
 ├── Tools/
 │   └── GenerateAppIcon.swift        # renders AppIcon.appiconset at all sizes
