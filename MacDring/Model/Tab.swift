@@ -86,27 +86,34 @@ struct Tab: Codable, Identifiable, Equatable {
         self.iconStyles = iconStyles
     }
 
+    /// Decodes forward-compatibly: only `anchor` is allowed to fail the tab
+    /// (a tab without a place on screen can't exist). Every enum-like field —
+    /// where a **newer** MacDring may have written a raw value this build
+    /// doesn't know — degrades to its default via `decodeLenient` instead of
+    /// throwing, and one unreadable item is dropped (`FailableDrawerItem`)
+    /// rather than taking the whole tab — and, via `FailableTab` + the next
+    /// autosave, the user's arrangement — down with it.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? "Tab"
         colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex) ?? "#0A84FF"
-        glyph = try c.decodeIfPresent(TabGlyph.self, forKey: .glyph) ?? .default
+        glyph = c.decodeLenient(TabGlyph.self, forKey: .glyph, fallback: .default)
         anchor = try c.decode(ScreenAnchor.self, forKey: .anchor)
-        items = try c.decodeIfPresent([DrawerItem].self, forKey: .items) ?? []
-        behavior = try c.decodeIfPresent(TabBehavior.self, forKey: .behavior) ?? .default
-        hotkey = try c.decodeIfPresent(HotkeySpec.self, forKey: .hotkey)
+        items = c.decodeLenient([FailableDrawerItem].self, forKey: .items, fallback: []).compactMap(\.item)
+        behavior = c.decodeLenient(TabBehavior.self, forKey: .behavior, fallback: .default)
+        hotkey = c.decodeLenient(HotkeySpec?.self, forKey: .hotkey, fallback: nil)
         gridColumns = max(1, try c.decodeIfPresent(Int.self, forKey: .gridColumns) ?? 4)
         gridRows = max(1, try c.decodeIfPresent(Int.self, forKey: .gridRows) ?? 2)
         locked = try c.decodeIfPresent(Bool.self, forKey: .locked) ?? false
-        kind = try c.decodeIfPresent(TabKind.self, forKey: .kind) ?? .items
+        kind = c.decodeLenient(TabKind.self, forKey: .kind, fallback: .items)
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         folderBookmark = try c.decodeIfPresent(Data.self, forKey: .folderBookmark)
         folderURL = try c.decodeIfPresent(URL.self, forKey: .folderURL)
-        folderSort = try c.decodeIfPresent(FolderSort.self, forKey: .folderSort) ?? .name
+        folderSort = c.decodeLenient(FolderSort.self, forKey: .folderSort, fallback: .name)
         folderShowsHidden = try c.decodeIfPresent(Bool.self, forKey: .folderShowsHidden) ?? false
-        recentsSource = try c.decodeIfPresent(RecentsSource.self, forKey: .recentsSource) ?? .macDring
-        iconStyles = try c.decodeIfPresent([String: IconStyle].self, forKey: .iconStyles) ?? [:]
+        recentsSource = c.decodeLenient(RecentsSource.self, forKey: .recentsSource, fallback: .macDring)
+        iconStyles = c.decodeLenient([String: IconStyle].self, forKey: .iconStyles, fallback: [:])
     }
 
     private enum CodingKeys: String, CodingKey {
