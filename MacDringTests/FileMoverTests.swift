@@ -28,6 +28,28 @@ final class FileMoverTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))   // moved, not copied
     }
 
+    func testDroppingFileIntoItsOwnDirectoryIsANoOp() throws {
+        let file = dst.appendingPathComponent("note.txt")
+        try Data("x".utf8).write(to: file)
+
+        XCTAssertTrue(FileMover.move([file], into: dst))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))   // untouched
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dst.appendingPathComponent("note 2.txt").path))   // not renamed
+    }
+
+    func testSelfDropSkipsButOtherFilesStillMove() throws {
+        let resident = dst.appendingPathComponent("resident.txt")
+        try Data("r".utf8).write(to: resident)
+        let incoming = src.appendingPathComponent("incoming.txt")
+        try Data("i".utf8).write(to: incoming)
+
+        XCTAssertTrue(FileMover.move([resident, incoming], into: dst))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: resident.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dst.appendingPathComponent("resident 2.txt").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dst.appendingPathComponent("incoming.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: incoming.path))
+    }
+
     func testRenamesOnCollision() throws {
         try Data("a".utf8).write(to: dst.appendingPathComponent("note.txt"))
         let file = src.appendingPathComponent("note.txt")

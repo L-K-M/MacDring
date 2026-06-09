@@ -9,9 +9,15 @@ enum FileMover {
         let fileManager = FileManager.default
         var allSucceeded = true
         for url in urls {
+            // A file dropped into the directory it already lives in is a no-op
+            // (e.g. dragging a folder tab's own item a few pixels and releasing
+            // it back inside the drawer). Without this guard, `uniqueDestination`
+            // — which only ever returns a path that does *not* exist — would step
+            // past the source itself and silently rename it to "name 2".
+            if url.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL {
+                continue
+            }
             let destination = uniqueDestination(for: url, in: directory, fileManager: fileManager)
-            // Don't move a file onto itself (e.g. dropping a folder's own item back in).
-            if url.standardizedFileURL == destination.standardizedFileURL { continue }
             do {
                 try fileManager.moveItem(at: url, to: destination)
             } catch {
