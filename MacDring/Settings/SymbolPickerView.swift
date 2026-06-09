@@ -124,7 +124,7 @@ struct SymbolPickerView: View {
         "stopwatch", "stopwatch.fill", "timer", "hourglass",
         // Devices
         "desktopcomputer", "laptopcomputer", "display", "keyboard", "computermouse", "computermouse.fill",
-        "iphone", "ipad", "applewatch", "printer", "printer.fill", "headphones", "homepod.fill",
+        "iphone", "ipad", "applewatch", "printer", "printer.fill", "homepod.fill",
         // Charts & misc
         "magnifyingglass", "magnifyingglass.circle", "line.3.horizontal", "line.3.horizontal.decrease",
         "ellipsis", "ellipsis.circle", "chart.bar", "chart.bar.fill", "chart.pie.fill", "chart.line.uptrend.xyaxis",

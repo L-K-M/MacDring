@@ -51,6 +51,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let window = self?.window else { return }
             NSApp.activate(ignoringOtherApps: true)
+            // makeKeyAndOrderFront/orderFrontRegardless don't restore a
+            // miniaturized window — re-opening Settings would appear to do
+            // nothing while the window sits minimized.
+            if window.isMiniaturized { window.deminiaturize(nil) }
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
         }

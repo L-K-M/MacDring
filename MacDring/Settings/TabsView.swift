@@ -34,11 +34,20 @@ struct TabsView: View {
             .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
-            if let requested = router.tabToSelect { selection = requested }
-            else if selection == nil { selection = store.tabs.first?.id }
+            // Consume the routed selection so re-entering the pane later (after
+            // the user picked a different tab) doesn't snap back to it.
+            if let requested = router.tabToSelect {
+                selection = requested
+                router.tabToSelect = nil
+            } else if selection == nil {
+                selection = store.tabs.first?.id
+            }
         }
         .onChange(of: router.tabToSelect) { requested in
-            if let requested { selection = requested }
+            if let requested {
+                selection = requested
+                router.tabToSelect = nil
+            }
         }
     }
 

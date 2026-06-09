@@ -58,8 +58,10 @@ struct GeneralView: View {
                 Picker("When idle", selection: $preferences.newTabConcealment) {
                     ForEach(TabConcealment.allCases) { Text($0.displayName).tag($0) }
                 }
-                Stepper("Grid columns: \(Int(preferences.gridColumns))", value: $preferences.gridColumns, in: 1...10)
-                Stepper("Grid rows: \(Int(preferences.gridRows))", value: $preferences.gridRows, in: 1...12)
+                // Ranges match Preferences' clamps (1…12 / 1…16), so a stored
+                // value at the top of the valid range isn't out of the stepper's.
+                Stepper("Grid columns: \(Int(preferences.gridColumns))", value: $preferences.gridColumns, in: 1...12)
+                Stepper("Grid rows: \(Int(preferences.gridRows))", value: $preferences.gridRows, in: 1...16)
                 Text("Apply to newly created tabs. Existing tabs keep their own (edit them in the Tabs pane).")
                     .font(.caption)
                     .foregroundStyle(.secondary)

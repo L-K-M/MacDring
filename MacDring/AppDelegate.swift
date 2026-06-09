@@ -33,6 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Same guard as didFinishLaunching: under XCTest this would instantiate
+        // the lazy controller at test-host exit and save the (real) store —
+        // rewriting the developer's live launcher.json and rotating its backup.
+        guard !Self.isRunningTests else { return }
         controller.saveAndTeardown()
     }
 

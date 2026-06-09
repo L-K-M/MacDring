@@ -13,7 +13,12 @@ extension NSApplication {
     /// non-activating tab/drawer panels can't become main, so they're never counted.
     /// See ANALYSIS.md C2.
     func revertToAccessoryIfNoOrdinaryWindows(excluding window: NSWindow?) {
-        let otherOrdinaryWindowOpen = windows.contains { $0 != window && $0.isVisible && $0.canBecomeMain }
+        // `isVisible` is false for a miniaturized window, but a minimized
+        // Settings window still needs the app to stay `.regular` — dropping to
+        // `.accessory` removes its Dock thumbnail and strands it off-screen.
+        let otherOrdinaryWindowOpen = windows.contains {
+            $0 != window && ($0.isVisible || $0.isMiniaturized) && $0.canBecomeMain
+        }
         if !otherOrdinaryWindowOpen { setActivationPolicy(.accessory) }
     }
 }
