@@ -349,18 +349,18 @@ What a user would expect that isn't there (README promises themselves check out
 ## 5. Companion PRs
 
 Opened alongside this document (each scoped to disjoint files to keep merges
-clean; PR numbers filled in after creation):
+clean):
 
 | PR | Fixes | Files |
 |---|---|---|
-| Carbon hotkey chain | B6 | `Hotkeys/CarbonHotkey.swift` |
-| FileMover self-drop | B7 | `Launch/FileMover.swift` + tests |
-| Lenient document decoding | B1 | `Model/Tab.swift`, `Model/DrawerItem.swift`, new `Model/LenientDecoding.swift` + tests |
-| TabStore backup hardening | B2, B3 | `Store/TabStore.swift` + tests |
-| Interaction fixes | B8, B9 | `Tabs/TabController.swift`, `Drawer/DrawerWindowController.swift` |
-| Settings & lifecycle fixes | B18, B19, B21–B24 | `Common/ActivationPolicy.swift`, `Settings/*`, `AppDelegate.swift`, `Model/ColorHex.swift` + tests |
-| Updates fixes | B26, B27 | `Updates/SemanticVersion.swift`, `Updates/UpdateChecker.swift` + tests |
-| Release workflow hardening | B30 (tests + `--deep`) | `.github/workflows/release.yml`, `.github/workflows/ci.yml` |
+| [#42](https://github.com/L-K-M/MacDring/pull/42) Carbon hotkey chain | B6 | `Hotkeys/CarbonHotkey.swift` |
+| [#43](https://github.com/L-K-M/MacDring/pull/43) FileMover self-drop | B7 | `Launch/FileMover.swift` + tests |
+| [#44](https://github.com/L-K-M/MacDring/pull/44) Lenient document decoding | B1 | `Model/Tab.swift`, `Model/DrawerItem.swift`, new `Model/LenientDecoding.swift` + tests |
+| [#45](https://github.com/L-K-M/MacDring/pull/45) TabStore backup hardening | B2, B3 | `Store/TabStore.swift` + tests |
+| [#46](https://github.com/L-K-M/MacDring/pull/46) Interaction fixes | B8, B9 | `Tabs/TabController.swift`, `Drawer/DrawerWindowController.swift` |
+| [#47](https://github.com/L-K-M/MacDring/pull/47) Updates fixes | B26, B27 | `Updates/SemanticVersion.swift`, `Updates/UpdateChecker.swift` + tests |
+| [#48](https://github.com/L-K-M/MacDring/pull/48) Settings & lifecycle fixes | B18, B19, B21–B24 | `Common/ActivationPolicy.swift`, `Settings/*`, `AppDelegate.swift`, `Model/ColorHex.swift` + tests |
+| [#49](https://github.com/L-K-M/MacDring/pull/49) Release workflow hardening | B30 (tests + `--deep`) | `.github/workflows/release.yml`, `.github/workflows/ci.yml` |
 
 Everything not in that table is intentionally left as documentation: either it
 needs on-device GUI verification (B5, B11, B20, B28), a product decision (B10),
