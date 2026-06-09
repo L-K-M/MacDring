@@ -18,6 +18,8 @@ jobs:
   build-test:
     name: Build & Test
     runs-on: macos-14
+    # A wedged xcodebuild otherwise burns the 6-hour default job limit.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
