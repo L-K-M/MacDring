@@ -50,6 +50,10 @@ them after a restart.
 - **Stable restore.** Tabs return to the same display and spot after a restart,
   resolution change, or reconnection.
 - **Optional per-tab hotkey** to toggle drawers.
+- **Layout import / export.** Back up or move your whole arrangement: **Settings →
+  Tabs** has export/import buttons that save the tabs-and-items document as a
+  JSON file and load it back (importing replaces the current layout, after a
+  confirmation).
 - **Auto-hide / auto-fade tabs.** Set a tab to get out of the way when idle
   (**Settings → Tabs → When idle**): **Auto-hide** slides it off its edge leaving a
   thin sliver, **Auto-fade** dims it in place (opacity adjustable in **Settings →
