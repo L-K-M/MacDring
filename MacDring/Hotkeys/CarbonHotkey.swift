@@ -31,12 +31,17 @@ final class CarbonHotkey {
             eventKind: UInt32(kEventHotKeyPressed)
         )
 
+        // Each instance installs its own handler on the application target, and
+        // Carbon stops the handler chain at the first one that returns `noErr` —
+        // so this handler must claim **only its own** hotkey ID and pass every
+        // other event along with `eventNotHandledErr`, or the most recently
+        // registered hotkey would swallow all the others' presses.
         let handlerCallback: EventHandlerUPP = { _, event, userData in
-            guard let userData, let event else { return noErr }
+            guard let userData, let event else { return OSStatus(eventNotHandledErr) }
             let me = Unmanaged<CarbonHotkey>.fromOpaque(userData).takeUnretainedValue()
 
             var pressedID = EventHotKeyID()
-            GetEventParameter(
+            let status = GetEventParameter(
                 event,
                 EventParamName(kEventParamDirectObject),
                 EventParamType(typeEventHotKeyID),
@@ -45,10 +50,13 @@ final class CarbonHotkey {
                 nil,
                 &pressedID
             )
-
-            if pressedID.signature == CarbonHotkey.signature && pressedID.id == me.identifier {
-                DispatchQueue.main.async { me.onPressed?() }
+            guard status == noErr,
+                  pressedID.signature == CarbonHotkey.signature,
+                  pressedID.id == me.identifier else {
+                return OSStatus(eventNotHandledErr)
             }
+
+            DispatchQueue.main.async { me.onPressed?() }
             return noErr
         }
 
