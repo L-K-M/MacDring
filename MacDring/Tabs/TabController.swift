@@ -292,6 +292,13 @@ final class TabController {
         guard let tab = store.tab(id: id), effectiveBehavior(tab).openOnHover else { return }
         if inside {
             cancelHoverClose()
+            // Already open: the pill rides the open drawer's inner face, so the
+            // cursor re-entering it fires onHover(true) constantly. Re-running
+            // openDrawer would replay the whole show — wiping an active
+            // type-to-find filter, flipping a notes tab back to preview, and
+            // restarting the open animation from alpha 0. (handleDragHover has
+            // the same guard.)
+            guard openTabID != id else { return }
             openDrawer(id)
         } else {
             scheduleHoverClose()

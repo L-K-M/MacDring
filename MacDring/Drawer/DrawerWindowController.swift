@@ -58,11 +58,22 @@ private final class DrawerHostingView: NSHostingView<DrawerView> {
     private func updateDrag(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard let model = droppableModel(sender) else { return [] }
         model.fileDropSlot = slot(at: sender.draggingLocation, model)   // drives the per-slot highlight
+        // Whole-drawer highlight: even over the header/margins (no slot under
+        // the cursor) the drag is acceptable — releasing adds to the tab — and
+        // the outline brightening is the only feedback saying so.
+        model.isDropTargeted = true
         return .copy
     }
 
-    override func draggingExited(_ sender: NSDraggingInfo?) { model?.fileDropSlot = nil }
-    override func draggingEnded(_ sender: NSDraggingInfo) { model?.fileDropSlot = nil }
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        model?.fileDropSlot = nil
+        model?.isDropTargeted = false
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        model?.fileDropSlot = nil
+        model?.isDropTargeted = false
+    }
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
         droppableModel(sender) != nil
@@ -241,6 +252,7 @@ final class DrawerWindowController {
     /// background reconcile can't clobber what the user is typing.
     private func apply(tab: Tab, preserveLiveNotes: Bool = false) {
         model.fileDropSlot = nil
+        model.isDropTargeted = false
         model.slotFrames = [:]
         model.title = tab.title
         model.colorHex = tab.colorHex
