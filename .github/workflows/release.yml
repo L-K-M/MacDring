@@ -17,9 +17,39 @@ env:
   APP_NAME: MacDring
 
 jobs:
+  test:
+    name: Test before publishing
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2'
+
+      - name: Install xcbeautify
+        run: brew install xcbeautify
+
+      # A v* tag can land on any commit — including one CI never saw. The
+      # in-app UpdateChecker offers every published release to every user,
+      # so never publish a build whose tests didn't pass.
+      - name: Build & test
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            clean test | xcbeautify
+
   release:
     name: Build & publish (unsigned)
     runs-on: macos-14
+    timeout-minutes: 60
+    needs: test
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +81,10 @@ jobs:
           # Ad-hoc sign (identity "-"): no certificate, keychain, or API key required,
           # but it IS required for the app to launch on Apple Silicon. This is not a
           # Developer ID signature and the app is not notarized — Gatekeeper still warns.
-          codesign --force --deep --sign - "$APP"
+          # (No --deep: it's deprecated, and this bundle has no nested code to sign.
+          # If Developer ID ever lands, also add --options runtime and
+          # --entitlements MacDring/MacDring.entitlements so Empty Trash keeps working.)
+          codesign --force --sign - "$APP"
           echo "APP_PATH=$APP" >> "$GITHUB_ENV"
 
       - name: Package zip + DMG
