@@ -9,7 +9,11 @@ extension NSColor {
         var string = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         if string.hasPrefix("#") { string.removeFirst() }
 
-        guard let value = UInt64(string, radix: 16) else { return nil }
+        // Every character must be a hex digit: UInt64(_:radix:) accepts a
+        // leading "+", whose sign would also be miscounted as a digit by the
+        // length check below — letting "+84FF0" parse as a (wrong) color.
+        guard string.allSatisfy(\.isHexDigit),
+              let value = UInt64(string, radix: 16) else { return nil }
 
         let r, g, b, a: CGFloat
         switch string.count {
