@@ -104,7 +104,13 @@ final class UpdateChecker: ObservableObject {
     /// elapsed. Silent unless a newer, non-skipped version is found.
     func checkInBackground() {
         guard automaticChecksEnabled else { return }
-        if let last = lastCheckDate, Date().timeIntervalSince(last) < configuration.minimumCheckInterval { return }
+        // Throttle against 90% of the interval, not the full interval:
+        // `lastCheckDate` is stamped when the previous request *completed*, a
+        // beat after the timer's reference point — so a punctual daily timer
+        // would otherwise find `elapsed` just short of a full day, skip, and
+        // defer the check to the day after.
+        if let last = lastCheckDate,
+           Date().timeIntervalSince(last) < configuration.minimumCheckInterval * 0.9 { return }
         performCheck(userInitiated: false)
     }
 

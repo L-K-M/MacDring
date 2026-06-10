@@ -54,8 +54,27 @@ struct SemanticVersion: Comparable, Equatable, CustomStringConvertible {
         case (nil, nil): return false
         case (nil, _?):  return false   // final > pre-release
         case (_?, nil):  return true    // pre-release < final
-        case let (l?, r?): return l < r // both pre-release: lexical fallback
+        case let (l?, r?): return prereleaseIsLower(l, than: r)
         }
+    }
+
+    /// SemVer §11 pre-release ordering: compare dot-separated identifiers one by
+    /// one — numeric identifiers compare **numerically** (so `beta.9 < beta.10`,
+    /// where plain string order would invert them) and rank below alphanumeric
+    /// ones; alphanumeric identifiers compare lexically. When all shared
+    /// identifiers are equal, the shorter list is older (`beta < beta.1`).
+    private static func prereleaseIsLower(_ lhs: String, than rhs: String) -> Bool {
+        let l = lhs.split(separator: ".", omittingEmptySubsequences: false)
+        let r = rhs.split(separator: ".", omittingEmptySubsequences: false)
+        for (a, b) in zip(l, r) where a != b {
+            switch (UInt64(a), UInt64(b)) {
+            case let (x?, y?): return x < y
+            case (.some, nil): return true    // numeric < alphanumeric
+            case (nil, .some): return false
+            case (nil, nil):   return a < b   // both alphanumeric: lexical
+            }
+        }
+        return l.count < r.count
     }
 
     /// Semantic equality (so `1.2` equals `1.2.0`), independent of the raw string.

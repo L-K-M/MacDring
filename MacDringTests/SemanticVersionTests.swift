@@ -33,6 +33,30 @@ final class SemanticVersionTests: XCTestCase {
         XCTAssertTrue(SemanticVersion("1.2.0-beta")! > SemanticVersion("1.1.9")!)   // numbers win first
     }
 
+    func testPrereleaseIdentifiersCompareNumerically() {
+        // SemVer §11: numeric identifiers compare numerically, not lexically.
+        XCTAssertTrue(SemanticVersion("1.4.0-beta.9")! < SemanticVersion("1.4.0-beta.10")!)
+        XCTAssertTrue(SemanticVersion("1.4.0-beta.2")! < SemanticVersion("1.4.0-beta.10")!)
+        XCTAssertTrue(SemanticVersion("1.0.0-rc.1")! < SemanticVersion("1.0.0-rc.10")!)
+    }
+
+    func testPrereleaseAlphanumericOrdering() {
+        XCTAssertTrue(SemanticVersion("1.0.0-alpha")! < SemanticVersion("1.0.0-beta")!)
+        XCTAssertTrue(SemanticVersion("1.0.0-alpha.beta")! < SemanticVersion("1.0.0-beta.2")!)
+        // Numeric identifiers rank below alphanumeric ones.
+        XCTAssertTrue(SemanticVersion("1.0.0-alpha.1")! < SemanticVersion("1.0.0-alpha.beta")!)
+    }
+
+    func testShorterPrereleaseIsOlderWhenPrefixesMatch() {
+        XCTAssertTrue(SemanticVersion("1.0.0-alpha")! < SemanticVersion("1.0.0-alpha.1")!)
+        XCTAssertTrue(SemanticVersion("1.0.0-beta")! < SemanticVersion("1.0.0-beta.0")!)
+    }
+
+    func testEqualPrereleasesAreEqual() {
+        XCTAssertEqual(SemanticVersion("1.0.0-beta.2"), SemanticVersion("1.0.0-beta.2"))
+        XCTAssertFalse(SemanticVersion("1.0.0-beta.2")! < SemanticVersion("1.0.0-beta.2")!)
+    }
+
     func testNewerThanCurrentDetection() {
         let current = SemanticVersion("1.0")!
         XCTAssertTrue(SemanticVersion("1.0.1")! > current)
