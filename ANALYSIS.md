@@ -44,15 +44,14 @@ polish. **Nothing P0–P1 is open** — the code is clean and well-tested.
 
 | Feature | Status | Approach |
 |---|---|---|
-| **Search / type-to-find + keyboard nav** in an open drawer | ❌ | The headline gap. A focusable field in the borderless key-but-non-activating drawer, arrow/return selection over the slot grid, and a filtered view. Touches the slot model + key focus — design on-device. |
-| **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. Hover-to-expand a nested drawer is a larger interaction — defer until search lands. |
-| **Recents / Fresh tabs** (recently opened / newly arrived) | ✅ | `.recents` (MacDring history + a system **Spotlight** source via `kMDItemLastUsedDate`, picked per-tab) and `.fresh` (newly-arrived files via `kMDItemDateAdded`), listed transiently like the other listers (`SpotlightQuery`/`FreshLister`). No deprecated `LSSharedFileList`, no special permission. |
+| **Search / type-to-find + keyboard nav** in an open drawer | ✅ | Shipped: `DrawerSearch` + `DrawerModel` — type to filter, ↑/↓ select, Return launches, Esc clears/closes, driven by `TabController`'s local key monitor. |
 | **Spring-loaded folder _items_** (hierarchical pop-out) | ❌ | Folder *tabs* exist; a folder *item* still just opens in Finder. Hover-to-expand a nested drawer is a larger interaction — defer. |
+| **Recents / Fresh tabs** (recently opened / newly arrived) | ✅ | `.recents` (MacDring history + a system **Spotlight** source via `kMDItemLastUsedDate`, picked per-tab) and `.fresh` (newly-arrived files via `kMDItemDateAdded`), listed transiently like the other listers (`SpotlightQuery`/`FreshLister`). No deprecated `LSSharedFileList`, no special permission. |
 | **2-D grid keyboard nav** (no filter) | ❌ | Type-to-find ships (filtered list + Up/Down/Return); arrowing the *full* slot grid with gaps when **not** filtering is a separate, fiddlier follow-up. |
 | **Named layouts / sets** with in-app switching | ◑ | Import/export already covers backup; the remaining half is storing named snapshots + a Settings switcher (the document is already clean JSON). |
 | **Separators / spacers / labels** in a dock | ❌ | A non-launchable item kind rendered as a divider/heading; fits the existing slot grid. Small. |
-| **Running-app indicator** dot on app items | ❌ | Observe `NSWorkspace.runningApplications`; dot items whose bundle ID is active. Small, additive. |
-| **Folder-tab niceties** — sort, show-hidden, live refresh | ❌ | Per-tab sort/hidden flags; `FSEvents` / `DispatchSource` to refresh the open drawer on directory change (today it re-lists only on open). |
+| **Running-app indicator** dot on app items | ✅ | Shipped: the drawer tracks `NSWorkspace` running applications and dots active app items live (README "Running-app dot"). |
+| **Folder-tab niceties** — sort, show-hidden, live refresh | ✅ | Shipped: per-tab `folderSort` / `folderShowsHidden`, plus a kqueue `DispatchSource` watch that refreshes the open drawer on directory change. |
 | **iCloud sync · Quick Look · accessibility · localization** | ❌ | Each is its own project. Accessibility (labelling the SwiftUI controls) is the cheapest, most user-visible start. |
 | Process dock · sound effects · AppleScript · free off-edge placement | — | Intentional non-goals (PLAN §1). |
 
