@@ -50,15 +50,21 @@ struct DrawerItem: Codable, Identifiable, Equatable {
         self.slot = slot
     }
 
+    /// Decodes forward-compatibly: an unknown `kind` raw value (written by a
+    /// newer MacDring) degrades to `.file` — keeping the bookmark, URL, name,
+    /// and slot — rather than throwing, which would drop the item's whole tab
+    /// (`Tab.items` used to decode all-or-nothing). A missing name falls back
+    /// to the URL's. See `LenientDecoding`.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        kind = try c.decode(ItemKind.self, forKey: .kind)
-        displayName = try c.decode(String.self, forKey: .displayName)
+        kind = c.decodeLenient(ItemKind.self, forKey: .kind, fallback: .file)
         bookmark = try c.decodeIfPresent(Data.self, forKey: .bookmark)
         url = try c.decodeIfPresent(URL.self, forKey: .url)
+        let name = c.decodeLenient(String.self, forKey: .displayName, fallback: "")
+        displayName = name.isEmpty ? (url?.lastPathComponent ?? "Item") : name
         customIconBookmark = try c.decodeIfPresent(Data.self, forKey: .customIconBookmark)
-        iconStyle = try c.decodeIfPresent(IconStyle.self, forKey: .iconStyle)
+        iconStyle = c.decodeLenient(IconStyle?.self, forKey: .iconStyle, fallback: nil)
         slot = try c.decodeIfPresent(Int.self, forKey: .slot) ?? -1
     }
 
