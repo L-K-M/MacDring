@@ -267,4 +267,85 @@ final class TabStoreTests: XCTestCase {
         XCTAssertTrue(reloaded.loadedFromDisk)            // recovered from .bak
         XCTAssertFalse(reloaded.tabs.isEmpty)
     }
+
+    private var bakURL: URL {
+        storeURL.deletingPathExtension().appendingPathExtension("bak.json")
+    }
+
+    private func quarantineFiles() throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(at: storeURL.deletingLastPathComponent(),
+                                                    includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("launcher.corrupt-") }
+    }
+
+    func testBackupHoldsPreviousVersionAfterSave() throws {
+        let store = TabStore(storeURL: storeURL)
+        store.addTab(makeTab("First"))
+        store.saveNow()
+        store.addTab(makeTab("Second"))
+        store.saveNow()
+
+        let backup = try JSONDecoder().decode(LauncherDocument.self, from: Data(contentsOf: bakURL))
+        XCTAssertEqual(backup.tabs.map(\.title), ["First"])
+    }
+
+    func testFirstSaveAfterBackupRecoveryPreservesTheGoodBackup() throws {
+        // Build a good .bak (one tab) and a newer primary (two tabs)…
+        let store = TabStore(storeURL: storeURL)
+        store.addTab(makeTab("Backed"))
+        store.saveNow()
+        store.addTab(makeTab("Second"))
+        store.saveNow()
+
+        // …then corrupt the primary and recover from the backup.
+        try "{ not valid json".data(using: .utf8)!.write(to: storeURL)
+        let recovered = TabStore(storeURL: storeURL)
+        XCTAssertEqual(recovered.tabs.map(\.title), ["Backed"])
+
+        // The first save after recovery must not rotate the (corrupt) primary
+        // over the good backup — the old failure mode that could leave *both*
+        // copies unreadable.
+        recovered.saveNow()
+        let backup = try JSONDecoder().decode(LauncherDocument.self, from: Data(contentsOf: bakURL))
+        XCTAssertEqual(backup.tabs.map(\.title), ["Backed"])
+        // And the corrupt original is preserved for inspection, not destroyed.
+        XCTAssertEqual(try quarantineFiles().count, 1)
+    }
+
+    func testCorruptDocumentIsQuarantinedNotOverwritten() throws {
+        let garbage = "{ definitely not json"
+        try FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try Data(garbage.utf8).write(to: storeURL)
+
+        let store = TabStore(storeURL: storeURL)   // no .bak to recover from
+        XCTAssertFalse(store.loadedFromDisk)
+        XCTAssertTrue(store.tabs.isEmpty)
+
+        // Simulate the first-run seeding that would previously overwrite the file.
+        store.addTab(makeTab("Starter"))
+        store.saveNow()
+
+        let preserved = try XCTUnwrap(quarantineFiles().first)
+        XCTAssertEqual(try String(contentsOf: preserved, encoding: .utf8), garbage)
+    }
+
+    func testRefusesToSaveDocumentFromANewerVersion() throws {
+        let futureJSON = """
+        { "version": 99,
+          "tabs": [ { "title": "Future",
+                      "anchor": { "displayUUID": "D1", "edge": "right", "position": 0.5 } } ] }
+        """
+        try FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try Data(futureJSON.utf8).write(to: storeURL)
+
+        let store = TabStore(storeURL: storeURL)
+        XCTAssertTrue(store.loadedFromDisk)               // best-effort load still works
+        store.addTab(makeTab("Local Change"))
+        store.saveNow()                                   // must refuse
+
+        let onDisk = try String(contentsOf: storeURL, encoding: .utf8)
+        XCTAssertEqual(onDisk, futureJSON, "a newer-versioned document must never be rewritten by an older build")
+    }
 }

@@ -39,18 +39,45 @@ final class TabStore: ObservableObject {
         // injected custom path.
         try? fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-        if let data = try? Data(contentsOf: url),
-           let doc = TabStore.decode(data) {
-            self.document = TabStore.normalizingSlots(doc)
-            self.loadedFromDisk = true
-        } else if let data = try? Data(contentsOf: bakURL),
-                  let doc = TabStore.decode(data) {
-            // Primary file missing/corrupt — recover from the backup.
+        let primaryData = try? Data(contentsOf: url)
+        if let primaryData, let doc = TabStore.decode(primaryData) {
             self.document = TabStore.normalizingSlots(doc)
             self.loadedFromDisk = true
         } else {
-            self.document = .empty
-            self.loadedFromDisk = false
+            // A primary that *exists* but won't decode is quarantined (renamed
+            // aside), never overwritten: it may be hand-recoverable (e.g. JSON
+            // truncated by a crash), and leaving it in place would let the next
+            // save destroy it — first by rotating it over the good `.bak`, then,
+            // if the store started empty and got seeded, by replacing it with a
+            // starter document.
+            if primaryData != nil {
+                TabStore.quarantine(url, fileManager: fileManager)
+            }
+            if let data = try? Data(contentsOf: bakURL),
+               let doc = TabStore.decode(data) {
+                // Primary file missing/corrupt — recover from the backup.
+                self.document = TabStore.normalizingSlots(doc)
+                self.loadedFromDisk = true
+            } else {
+                self.document = .empty
+                self.loadedFromDisk = false
+            }
+        }
+    }
+
+    /// Moves an undecodable launcher file aside as `launcher.corrupt-<stamp>.json`
+    /// so no save path can ever overwrite it. User data is never deleted here.
+    private static func quarantine(_ url: URL, fileManager: FileManager) {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let dest = url.deletingLastPathComponent()
+            .appendingPathComponent("launcher.corrupt-\(formatter.string(from: Date())).json")
+        do {
+            try fileManager.moveItem(at: url, to: dest)
+            NSLog("MacDring: launcher document couldn't be decoded — preserved it at \(dest.lastPathComponent)")
+        } catch {
+            NSLog("MacDring: couldn't quarantine undecodable launcher document: \(error.localizedDescription)")
         }
     }
 
@@ -76,7 +103,12 @@ final class TabStore: ObservableObject {
     }
 
     private static func decode(_ data: Data) -> LauncherDocument? {
-        try? JSONDecoder().decode(LauncherDocument.self, from: data)
+        do {
+            return try JSONDecoder().decode(LauncherDocument.self, from: data)
+        } catch {
+            NSLog("MacDring: couldn't decode launcher document: \(error)")
+            return nil
+        }
     }
 
     // MARK: Reads
@@ -283,19 +315,32 @@ final class TabStore: ObservableObject {
     }
 
     /// Writes immediately (used on quit and in tests). Keeps a `.bak` copy of the
-    /// previous good file and writes atomically.
+    /// previous file and writes atomically. The backup is rotated only **after**
+    /// the new write succeeds — rotating first would destroy the previous good
+    /// copy exactly when writes are failing (e.g. disk full), leaving the
+    /// document nowhere but memory.
     func saveNow() {
         saveWorkItem?.cancel()
         saveWorkItem = nil
+        // A document written by a newer MacDring (schema version above ours)
+        // must never be rewritten by this build: our encoder would silently
+        // drop everything it doesn't know about. The in-memory session still
+        // works; only persistence is disabled.
+        guard document.version <= LauncherDocument.currentVersion else {
+            NSLog("MacDring: launcher document is version \(document.version), newer than this build's \(LauncherDocument.currentVersion) — not saving, so the newer document isn't damaged")
+            return
+        }
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(document)
-            if fileManager.fileExists(atPath: storeURL.path) {
-                try? fileManager.removeItem(at: bakURL)
-                try? fileManager.copyItem(at: storeURL, to: bakURL)
-            }
+            let previous = fileManager.fileExists(atPath: storeURL.path)
+                ? try? Data(contentsOf: storeURL)
+                : nil
             try data.write(to: storeURL, options: .atomic)
+            if let previous {
+                try? previous.write(to: bakURL, options: .atomic)
+            }
         } catch {
             NSLog("MacDring: failed to save launcher document: \(error.localizedDescription)")
         }
