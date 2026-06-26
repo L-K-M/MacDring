@@ -25,6 +25,19 @@ enum FreshLister {
         }
     }
 
+    /// Combines a direct filesystem scan (`FreshScanner`) with a Spotlight lookup —
+    /// either of which may be empty — into one most-recently-added-first list,
+    /// de-duplicated by file URL. This is what lets a Fresh tab work with Spotlight
+    /// **off** (the scan alone), **on** (both, the index reaching deeper sub-folders),
+    /// or only partly indexed (their union). When the same file appears in both, the
+    /// newer date wins (they agree on Date Added, so this is just a tie-break).
+    static func merge(_ scanned: [SpotlightQuery.Result], _ spotlight: [SpotlightQuery.Result]) -> [SpotlightQuery.Result] {
+        var seen = Set<URL>()
+        return (scanned + spotlight)
+            .sorted { $0.date > $1.date }
+            .filter { seen.insert($0.url.standardizedFileURL).inserted }
+    }
+
     /// The directories a Fresh tab scans: the usual landing zones for new files.
     /// Reading them via Spotlight needs no special permission, and a missing folder
     /// simply contributes nothing. `home` is injectable for tests.

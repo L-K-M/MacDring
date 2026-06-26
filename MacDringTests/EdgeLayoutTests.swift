@@ -273,53 +273,99 @@ final class EdgeLayoutTests: XCTestCase {
         XCTAssertEqual(frame.midY, secondary.midY, accuracy: 0.001)
     }
 
-    // MARK: De-overlap
+    // MARK: De-overlap (snap the newcomer; never move the incumbents)
 
-    func testStackedVerticalTabsAreSpacedAlongEdge() {
-        // Two right-edge tabs at the same position would overlap exactly.
-        let f = EdgeLayout.tabFrame(edge: .right, position: 0.5, size: pill, in: visible)
-        let packed = EdgeLayout.packAlongEdge(frames: [f, f], edge: .right, gap: 6, in: visible)
-
-        XCTAssertEqual(packed[0], f)                                   // first stays put
-        XCTAssertEqual(packed[1].minX, f.minX, accuracy: 0.001)       // still flush right
-        // The second sits just below the first (lower y) with the gap between them.
-        XCTAssertEqual(packed[1].maxY, packed[0].minY - 6, accuracy: 0.001)
-        XCTAssertFalse(packed[0].intersects(packed[1]))
+    func testSnapWithNoFixedFramesLeavesTabPut() {
+        let f = EdgeLayout.tabFrame(edge: .right, position: 0.3, size: pill, in: visible)
+        let snapped = EdgeLayout.snappedAlongEdge(incoming: f, fixed: [], edge: .right, gap: 6, in: visible)
+        XCTAssertEqual(snapped, f)
     }
 
-    func testStackedHorizontalTabsAreSpacedAlongEdge() {
+    func testNonOverlappingTabIsLeftWhereItIs() {
+        // The incoming tab is far from the only fixed one, so it doesn't move.
+        let fixed = EdgeLayout.tabFrame(edge: .right, position: 0.1, size: pill, in: visible)
+        let incoming = EdgeLayout.tabFrame(edge: .right, position: 0.9, size: pill, in: visible)
+        let snapped = EdgeLayout.snappedAlongEdge(incoming: incoming, fixed: [fixed], edge: .right, gap: 6, in: visible)
+        XCTAssertEqual(snapped, incoming)
+    }
+
+    func testOverlappingVerticalTabSnapsClearKeepingFlushAxis() {
+        // Drop a right-edge tab right on top of a fixed one: it slides just clear with
+        // the gap and stays flush to the right edge; the fixed tab is never returned
+        // (the caller leaves it untouched).
+        let gap: CGFloat = 6
+        let fixed = EdgeLayout.tabFrame(edge: .right, position: 0.5, size: pill, in: visible)
+        let incoming = fixed   // exactly overlapping
+        let snapped = EdgeLayout.snappedAlongEdge(incoming: incoming, fixed: [fixed], edge: .right, gap: gap, in: visible)
+
+        XCTAssertEqual(snapped.minX, fixed.minX, accuracy: 0.001)         // still flush right
+        XCTAssertEqual(snapped.size, fixed.size)                          // unresized
+        XCTAssertFalse(snapped.insetBy(dx: 0.5, dy: 0.5).intersects(fixed))
+        // Exactly `gap` between the two pills (snapped sits just above, higher y).
+        XCTAssertEqual(snapped.minY, fixed.maxY + gap, accuracy: 0.001)
+    }
+
+    func testOverlappingHorizontalTabSnapsClearKeepingFlushAxis() {
+        let gap: CGFloat = 6
         let wide = CGSize(width: 120, height: 40)
-        let f = EdgeLayout.tabFrame(edge: .bottom, position: 0.5, size: wide, in: visible)
-        let packed = EdgeLayout.packAlongEdge(frames: [f, f], edge: .bottom, gap: 6, in: visible)
+        let fixed = EdgeLayout.tabFrame(edge: .bottom, position: 0.5, size: wide, in: visible)
+        let snapped = EdgeLayout.snappedAlongEdge(incoming: fixed, fixed: [fixed], edge: .bottom, gap: gap, in: visible)
 
-        XCTAssertEqual(packed[0], f)
-        XCTAssertEqual(packed[1].minY, f.minY, accuracy: 0.001)       // still flush bottom
-        XCTAssertEqual(packed[1].minX, packed[0].maxX + 6, accuracy: 0.001)
-        XCTAssertFalse(packed[0].intersects(packed[1]))
+        XCTAssertEqual(snapped.minY, fixed.minY, accuracy: 0.001)         // still flush bottom
+        XCTAssertFalse(snapped.insetBy(dx: 0.5, dy: 0.5).intersects(fixed))
+        // Slides to whichever side is nearer; with an exact overlap that's the lower x.
+        XCTAssertEqual(snapped.maxX, fixed.minX - gap, accuracy: 0.001)
     }
 
-    func testNonOverlappingFramesAreLeftAlone() {
-        let a = EdgeLayout.tabFrame(edge: .right, position: 0.1, size: pill, in: visible)
-        let b = EdgeLayout.tabFrame(edge: .right, position: 0.9, size: pill, in: visible)
-        let packed = EdgeLayout.packAlongEdge(frames: [a, b], edge: .right, gap: 6, in: visible)
-        XCTAssertEqual(packed[0], a)
-        XCTAssertEqual(packed[1], b)
+    func testSnapPicksTheNearerSide() {
+        // The incoming tab overlaps a fixed one but its centre sits *below* the fixed
+        // centre, so the nearest legal slot is just below it (snap down, not up).
+        let gap: CGFloat = 6
+        let fixed = EdgeLayout.tabFrame(edge: .right, position: 0.5, size: pill, in: visible)
+        let incoming = fixed.offsetBy(dx: 0, dy: -pill.height * 0.4)   // mostly below the fixed tab
+        let snapped = EdgeLayout.snappedAlongEdge(incoming: incoming, fixed: [fixed], edge: .right, gap: gap, in: visible)
+        XCTAssertEqual(snapped.maxY, fixed.minY - gap, accuracy: 0.001)   // tucked just below
     }
 
-    func testOverflowingRunIsShiftedBackOnScreen() {
-        // Three tall pills can't all fit from the top without running off the bottom;
-        // the run is shifted up so the last one stays on screen.
-        let tall = CGSize(width: 40, height: 300)
-        let top = EdgeLayout.tabFrame(edge: .right, position: 0.0, size: tall, in: visible)
-        let packed = EdgeLayout.packAlongEdge(frames: [top, top, top], edge: .right, gap: 6, in: visible)
-        for frame in packed {
-            XCTAssertGreaterThanOrEqual(frame.minY, visible.minY - 0.001)
-            XCTAssertLessThanOrEqual(frame.maxY, visible.maxY + 0.001)
+    func testSnapSlidesPastAWholeRunOfFixedTabs() {
+        // Two fixed tabs sit adjacent (a packed run); a third dropped onto them clears
+        // the entire run rather than trying to wedge between them.
+        let gap: CGFloat = 6
+        let upper = EdgeLayout.tabFrame(edge: .right, position: 0.4, size: pill, in: visible)
+        let lower = CGRect(x: upper.minX, y: upper.minY - pill.height - gap, width: pill.width, height: pill.height)
+        let incoming = upper   // dropped onto the top of the run
+        let snapped = EdgeLayout.snappedAlongEdge(incoming: incoming, fixed: [upper, lower], edge: .right, gap: gap, in: visible)
+        XCTAssertFalse(snapped.insetBy(dx: 0.5, dy: 0.5).intersects(upper))
+        XCTAssertFalse(snapped.insetBy(dx: 0.5, dy: 0.5).intersects(lower))
+        XCTAssertEqual(snapped.minY, upper.maxY + gap, accuracy: 0.001)   // above the whole run
+    }
+
+    func testSnappedTabStaysOnScreen() {
+        // A fixed tab pinned at the very top forces the incoming one (also at the top)
+        // to snap downward — and it must stay fully on-screen.
+        let fixed = EdgeLayout.tabFrame(edge: .right, position: 0.0, size: pill, in: visible)
+        let snapped = EdgeLayout.snappedAlongEdge(incoming: fixed, fixed: [fixed], edge: .right, gap: 6, in: visible)
+        XCTAssertGreaterThanOrEqual(snapped.minY, visible.minY - 0.001)
+        XCTAssertLessThanOrEqual(snapped.maxY, visible.maxY + 0.001)
+        XCTAssertFalse(snapped.insetBy(dx: 0.5, dy: 0.5).intersects(fixed))
+    }
+
+    func testFoldingSnapOverAStackLeavesIncumbentsPutAndMovesOnlyTheNewcomer() {
+        // Mirrors the controller's de-overlap fold: place tabs in stacking order, each
+        // snapped against the ones already placed. Two non-overlapping incumbents must
+        // not budge; a third dropped on top of one snaps clear.
+        let gap = EdgeLayout.minTabGap
+        let a = EdgeLayout.tabFrame(edge: .right, position: 0.25, size: pill, in: visible)
+        let b = EdgeLayout.tabFrame(edge: .right, position: 0.75, size: pill, in: visible)
+        let newcomer = a   // dropped onto incumbent `a`
+
+        var placed: [CGRect] = []
+        for f in [a, b, newcomer] {
+            placed.append(EdgeLayout.snappedAlongEdge(incoming: f, fixed: placed, edge: .right, gap: gap, in: visible))
         }
-    }
-
-    func testSingleFrameIsUnchanged() {
-        let f = EdgeLayout.tabFrame(edge: .left, position: 0.3, size: pill, in: visible)
-        XCTAssertEqual(EdgeLayout.packAlongEdge(frames: [f], edge: .left, gap: 6, in: visible), [f])
+        XCTAssertEqual(placed[0], a)   // first incumbent untouched
+        XCTAssertEqual(placed[1], b)   // second incumbent untouched
+        XCTAssertFalse(placed[2].insetBy(dx: 0.5, dy: 0.5).intersects(a))   // newcomer snapped clear of `a`
+        XCTAssertFalse(placed[2].insetBy(dx: 0.5, dy: 0.5).intersects(b))
     }
 }

@@ -10,6 +10,11 @@ enum EdgeLayout {
     /// Gap between a tab pill and its drawer.
     static let drawerGap: CGFloat = 8
 
+    /// Minimum clearance kept between two tabs that share an edge when one has to
+    /// snap clear of another. Small, so tabs are allowed to sit close together —
+    /// just enough of a hairline that two pills never render flush as one blob.
+    static let minTabGap: CGFloat = 2
+
     // MARK: Tab placement
 
     /// Frame for a tab pill of `size`, anchored to `edge` at fractional
@@ -170,14 +175,18 @@ enum EdgeLayout {
 
     // MARK: De-overlap (tabs sharing an edge)
 
-    /// Packs `frames` — already in the desired visual order along `edge` — so none
-    /// overlap. Each frame keeps its along-edge position unless it would overlap the
-    /// previous one, in which case it's pushed just past it (plus `gap`). If the
-    /// packed run overflows the far end of `visibleFrame`, the whole run is shifted
-    /// back so the last frame fits on-screen. The cross-edge axis (flush to the edge)
-    /// is left untouched. Pure, so it's unit-tested. See PLAN.md §5.
-    static func packAlongEdge(frames: [CGRect], edge: Edge, gap: CGFloat, in vf: CGRect) -> [CGRect] {
-        guard frames.count > 1 else { return frames }
+    /// Snaps a single `incoming` frame along `edge` to the nearest spot that clears
+    /// every `fixed` frame by at least `gap` and stays on `visibleFrame` — **without
+    /// moving any fixed frame**. "Nearest" is the smallest along-edge shift from where
+    /// `incoming` sits, so a tab dropped near others slides just far enough to find a
+    /// legal gap rather than shoving its neighbours along the edge. The cross-edge
+    /// (flush-to-the-edge) axis is left untouched. Pure, so it's unit-tested. See
+    /// PLAN.md §5.
+    ///
+    /// Callers de-overlap a whole edge by folding this over the tabs in stacking
+    /// order: place each against the ones already placed, so incumbents keep their
+    /// exact positions and only the most-recently-stacked tab yields.
+    static func snappedAlongEdge(incoming: CGRect, fixed: [CGRect], edge: Edge, gap: CGFloat, in vf: CGRect) -> CGRect {
         let horizontal = !edge.isVertical
 
         // `a` is the distance from the edge's start (left for top/bottom, top for
@@ -186,26 +195,51 @@ enum EdgeLayout {
         func len(of f: CGRect) -> CGFloat { horizontal ? f.width : f.height }
         let axisMax = horizontal ? vf.width : vf.height
 
-        var positions = [CGFloat](repeating: 0, count: frames.count)
-        var cursor = -CGFloat.greatestFiniteMagnitude
-        for i in frames.indices {
-            let start = Swift.max(a(of: frames[i]), cursor)
-            positions[i] = start
-            cursor = start + len(of: frames[i]) + gap
-        }
-        // Shift the whole packed run back on-screen if it ran off the far end.
-        let lastEnd = positions[frames.count - 1] + len(of: frames[frames.count - 1])
-        if lastEnd > axisMax {
-            let shift = lastEnd - axisMax
-            for i in positions.indices { positions[i] = Swift.max(0, positions[i] - shift) }
-        }
+        let length = len(of: incoming)
+        let upper = Swift.max(0, axisMax - length)                 // furthest start that stays on-screen
+        let desired = Swift.min(Swift.max(a(of: incoming), 0), upper)
 
-        return frames.indices.map { i in
-            var f = frames[i]
-            if horizontal { f.origin.x = vf.minX + positions[i] }
-            else { f.origin.y = vf.maxY - positions[i] - f.height }
+        func placed(at start: CGFloat) -> CGRect {
+            var f = incoming
+            if horizontal { f.origin.x = vf.minX + start }
+            else { f.origin.y = vf.maxY - start - f.height }
             return f
         }
+
+        guard !fixed.isEmpty, length > 0 else { return placed(at: desired) }
+
+        // Each fixed frame becomes a blocked span widened by `gap` on both sides: a
+        // start that lands outside every span clears its neighbour by at least `gap`.
+        // Merge the (sorted) spans so adjacent tabs read as one run to slide past.
+        let eps: CGFloat = 0.001
+        var blocked: [(lo: CGFloat, hi: CGFloat)] = []
+        for span in fixed.map({ (lo: a(of: $0) - gap, hi: a(of: $0) + len(of: $0) + gap) }).sorted(by: { $0.lo < $1.lo }) {
+            if let last = blocked.last, span.lo <= last.hi + eps {
+                blocked[blocked.count - 1].hi = Swift.max(last.hi, span.hi)
+            } else {
+                blocked.append(span)
+            }
+        }
+
+        // A start is legal when the pill [start, start+length] overlaps no blocked run
+        // and stays on-screen.
+        func legal(_ start: CGFloat) -> Bool {
+            start >= -eps && start <= upper + eps
+                && !blocked.contains { $0.lo < start + length - eps && $0.hi > start + eps }
+        }
+        if legal(desired) { return placed(at: desired) }
+
+        // The nearest legal start is either `desired` (handled) or flush against a run
+        // boundary: ending at a run's near edge (`lo - length`) or starting at its far
+        // edge (`hi`). Enumerate those, clamp on-screen, keep the legal one closest to
+        // `desired`.
+        let candidates = blocked.flatMap { [$0.lo - length, $0.hi] }
+            .map { Swift.min(Swift.max($0, 0), upper) }
+            .filter(legal)
+        guard let best = candidates.min(by: { abs($0 - desired) < abs($1 - desired) }) else {
+            return placed(at: desired)   // too crowded for a legal slot — leave it at desired
+        }
+        return placed(at: best)
     }
 
     private static func alignVertical(center: CGFloat, height: CGFloat, in vf: CGRect) -> CGFloat {

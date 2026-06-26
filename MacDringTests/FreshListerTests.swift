@@ -38,4 +38,33 @@ final class FreshListerTests: XCTestCase {
         let names = FreshLister.scopes(home: home).map(\.lastPathComponent)
         XCTAssertEqual(names, ["Downloads", "Desktop", "Documents"])
     }
+
+    // MARK: merge (scan + Spotlight)
+
+    func testMergeWithEmptySpotlightReturnsTheScanNewestFirst() {
+        // Spotlight off: the direct scan alone backs the tab.
+        let merged = FreshLister.merge([result("old", "/old", daysAgo: 9),
+                                        result("new", "/new", daysAgo: 1)], [])
+        XCTAssertEqual(merged.map(\.url.path), ["/new", "/old"])
+    }
+
+    func testMergeWithEmptyScanReturnsSpotlight() {
+        let merged = FreshLister.merge([], [result("a", "/a", daysAgo: 2)])
+        XCTAssertEqual(merged.map(\.url.path), ["/a"])
+    }
+
+    func testMergeInterleavesBothSourcesByDate() {
+        let scan = [result("scanNew", "/scanNew", daysAgo: 1), result("scanOld", "/scanOld", daysAgo: 8)]
+        let spot = [result("spotMid", "/spotMid", daysAgo: 4)]
+        XCTAssertEqual(FreshLister.merge(scan, spot).map(\.url.path), ["/scanNew", "/spotMid", "/scanOld"])
+    }
+
+    func testMergeDeduplicatesSharedFilesByURL() {
+        // A top-level file shows up in both sources; it appears once.
+        let shared = "/Users/me/Downloads/report.pdf"
+        let merged = FreshLister.merge([result("report", shared, daysAgo: 1)],
+                                       [result("report", shared, daysAgo: 1)])
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged.first?.url.path, shared)
+    }
 }

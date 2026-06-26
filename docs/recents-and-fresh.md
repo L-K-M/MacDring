@@ -38,21 +38,40 @@ spirit of the classic **Fresh**-style utilities.
 
 | | |
 |---|---|
-| **Ranked by** | Spotlight's **date added** (`kMDItemDateAdded`) — Finder's "Date Added", set when a file arrives in its folder |
+| **Ranked by** | **Date Added** — Finder's "Date Added", set when a file arrives in its folder (the filesystem's `addedToDirectoryDate`, which Spotlight mirrors as `kMDItemDateAdded`) |
 | **Scans** | your **Downloads**, **Desktop**, and **Documents** — the usual landing zones |
 | **Window** | roughly the last month, so the list stays "fresh" rather than unbounded |
 | **Item kind** | the file's own kind (file / folder / app) |
 | **Click** | open it |
 
+### Works without Spotlight
+
+The Fresh tab fills itself **two ways**, so it surfaces files even when Spotlight is
+turned off or your landing zones are excluded from indexing:
+
+1. **A direct scan** (`FreshScanner`) reads the **top level** of Downloads, Desktop,
+   and Documents straight from the filesystem and ranks them by their Date-Added
+   attribute. This is synchronous, needs no index, and fills the drawer the instant it
+   opens.
+2. **Spotlight** then folds in (asynchronously) any matches the shallow scan can't see
+   — files saved **deep inside sub-folders** — when the index is available.
+
+The two are merged most-recent-first and de-duplicated by location, so you get the
+direct scan alone (Spotlight off), both (Spotlight on, reaching deeper), or their union
+(partly indexed). The only thing lost without Spotlight is files buried in sub-folders
+of those zones; anything that lands at the top level still shows up.
+
 ## How it works
 
-Both tabs are backed by Spotlight through a single small wrapper,
+The **system** part of both tabs is backed by Spotlight through a single small wrapper,
 `MacDring/Store/SpotlightQuery.swift` — an `NSMetadataQuery` that ranks by
 `kMDItemLastUsedDate` (Recents · System) or `kMDItemDateAdded` (Fresh). Unlike the
 other listers it is **asynchronous** (Spotlight gathers over time), so it delivers
 its results through a completion once gathering finishes, and the controller resizes
-the open drawer to fit. The pure mapping into ordered, slotted `DrawerItem`s lives in
-`FreshLister` / `RecentsLister` and is unit-tested.
+the open drawer to fit. The Fresh tab additionally has `FreshScanner`, a synchronous
+direct-filesystem scan that backs it **without** Spotlight (see above). The pure
+mapping into ordered, slotted `DrawerItem`s — and the merge of the scan with the
+Spotlight results — lives in `FreshLister` / `RecentsLister` and is unit-tested.
 
 Like the Network and Cloud tabs, the items are **transient**: nothing is written to
 `launcher.json`, and each item carries a plain `url` (no bookmark), so a closed tab
@@ -63,9 +82,12 @@ costs nothing and an open one reflects the current index.
 Spotlight is queried for the **index** only — file locations and dates — never file
 *contents*, and opening an item is the same user-initiated `NSWorkspace` open every
 other tab uses. So these tabs keep MacDring's no-scary-permissions promise: no Full
-Disk Access, no Accessibility, no global monitors. The trade-off is that they see
-what Spotlight indexes for you; anything Spotlight has been told to skip simply
-doesn't appear, and the listing degrades to empty rather than to a permission wall.
+Disk Access, no Accessibility, no global monitors. Reading a directory's own contents
+(the Fresh tab's direct scan) is likewise unprivileged. The trade-off is that the
+Spotlight-backed parts see what Spotlight indexes for you; anything it has been told to
+skip simply doesn't appear. The **Recents · System** source degrades to empty when
+Spotlight is off, but the **Fresh** tab keeps working from its direct scan (it just
+won't reach files buried in sub-folders) — neither hits a permission wall.
 
 ## Customizing an item's icon
 

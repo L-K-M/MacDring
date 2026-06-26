@@ -45,9 +45,13 @@ final class NewTabWindowController: NSObject, NSWindowDelegate {
         defer { window?.close() }
         guard let uuid = registry.mainScreenUUID() else { return }
 
-        // Stagger new right-edge tabs so they don't land exactly on top of each other.
-        let rightCount = store.tabs.filter { $0.anchor.edge == .right && $0.anchor.displayUUID == uuid }.count
-        let position = max(0.12, min(0.88, 0.5 - 0.08 * Double(rightCount)))
+        // Stagger new right-edge tabs so they don't land exactly on top of each other,
+        // and stack each on top of the existing ones (highest `order`) so the
+        // de-overlap pass snaps the *newcomer* into a legal gap and leaves the tabs
+        // already there put.
+        let rightTabs = store.tabs.filter { $0.anchor.edge == .right && $0.anchor.displayUUID == uuid }
+        let position = max(0.12, min(0.88, 0.5 - 0.08 * Double(rightTabs.count)))
+        let order = (rightTabs.map(\.anchor.order).max() ?? -1) + 1
 
         let glyph: TabGlyph
         switch config.kind {
@@ -65,7 +69,7 @@ final class NewTabWindowController: NSObject, NSWindowDelegate {
             title: config.name,
             colorHex: config.colorHex,
             glyph: glyph,
-            anchor: ScreenAnchor(displayUUID: uuid, edge: .right, position: position, order: rightCount),
+            anchor: ScreenAnchor(displayUUID: uuid, edge: .right, position: position, order: order),
             behavior: preferences.newTabBehavior,
             gridColumns: Int(preferences.gridColumns),
             gridRows: Int(preferences.gridRows),

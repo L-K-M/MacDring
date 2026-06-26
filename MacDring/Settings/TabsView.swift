@@ -124,11 +124,16 @@ struct TabsView: View {
 
     private func addTab() {
         guard let uuid = registry.mainScreenUUID() else { return }
+        // Stack the new tab on top of the ones already on this edge (highest `order`)
+        // so the de-overlap pass snaps the newcomer into a legal gap and leaves the
+        // existing tabs put.
+        let rightTabs = store.tabs.filter { $0.anchor.edge == .right && $0.anchor.displayUUID == uuid }
+        let order = (rightTabs.map(\.anchor.order).max() ?? -1) + 1
         let tab = Tab(
             title: "New Tab",
             colorHex: preferences.defaultTabColorHex,
             glyph: .symbol("folder.fill"),
-            anchor: ScreenAnchor(displayUUID: uuid, edge: .right, position: 0.5, order: store.tabs.count),
+            anchor: ScreenAnchor(displayUUID: uuid, edge: .right, position: 0.5, order: order),
             behavior: preferences.newTabBehavior
         )
         store.addTab(tab)

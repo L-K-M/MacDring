@@ -135,10 +135,12 @@ final class TabController {
     }
 
     /// Spaces tabs that share a display + edge so they don't render on top of each
-    /// other. Tabs keep their fractional position unless they'd overlap, in which
-    /// case later ones (by `order`, then `position`) are nudged along the edge.
-    /// The open tab is left riding on the drawer face; its new resting frame takes
-    /// effect when it closes. See PLAN.md §5.
+    /// other. Each tab keeps its fractional position; only a tab that would overlap
+    /// one already placed snaps to the nearest legal gap. Tabs are placed in stacking
+    /// order (`order`, then `position`), so the most-recently-stacked tab — the one
+    /// just dragged or added, bumped to the top `order` — is the one that yields,
+    /// while the tabs already there stay put. The open tab is left riding on the
+    /// drawer face; its new resting frame takes effect when it closes. See PLAN.md §5.
     private func deOverlapStackedTabs() {
         struct Key: Hashable { let screen: Int; let edge: Edge }
         var groups: [Key: [(wc: TabWindowController, tab: Tab)]] = [:]
@@ -157,9 +159,13 @@ final class TabController {
                     < ($1.tab.anchor.order, $1.tab.anchor.position, $1.tab.id.uuidString)
             }
             guard let visible = sorted.first?.wc.currentScreen?.visibleFrame else { continue }
-            let packed = EdgeLayout.packAlongEdge(frames: sorted.map { $0.wc.restingFrame },
-                                                  edge: key.edge, gap: 6, in: visible)
-            for (entry, frame) in zip(sorted, packed) { entry.wc.setRestingFrame(frame) }
+            var placed: [CGRect] = []
+            for entry in sorted {
+                let snapped = EdgeLayout.snappedAlongEdge(incoming: entry.wc.restingFrame, fixed: placed,
+                                                          edge: key.edge, gap: EdgeLayout.minTabGap, in: visible)
+                entry.wc.setRestingFrame(snapped)
+                placed.append(snapped)
+            }
         }
     }
 
@@ -196,12 +202,16 @@ final class TabController {
         return wc
     }
 
-    /// Re-anchors a tab to a different edge (pill context menu), keeping its
-    /// display, fractional position, and stack order.
+    /// Re-anchors a tab to a different edge (pill context menu), keeping its display
+    /// and fractional position but **re-stacking it on top** of whatever already lives
+    /// on the destination edge — so the de-overlap pass snaps the arriving tab into the
+    /// nearest legal gap and leaves the tabs already there put (like a drag or a new
+    /// tab), rather than carrying a low order that would shove them aside.
     private func moveTab(_ id: UUID, toEdge edge: Edge) {
         guard let tab = store.tab(id: id), tab.anchor.edge != edge else { return }
         var anchor = tab.anchor
         anchor.edge = edge
+        anchor.order = topOrder(onEdge: edge, display: anchor.displayUUID, excluding: id)
         store.setAnchor(anchor, forTab: id)
     }
 
@@ -439,8 +449,21 @@ final class TabController {
         defer { refreshConcealment(animated: true) }   // re-arm auto-hide/fade for the dropped tab
         guard !dragLocked else { return }
         guard let target = dragTarget(), let uuid = registry.uuid(for: target.screen) else { return }
-        let order = store.tab(id: id)?.anchor.order ?? 0
+        // Stack the dropped tab on top of whatever already shares its (new) edge, so
+        // the de-overlap pass snaps *it* into the nearest legal gap and leaves the
+        // tabs already there untouched (rather than shoving them along the edge).
+        let order = topOrder(onEdge: target.edge, display: uuid, excluding: id)
         store.setAnchor(ScreenAnchor(displayUUID: uuid, edge: target.edge, position: target.position, order: order), forTab: id)
+    }
+
+    /// One past the highest `order` among the tabs sharing `edge` on `display`
+    /// (ignoring `excluding`) — the stacking slot for a freshly placed tab, so the
+    /// de-overlap pass treats it as the newcomer that yields.
+    private func topOrder(onEdge edge: Edge, display uuid: String, excluding id: UUID? = nil) -> Int {
+        let orders = store.tabs
+            .filter { $0.id != id && $0.anchor.edge == edge && $0.anchor.displayUUID == uuid }
+            .map(\.anchor.order)
+        return (orders.max() ?? -1) + 1
     }
 
     /// The screen / edge / position the dragged pill should snap to, from the
@@ -825,8 +848,11 @@ final class TabController {
         guard let id = openTabID, let tab = store.tab(id: id) else { stopSpotlightWatch(); return }
         switch tab.kind {
         case .fresh:
+            // The direct scan already populated the drawer synchronously (works with
+            // Spotlight off); fold the Spotlight results in for deeper sub-folder hits.
+            let scanned = FreshScanner.results(scopes: FreshLister.scopes(), limit: FreshLister.limit)
             spotlight.start(mode: .dateAdded, scopes: FreshLister.scopes(), limit: FreshLister.limit) { [weak self] results in
-                self?.applySpotlightItems(FreshLister.items(from: results), forTab: id)
+                self?.applySpotlightItems(FreshLister.items(from: FreshLister.merge(scanned, results)), forTab: id)
             }
         case .recents where tab.recentsSource.includesSystem:
             let includeMacDring = tab.recentsSource.includesMacDring

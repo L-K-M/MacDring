@@ -289,9 +289,13 @@ final class DrawerWindowController {
             model.notes = ""
             model.folderURL = nil
         case .fresh:
-            // Gathered live from Spotlight (async) — starts empty and is filled by the
-            // controller's `updateLiveItems` when the query finishes.
-            model.items = []
+            // Works even with Spotlight off: a direct, by-Date-Added scan of the
+            // landing zones fills the drawer immediately. The controller's Spotlight
+            // watch then merges in any deeper (sub-folder) hits via `updateLiveItems`
+            // when the index is available. See `FreshScanner` / `FreshLister.merge`.
+            model.items = FreshLister.items(from: FreshScanner.results(scopes: FreshLister.scopes(),
+                                                                       limit: FreshLister.limit))
+                .applyingIconStyles(from: tab.iconStyles)
             model.notes = ""
             model.folderURL = nil
         case .notes:
