@@ -350,6 +350,52 @@ final class EdgeLayoutTests: XCTestCase {
         XCTAssertFalse(snapped.insetBy(dx: 0.5, dy: 0.5).intersects(fixed))
     }
 
+    func testFoldingSnapIsIdempotentOnAnAlreadyDeOverlappedLayout() {
+        // The controller persists the de-overlapped positions; this is the property
+        // that makes that safe — folding the snap over the *result* (same order)
+        // reproduces it exactly, so a later reconcile re-derives the same frames and
+        // nothing drifts. Start from three exactly-overlapping pills.
+        let gap = EdgeLayout.minTabGap
+        let start = EdgeLayout.tabFrame(edge: .right, position: 0.5, size: pill, in: visible)
+        func fold(_ frames: [CGRect]) -> [CGRect] {
+            var placed: [CGRect] = []
+            for f in frames {
+                placed.append(EdgeLayout.snappedAlongEdge(incoming: f, fixed: placed, edge: .right, gap: gap, in: visible))
+            }
+            return placed
+        }
+        let once = fold([start, start, start])
+        let twice = fold(once)
+        for (a, b) in zip(once, twice) {
+            XCTAssertEqual(a.minY, b.minY, accuracy: 0.001)   // no drift on re-fold
+            XCTAssertEqual(a.minX, b.minX, accuracy: 0.001)
+        }
+    }
+
+    func testPersistedPositionRebuildsTheSameFrame() {
+        // The controller persists a de-overlapped frame by storing the fractional
+        // position of its centre (`position(forPoint:)`) and rebuilding it next
+        // reconcile (`tabFrame(position:)`). That inverse must be pixel-exact, or the
+        // rebuilt frame drifts, re-snaps, and the tab-jumping bug returns. The fold
+        // idempotency test assumes this identity; pin it directly at sub-pixel tolerance
+        // on both axes (vertical and horizontal edges).
+        for edge in [Edge.right, .bottom] {
+            let size = edge.isVertical ? pill : CGSize(width: pill.height, height: pill.width)
+            let start = EdgeLayout.tabFrame(edge: edge, position: 0.5, size: size, in: visible)
+            var placed: [CGRect] = []
+            for f in [start, start, start] {
+                placed.append(EdgeLayout.snappedAlongEdge(incoming: f, fixed: placed,
+                                                          edge: edge, gap: EdgeLayout.minTabGap, in: visible))
+            }
+            for f in placed {
+                let pos = EdgeLayout.position(forPoint: CGPoint(x: f.midX, y: f.midY), edge: edge, in: visible)
+                let rebuilt = EdgeLayout.tabFrame(edge: edge, position: pos, size: size, in: visible)
+                XCTAssertEqual(rebuilt.minX, f.minX, accuracy: 0.001, "drift on \(edge)")
+                XCTAssertEqual(rebuilt.minY, f.minY, accuracy: 0.001, "drift on \(edge)")
+            }
+        }
+    }
+
     func testFoldingSnapOverAStackLeavesIncumbentsPutAndMovesOnlyTheNewcomer() {
         // Mirrors the controller's de-overlap fold: place tabs in stacking order, each
         // snapped against the ones already placed. Two non-overlapping incumbents must

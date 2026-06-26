@@ -334,17 +334,25 @@ final class TabWindowController {
         })
     }
 
-    /// Live drag preview: snaps the pill flush to `edge` at fractional `position`
-    /// on `screen`, keeping a consistent `length` along the edge. Updates
-    /// `model.edge` so the pill reshapes (corners face inward) as it crosses edges.
-    func previewSnap(edge: Edge, position: Double, length: CGFloat, on screen: NSScreen) {
-        currentScreen = screen
-        model.edge = edge
+    /// The flush-to-edge frame this pill would occupy mid-drag at fractional
+    /// `position` on `edge`/`screen`, sized to keep a consistent `length` along the
+    /// edge (and the pill's thickness across it). The controller snaps this against
+    /// the other tabs before showing it, so the inputs are exposed without the pill
+    /// committing to them.
+    func dragFrame(edge: Edge, position: Double, length: CGFloat, on screen: NSScreen) -> CGRect {
         let thickness = CGFloat(preferences.tabThickness) * preferences.tabStyle.thicknessScale
         let size: CGSize = edge.isVertical
             ? CGSize(width: thickness, height: max(length, thickness))
             : CGSize(width: max(length, thickness), height: thickness)
-        let frame = EdgeLayout.tabFrame(edge: edge, position: position, size: size, in: screen.visibleFrame)
+        return EdgeLayout.tabFrame(edge: edge, position: position, size: size, in: screen.visibleFrame)
+    }
+
+    /// Live drag preview: shows the pill at an explicit (already snapped) `frame` on
+    /// `edge`/`screen`. Updates `model.edge` so the pill reshapes (corners face
+    /// inward) as it crosses edges.
+    func previewSnap(toFrame frame: CGRect, edge: Edge, on screen: NSScreen) {
+        currentScreen = screen
+        model.edge = edge
         restingFrame = frame
         applyFrame(frame)
     }

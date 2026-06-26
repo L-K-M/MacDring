@@ -292,9 +292,12 @@ must not steal focus or churn the active-app order).
   each tab is placed against the ones already placed. Only a tab that would overlap an
   earlier one snaps — to the **nearest legal gap** (≥ `minTabGap`) — so the
   most-recently-stacked tab (a drop, a new tab, or a move-to-edge, all bumped to the top
-  `order`) is the one that yields while the tabs already there stay put. `visibleFrame`
-  keeps tabs clear of the menu bar and the macOS Dock; if a tab's edge collides with the
-  Dock's edge, nudge inward and warn in Settings.
+  `order`) is the one that yields while the tabs already there stay put. A drag previews
+  this same snapped slot live and commits it on release (WYSIWYG). The settled positions
+  are **persisted back**, so the stored layout is itself legal and the pass is idempotent:
+  re-running it — or dragging one tab away — re-derives the same frames and nothing
+  drifts. `visibleFrame` keeps tabs clear of the menu bar and the macOS Dock; if a tab's
+  edge collides with the Dock's edge, nudge inward and warn in Settings.
 
 ---
 

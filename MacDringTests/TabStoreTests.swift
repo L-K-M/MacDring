@@ -98,6 +98,33 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(store.tab(id: tab.id)?.anchor, newAnchor)
     }
 
+    func testSetAnchorDefaultFiresOnChange() {
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab()
+        store.addTab(tab)
+
+        var changes = 0
+        store.onChange = { changes += 1 }
+        store.setAnchor(ScreenAnchor(displayUUID: "D2", edge: .bottom, position: 0.2, order: 1), forTab: tab.id)
+        XCTAssertEqual(changes, 1)   // a normal reposition reconciles
+    }
+
+    func testSetAnchorWithoutNotifyMutatesButDoesNotFireOnChange() {
+        // The de-overlap pass persists settled positions mid-reconcile with notify:false.
+        // It must still write the anchor, but must NOT fire onChange — that would
+        // re-enter reconcile (which has no re-entrancy guard) from inside itself.
+        let store = TabStore(storeURL: storeURL)
+        let tab = makeTab()
+        store.addTab(tab)
+
+        var changes = 0
+        store.onChange = { changes += 1 }
+        let newAnchor = ScreenAnchor(displayUUID: "D2", edge: .bottom, position: 0.2, order: 1)
+        store.setAnchor(newAnchor, forTab: tab.id, notify: false)
+        XCTAssertEqual(store.tab(id: tab.id)?.anchor, newAnchor)   // persisted
+        XCTAssertEqual(changes, 0)                                 // but no reconcile-triggering notify
+    }
+
     func testAddItemAssignsSequentialSlots() {
         let store = TabStore(storeURL: storeURL)
         let tab = makeTab()

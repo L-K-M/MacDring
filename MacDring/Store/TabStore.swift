@@ -269,9 +269,12 @@ final class TabStore: ObservableObject {
         }
     }
 
-    /// Updates just a tab's anchor (used during drag-to-reposition).
-    func setAnchor(_ anchor: ScreenAnchor, forTab tabID: UUID) {
-        mutate {
+    /// Updates just a tab's anchor (used during drag-to-reposition). Pass
+    /// `notify: false` to persist the change without triggering `onChange` — used by
+    /// the de-overlap layout pass, which runs *inside* a reconcile and writes the
+    /// settled positions back so they stay legal, without provoking another reconcile.
+    func setAnchor(_ anchor: ScreenAnchor, forTab tabID: UUID, notify: Bool = true) {
+        mutate(notifyChange: notify) {
             if let i = $0.tabs.firstIndex(where: { $0.id == tabID }) {
                 $0.tabs[i].anchor = anchor
             }

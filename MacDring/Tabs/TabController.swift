@@ -139,8 +139,16 @@ final class TabController {
     /// one already placed snaps to the nearest legal gap. Tabs are placed in stacking
     /// order (`order`, then `position`), so the most-recently-stacked tab — the one
     /// just dragged or added, bumped to the top `order` — is the one that yields,
-    /// while the tabs already there stay put. The open tab is left riding on the
-    /// drawer face; its new resting frame takes effect when it closes. See PLAN.md §5.
+    /// while the tabs already there stay put.
+    ///
+    /// Each settled position is **persisted back** (without re-notifying) so the
+    /// stored layout is itself legal. That makes the pass idempotent: a later
+    /// reconcile — or a neighbour being dragged away — re-derives the same frames and
+    /// nothing shifts. Without it, a tab's stored position could stay overlapping and
+    /// get re-snapped differently each time, which is what made other tabs jump.
+    ///
+    /// The open tab is left riding on the drawer face; its new resting frame takes
+    /// effect when it closes. See PLAN.md §5.
     private func deOverlapStackedTabs() {
         struct Key: Hashable { let screen: Int; let edge: Edge }
         var groups: [Key: [(wc: TabWindowController, tab: Tab)]] = [:]
@@ -161,12 +169,28 @@ final class TabController {
             guard let visible = sorted.first?.wc.currentScreen?.visibleFrame else { continue }
             var placed: [CGRect] = []
             for entry in sorted {
-                let snapped = EdgeLayout.snappedAlongEdge(incoming: entry.wc.restingFrame, fixed: placed,
+                let incoming = entry.wc.restingFrame
+                let snapped = EdgeLayout.snappedAlongEdge(incoming: incoming, fixed: placed,
                                                           edge: key.edge, gap: EdgeLayout.minTabGap, in: visible)
                 entry.wc.setRestingFrame(snapped)
                 placed.append(snapped)
+                persistSettledPosition(snapped, was: incoming, edge: key.edge, in: visible, tab: entry.tab)
             }
         }
+    }
+
+    /// Writes a de-overlapped frame's fractional position back onto its tab — but only
+    /// when the snap actually moved it (beyond float noise) — so the stored layout
+    /// stays legal. Uses `notify: false`: this runs mid-reconcile, and the point is to
+    /// settle the layout *without* kicking off another one.
+    private func persistSettledPosition(_ snapped: CGRect, was incoming: CGRect,
+                                        edge: Edge, in visible: CGRect, tab: Tab) {
+        guard abs(snapped.minX - incoming.minX) > 0.5 || abs(snapped.minY - incoming.minY) > 0.5 else { return }
+        let position = EdgeLayout.position(forPoint: CGPoint(x: snapped.midX, y: snapped.midY),
+                                           edge: edge, in: visible)
+        var anchor = tab.anchor
+        anchor.position = position
+        store.setAnchor(anchor, forTab: tab.id, notify: false)
     }
 
     private func screenNumber(_ screen: NSScreen) -> Int? {
@@ -434,26 +458,59 @@ final class TabController {
         if let wc = tabWindows[id] { dragLength = wc.contentLength }
     }
 
-    /// Live preview while dragging: the pill stays attached to the nearest edge
-    /// and slides along it to the cursor, reshaping as it crosses to a new edge.
-    /// A locked tab doesn't move.
+    /// Live preview while dragging: the pill stays attached to the nearest edge and
+    /// slides along it to the cursor — but **snapped into the nearest legal gap**
+    /// among the tabs already on that edge, so you see exactly where it will land and
+    /// the tabs already there never move. Reshapes as it crosses to a new edge. A
+    /// locked tab doesn't move.
     private func previewDrag(_ id: UUID) {
         guard !dragLocked, let wc = tabWindows[id], let target = dragTarget() else { return }
-        wc.previewSnap(edge: target.edge, position: target.position, length: dragLength, on: target.screen)
+        let frame = snappedDragFrame(id, wc: wc, target: target)
+        wc.previewSnap(toFrame: frame, edge: target.edge, on: target.screen)
     }
 
-    /// Commit the snapped anchor on release; `reconcile` then re-measures and
-    /// places the pill precisely. A locked tab doesn't move.
+    /// Commit the **snapped** position on release — the same legal slot the preview
+    /// showed — so the pill stays exactly where it appeared rather than jumping. A
+    /// locked tab doesn't move.
     private func endDrag(_ id: UUID) {
         draggingTabID = nil
         defer { refreshConcealment(animated: true) }   // re-arm auto-hide/fade for the dropped tab
         guard !dragLocked else { return }
-        guard let target = dragTarget(), let uuid = registry.uuid(for: target.screen) else { return }
-        // Stack the dropped tab on top of whatever already shares its (new) edge, so
-        // the de-overlap pass snaps *it* into the nearest legal gap and leaves the
-        // tabs already there untouched (rather than shoving them along the edge).
+        guard let wc = tabWindows[id], let target = dragTarget(),
+              let uuid = registry.uuid(for: target.screen) else { return }
+        let snapped = snappedDragFrame(id, wc: wc, target: target)
+        let position = EdgeLayout.position(forPoint: CGPoint(x: snapped.midX, y: snapped.midY),
+                                           edge: target.edge, in: target.screen.visibleFrame)
+        // Stack the dropped tab on top of whatever shares its (new) edge, so the
+        // de-overlap pass treats it as the newcomer that yields — though it already
+        // sits in a legal slot, so nothing actually has to move.
         let order = topOrder(onEdge: target.edge, display: uuid, excluding: id)
-        store.setAnchor(ScreenAnchor(displayUUID: uuid, edge: target.edge, position: target.position, order: order), forTab: id)
+        store.setAnchor(ScreenAnchor(displayUUID: uuid, edge: target.edge, position: position, order: order), forTab: id)
+    }
+
+    /// The dragged pill's frame snapped into the nearest legal gap among the other
+    /// tabs sharing the target edge/screen — the slot it shows mid-drag and keeps on
+    /// release. The other tabs are taken at their current resting frames and left
+    /// untouched.
+    private func snappedDragFrame(_ id: UUID, wc: TabWindowController,
+                                  target: (screen: NSScreen, edge: Edge, position: Double)) -> CGRect {
+        let tentative = wc.dragFrame(edge: target.edge, position: target.position,
+                                     length: dragLength, on: target.screen)
+        let others = restingFrames(onEdge: target.edge, screen: target.screen, excluding: id)
+        return EdgeLayout.snappedAlongEdge(incoming: tentative, fixed: others, edge: target.edge,
+                                           gap: EdgeLayout.minTabGap, in: target.screen.visibleFrame)
+    }
+
+    /// The resting frames of the shown tabs on `edge`/`screen`, excluding `id` — the
+    /// fixed obstacles a dragged or re-placed tab snaps around.
+    private func restingFrames(onEdge edge: Edge, screen: NSScreen, excluding id: UUID) -> [CGRect] {
+        guard let number = screenNumber(screen) else { return [] }
+        return tabWindows.compactMap { tid, wc in
+            guard tid != id, wc.isShown,
+                  let s = wc.currentScreen, screenNumber(s) == number,
+                  store.tab(id: tid)?.anchor.edge == edge else { return nil }
+            return wc.restingFrame
+        }
     }
 
     /// One past the highest `order` among the tabs sharing `edge` on `display`
