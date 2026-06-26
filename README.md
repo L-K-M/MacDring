@@ -74,6 +74,10 @@ xcodebuild -project MacDring.xcodeproj -scheme MacDring -configuration Release b
 xcodebuild -project MacDring.xcodeproj -scheme MacDring -destination 'platform=macOS' test
 ```
 
+For a convenient local build, `scripts/build.sh` does an incremental Release build
+and reveals the app in Finder on success; `scripts/build.sh --clean` resets any
+wedged Xcode build daemons and rebuilds from scratch.
+
 For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 
 ## Usage

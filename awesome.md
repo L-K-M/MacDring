@@ -247,7 +247,8 @@ for a future pass.
 - **Global `.mouseMoved` monitor does per-tab work on every system-wide mouse
   move** while any concealable tab is visible; a precomputed reveal-zone union
   with an early-exit would gate it.
-- **`clean-build.sh:24`** kills every `clang`/`swift-frontend` on the machine.
+- **`scripts/build.sh --clean`** (the daemon-reset path in the shared `lkm-build`
+  engine) kills every `clang`/`swift-frontend` on the machine.
 - **Docs drift**: ANALYSIS.md's feature table marks type-to-find, the running-app
   dot, and folder sort/hidden/live-refresh as ❌ though all three shipped, and
   duplicates its "Spring-loaded folder items" row *(fixed in this PR)*; README
@@ -284,8 +285,10 @@ What a user would expect that isn't there (README promises themselves check out
 7. **"Move to Display"** in the pill context menu (only Move to Edge today).
 8. **Accessibility & localization** — one `.accessibilityLabel` in the whole
    app; zero localized strings despite the project enabling string catalogs.
+   Don't implement -> Current target audience speaks English
 9. **In-place updates** — the checker only downloads to `~/Downloads`; no
    install/relaunch.
+   Don't implement -> Actual installation should remain user's responsibility
 10. **Fresh/system-Recents tabs don't live-update while open** — the
     `NSMetadataQuery` is stopped after first gather; a download finishing while
     the Fresh drawer is open never appears (folder tabs *do* live-update).
