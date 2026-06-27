@@ -22,7 +22,7 @@ final class PreferencesTests: XCTestCase {
 
     func testDefaultsWhenEmpty() {
         let prefs = Preferences(defaults: defaults)
-        XCTAssertEqual(prefs.drawerMaterial, Preferences.Default.drawerMaterial)
+        XCTAssertEqual(prefs.drawerTranslucency, Preferences.Default.drawerTranslucency)
         XCTAssertEqual(prefs.iconSize, Preferences.Default.iconSize)
         XCTAssertEqual(prefs.tabThickness, Preferences.Default.tabThickness)
         XCTAssertEqual(prefs.disconnectPolicy, .park)
@@ -37,6 +37,13 @@ final class PreferencesTests: XCTestCase {
         XCTAssertTrue(Preferences(defaults: defaults).revealAllConcealedTogether)
     }
 
+    func testDrawerTranslucencyBackingOpacityRunsTranslucentToSolid() {
+        XCTAssertEqual(DrawerTranslucency.translucent.backingOpacity, 0)
+        XCTAssertLessThan(DrawerTranslucency.translucent.backingOpacity, DrawerTranslucency.frosted.backingOpacity)
+        XCTAssertLessThan(DrawerTranslucency.frosted.backingOpacity, DrawerTranslucency.solid.backingOpacity)
+        XCTAssertEqual(DrawerTranslucency.solid.backingOpacity, 1)
+    }
+
     func testNewTabConcealmentRoundTripAndSeedsBehavior() {
         let prefs = Preferences(defaults: defaults)
         prefs.newTabConcealment = .fade
@@ -48,12 +55,12 @@ final class PreferencesTests: XCTestCase {
 
     func testEnumRoundTrip() {
         let prefs = Preferences(defaults: defaults)
-        prefs.drawerMaterial = .sidebar
+        prefs.drawerTranslucency = .solid
         prefs.disconnectPolicy = .moveToMain
         prefs.tabWindowLevel = .normal
 
         let reloaded = Preferences(defaults: defaults)
-        XCTAssertEqual(reloaded.drawerMaterial, .sidebar)
+        XCTAssertEqual(reloaded.drawerTranslucency, .solid)
         XCTAssertEqual(reloaded.disconnectPolicy, .moveToMain)
         XCTAssertEqual(reloaded.tabWindowLevel, .normal)
     }

@@ -17,7 +17,7 @@ final class Preferences: ObservableObject {
     // MARK: Defaults
 
     enum Default {
-        static let drawerMaterial = DrawerMaterial.popover
+        static let drawerTranslucency = DrawerTranslucency.translucent
         static let defaultTabColorHex = "#0A84FF"
         static let iconSize = 64.0
         static let tabStyle = TabStyle.modern
@@ -38,7 +38,7 @@ final class Preferences: ObservableObject {
     }
 
     private enum Key {
-        static let drawerMaterial = "drawerMaterial"
+        static let drawerTranslucency = "drawerTranslucency"
         static let defaultTabColorHex = "defaultTabColorHex"
         static let iconSize = "iconSize"
         static let tabStyle = "tabStyle"
@@ -61,8 +61,9 @@ final class Preferences: ObservableObject {
 
     // MARK: Stored settings
 
-    @Published var drawerMaterial: DrawerMaterial {
-        didSet { defaults.set(drawerMaterial.rawValue, forKey: Key.drawerMaterial) }
+    /// How translucent the drawer background is (Translucent / Frosted / Solid).
+    @Published var drawerTranslucency: DrawerTranslucency {
+        didSet { defaults.set(drawerTranslucency.rawValue, forKey: Key.drawerTranslucency) }
     }
 
     /// Color applied to newly created tabs.
@@ -165,7 +166,7 @@ final class Preferences: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        drawerMaterial = DrawerMaterial(rawValue: defaults.string(forKey: Key.drawerMaterial) ?? "") ?? Default.drawerMaterial
+        drawerTranslucency = DrawerTranslucency(rawValue: defaults.string(forKey: Key.drawerTranslucency) ?? "") ?? Default.drawerTranslucency
         defaultTabColorHex = Self.validColor(defaults.string(forKey: Key.defaultTabColorHex), default: Default.defaultTabColorHex)
         iconSize = Self.clamp(defaults.object(forKey: Key.iconSize) as? Double ?? Default.iconSize, 32, 128, Default.iconSize)
         tabStyle = TabStyle(rawValue: defaults.string(forKey: Key.tabStyle) ?? "") ?? Default.tabStyle

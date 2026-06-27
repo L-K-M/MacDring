@@ -385,7 +385,8 @@ auto-hide, pinned-open, optional hotkey.
 
 | Setting | Type | Default |
 |---|---|---|
-| Drawer material | enum (sidebar/menu/popover/hud) | popover |
+| Drawer translucency | enum (translucent/frosted/solid) | translucent |
+| Drawer layout | per-tab (grid/list) | grid |
 | Default tab color | Color | system accent |
 | Icon size | Slider (32–128) | 64 |
 | Drawer layout | Grid / List | Grid |

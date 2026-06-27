@@ -75,7 +75,7 @@ struct TabStripView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
                 ZStack {
-                    VisualEffectBlur(material: preferences.drawerMaterial.nsMaterial, blendingMode: .behindWindow)
+                    VisualEffectBlur(material: .popover, blendingMode: .behindWindow)
                     Color(hexString: model.colorHex).opacity(model.isOpen ? 0.88 : 0.62)
                 }
                 .clipShape(shape)

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -54,7 +55,10 @@ struct DrawerView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(
             ZStack {
-                VisualEffectBlur(material: preferences.drawerMaterial.nsMaterial, blendingMode: .behindWindow)
+                VisualEffectBlur(material: .popover, blendingMode: .behindWindow)
+                // Paint an opaque backing over the blur to taste: nothing for
+                // Translucent, half for Frosted, fully Solid.
+                Color(nsColor: .windowBackgroundColor).opacity(preferences.drawerTranslucency.backingOpacity)
                 Color(hexString: model.colorHex).opacity(0.10)
             }
         )

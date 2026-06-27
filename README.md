@@ -117,7 +117,7 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
   unless you override them here — pick *On* / *Off* for the tab, or *Use global default*
   to follow the global setting again (the clear way to revert).
 - **Global** (**Settings → Appearance / General**): **tab style (modern/classic)**,
-  drawer material, icon size, corner radius, tab thickness,
+  drawer translucency (translucent / frosted / solid), icon size, corner radius, tab thickness,
   labels, single vs. double-click to open, the **open-on-hover / close-on-click
   defaults** (overridable per tab), animation speed, the multi-display disconnect
   policy, and launch at login.

@@ -8,8 +8,8 @@ struct AppearanceView: View {
     var body: some View {
         Form {
             Section("Drawer") {
-                Picker("Material", selection: $preferences.drawerMaterial) {
-                    ForEach(DrawerMaterial.allCases) { Text($0.displayName).tag($0) }
+                Picker("Translucency", selection: $preferences.drawerTranslucency) {
+                    ForEach(DrawerTranslucency.allCases) { Text($0.displayName).tag($0) }
                 }
                 VStack(alignment: .leading) {
                     Text("Icon size: \(Int(preferences.iconSize)) pt")

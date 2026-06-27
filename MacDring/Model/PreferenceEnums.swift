@@ -1,27 +1,28 @@
 import AppKit
 
-/// The translucent material behind a drawer (and tab pills). Maps to
-/// `NSVisualEffectView.Material`.
-enum DrawerMaterial: String, Codable, CaseIterable, Identifiable {
-    case sidebar, menu, popover, hud
+/// How translucent a drawer's background is — from the system blur showing the
+/// desktop through, to a frosted look, to an opaque panel. Replaces the old "material"
+/// picker, whose four blur styles were nearly indistinguishable behind a drawer.
+enum DrawerTranslucency: String, Codable, CaseIterable, Identifiable {
+    case translucent, frosted, solid
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .sidebar: return "Sidebar"
-        case .menu: return "Menu"
-        case .popover: return "Popover"
-        case .hud: return "HUD"
+        case .translucent: return "Translucent"
+        case .frosted: return "Frosted"
+        case .solid: return "Solid"
         }
     }
 
-    var nsMaterial: NSVisualEffectView.Material {
+    /// How opaque the solid backing painted over the blur is: `0` = pure blur
+    /// (translucent), `1` = an opaque panel (solid), with a frosted step between.
+    var backingOpacity: Double {
         switch self {
-        case .sidebar: return .sidebar
-        case .menu: return .menu
-        case .popover: return .popover
-        case .hud: return .hudWindow
+        case .translucent: return 0
+        case .frosted: return 0.5
+        case .solid: return 1
         }
     }
 }
