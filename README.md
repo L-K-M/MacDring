@@ -113,7 +113,8 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
   follow the global setting again (the clear way to revert). The **list** layout is a
   compact, scrolling Finder-style table — small icons with **Date**, **Size**, and
   **Kind** columns (the date is Date Added for Fresh, last-used for Recents, modified
-  for folders). It keeps the drawer at its configured size and scrolls — handy for a
+  for folders). The drawer's **Columns / Rows** size it just like the grid (it scrolls
+  past what fits); a narrower drawer shows fewer of the metadata columns. Handy for a
   Fresh tab ordered by when files arrived.
 - **Global** (**Settings → Appearance / General**): **tab style (modern/classic)**,
   drawer material, grid vs. list layout (overridable per tab), icon size, corner radius, tab thickness,

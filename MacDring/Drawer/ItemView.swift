@@ -7,6 +7,9 @@ struct ItemView: View {
     let item: DrawerItem
     let iconSize: CGFloat
     let layout: DrawerLayout
+    /// The tab's configured grid columns — a stand-in for the list's width, deciding
+    /// how many metadata columns fit: Date always, Size at ≥ 3 columns, Kind at ≥ 4.
+    var listColumns: Int = 4
     let launchOnSingleClick: Bool
     var onLaunch: () -> Void
     var onReveal: () -> Void
@@ -42,6 +45,13 @@ struct ItemView: View {
     /// The icon's rendered size: a fixed small glyph in list mode, the configured size
     /// in grid mode.
     private var effectiveIconSize: CGFloat { layout == .list ? Self.listIconSize : iconSize }
+
+    /// Which metadata columns fit at this list's actual width (which depends on the
+    /// configured columns *and* the icon size) — so a narrow drawer drops Size/Kind
+    /// rather than overflowing.
+    private var listMeta: (size: Bool, kind: Bool) {
+        DrawerMetrics.listMetaColumns(forWidth: DrawerMetrics.listWidth(columns: listColumns, iconSize: iconSize))
+    }
 
     var body: some View {
         cell
@@ -129,9 +139,13 @@ struct ItemView: View {
                 Text(item.displayName)
                     .lineLimit(1).truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                metaColumn(item.date.map(ItemView.listDate) ?? "", width: 104, alignment: .trailing)
-                metaColumn(byteSize.map(ItemView.listSize) ?? "", width: 52, alignment: .trailing)
-                metaColumn(typeDescription ?? "", width: 76, alignment: .leading)
+                metaColumn(item.date.map(ItemView.listDate) ?? "", width: 96, alignment: .trailing)
+                if listMeta.size {
+                    metaColumn(byteSize.map(ItemView.listSize) ?? "", width: 52, alignment: .trailing)
+                }
+                if listMeta.kind {
+                    metaColumn(typeDescription ?? "", width: 76, alignment: .leading)
+                }
             }
             .font(.system(size: 12))
         }

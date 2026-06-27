@@ -18,9 +18,10 @@ enum DrawerMetrics {
     /// keeps the drawer's configured size and scrolls, fitting more of these compact
     /// rows than the grid's cells.
     static let listRowHeight: CGFloat = 24
-    /// Floor width for the list layout, so its Name / Date / Size / Kind columns have
-    /// room even on a narrowly-configured tab.
-    static let listMinWidth: CGFloat = 380
+    /// Floor width for the list layout, so a one-column tab still shows the name and a
+    /// date. Above it, the configured columns drive the width (and which metadata
+    /// columns fit — see `ItemView`).
+    static let listMinWidth: CGFloat = 220
 
     /// Size for a notes drawer, derived from the tab's grid dimensions (so the
     /// Columns/Rows steppers also size the text area), clamped to the screen.
@@ -29,6 +30,23 @@ enum DrawerMetrics {
         let height = padding + headerHeight + CGFloat(max(1, rows)) * (iconSize + 26)
         return CGSize(width: min(max(width, 260), visibleFrame.width - 16),
                       height: min(max(height, 180), visibleFrame.height - 16))
+    }
+
+    /// The list layout's width for `columns` configured columns at `iconSize`: the
+    /// configured columns drive it (same footprint as the grid), floored so a
+    /// one-column tab still shows a name + date. Shared by `contentSize` and the row
+    /// view so the rendered columns match the drawer's actual width.
+    static func listWidth(columns: Int, iconSize: CGFloat) -> CGFloat {
+        let cols = max(1, columns)
+        let gridWidth = padding + CGFloat(cols) * (iconSize + 28) + CGFloat(cols - 1) * gridInterColumn
+        return max(gridWidth, listMinWidth)
+    }
+
+    /// Which metadata columns a list row can fit at `width`: the **date** always, the
+    /// **size** once there's room, the **kind** once there's more — so a narrow drawer
+    /// shows fewer columns instead of overflowing them. Pure, so it's unit-tested.
+    static func listMetaColumns(forWidth width: CGFloat) -> (size: Bool, kind: Bool) {
+        (size: width >= 280, kind: width >= 360)
     }
 
     /// Number of grid rows to show: the tab's configured row count (its height),
@@ -63,19 +81,16 @@ enum DrawerMetrics {
                 + CGFloat(rows) * cellHeight + CGFloat(max(rows - 1, 0)) * gridSpacing
             size = CGSize(width: width, height: height)
         case .list:
-            // Keep the drawer the size the grid would have for the *configured* rows —
-            // it doesn't grow to fit every item — and let the (smaller) list rows scroll
-            // within it. So switching grid↔list doesn't resize the drawer.
-            let cols = max(1, columns)
+            // Sized from the configured rows + columns, exactly like the grid — so the
+            // Rows / Columns steppers drive the drawer directly. It shows that many
+            // (small) rows' worth of height and scrolls past it; it never balloons to
+            // fit every item, nor shrinks to hide the configured size for a few items.
             let gridCellHeight = iconSize + 26
             let configuredCellsHeight = CGFloat(configuredRows) * gridCellHeight
                 + CGFloat(max(configuredRows - 1, 0)) * gridSpacing
-            let capacityRows = max(1, Int((configuredCellsHeight / listRowHeight).rounded(.down)))
-            let rows = min(max(itemCount, 1), capacityRows)   // shrink for few items; cap (then scroll) for many
-            let gridWidth = padding + CGFloat(cols) * (iconSize + 28) + CGFloat(cols - 1) * gridInterColumn
-            let width = max(gridWidth, listMinWidth)
+            let rows = max(1, Int((configuredCellsHeight / listRowHeight).rounded()))   // visible rows; scrolls beyond
             let height = padding + headerHeight + CGFloat(rows) * listRowHeight
-            size = CGSize(width: width, height: height)
+            size = CGSize(width: listWidth(columns: columns, iconSize: iconSize), height: height)
         }
         // Reserve room for the filter field when the drawer shows one, so its extra
         // height doesn't push the items under a scroll bar.

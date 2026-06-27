@@ -368,6 +368,7 @@ struct DrawerView: View {
             item: item,
             iconSize: CGFloat(preferences.iconSize),
             layout: layout ?? model.layout,
+            listColumns: columns,
             launchOnSingleClick: preferences.launchOnSingleClick,
             onLaunch: { model.onLaunch?(item) },
             onReveal: { model.onRevealItem?(item) },

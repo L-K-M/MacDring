@@ -39,11 +39,37 @@ final class DrawerMetricsTests: XCTestCase {
         XCTAssertGreaterThan(size.height, 0)
     }
 
-    func testListWidthIsIndependentOfItemCount() {
-        let a = DrawerMetrics.contentSize(itemCount: 3, maxSlot: 2, configuredRows: 2, layout: .list, iconSize: 48, columns: 4, in: visible)
-        let b = DrawerMetrics.contentSize(itemCount: 30, maxSlot: 29, configuredRows: 2, layout: .list, iconSize: 48, columns: 4, in: visible)
-        XCTAssertEqual(a.width, b.width)         // width tracks icon size, not count
-        XCTAssertGreaterThan(b.height, a.height) // height grows with count
+    func testListSizeIsIndependentOfItemCount() {
+        // The list is sized from the configured rows + columns, not the item count, so
+        // its size stays put as items come and go (it scrolls past what fits).
+        let few = DrawerMetrics.contentSize(itemCount: 3, maxSlot: 2, configuredRows: 2, layout: .list, iconSize: 48, columns: 4, in: visible)
+        let many = DrawerMetrics.contentSize(itemCount: 30, maxSlot: 29, configuredRows: 2, layout: .list, iconSize: 48, columns: 4, in: visible)
+        XCTAssertEqual(few.width, many.width, accuracy: 0.5)
+        XCTAssertEqual(few.height, many.height, accuracy: 0.5)
+    }
+
+    func testListWidthTracksColumns() {
+        // The Columns stepper widens the list (above the small one-column floor).
+        let narrow = DrawerMetrics.contentSize(itemCount: 20, maxSlot: 19, configuredRows: 2, layout: .list, iconSize: 64, columns: 3, in: visible)
+        let wide = DrawerMetrics.contentSize(itemCount: 20, maxSlot: 19, configuredRows: 2, layout: .list, iconSize: 64, columns: 6, in: visible)
+        XCTAssertGreaterThan(wide.width, narrow.width)
+    }
+
+    func testListMetaColumnsShrinkWithWidth() {
+        XCTAssertFalse(DrawerMetrics.listMetaColumns(forWidth: 240).size)   // narrow → date only
+        XCTAssertTrue(DrawerMetrics.listMetaColumns(forWidth: 300).size)    // room for size
+        XCTAssertFalse(DrawerMetrics.listMetaColumns(forWidth: 300).kind)
+        XCTAssertTrue(DrawerMetrics.listMetaColumns(forWidth: 420).kind)    // room for all three
+    }
+
+    func testSmallIconListDropsKindToAvoidOverflow() {
+        // 4 columns at the smallest icon (32) is narrow enough that Kind would overflow,
+        // so it's dropped; a normal icon (64) at 4 columns fits the full table.
+        let narrow = DrawerMetrics.listWidth(columns: 4, iconSize: 32)   // 298
+        XCTAssertTrue(DrawerMetrics.listMetaColumns(forWidth: narrow).size)
+        XCTAssertFalse(DrawerMetrics.listMetaColumns(forWidth: narrow).kind)
+        let wide = DrawerMetrics.listWidth(columns: 4, iconSize: 64)     // 426
+        XCTAssertTrue(DrawerMetrics.listMetaColumns(forWidth: wide).kind)
     }
 
     func testListWidthGrowsWithIconSize() {
