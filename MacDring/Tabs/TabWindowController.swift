@@ -141,6 +141,16 @@ final class TabWindowController {
     /// The pill's current on-screen frame.
     var frame: CGRect { panel.frame }
 
+    /// The panel's window number, used to set a relative z-order among overlapping
+    /// tabs that share an edge.
+    var windowNumber: Int { panel.windowNumber }
+
+    /// Orders this pill's panel directly **below** the panel with `windowNumber`, so
+    /// overlapping tabs on an edge draw in a predictable front-to-back order.
+    func order(below windowNumber: Int) {
+        panel.order(.below, relativeTo: windowNumber)
+    }
+
     /// The along-edge extent of the pill (its length), used to keep a consistent
     /// size while previewing a snap to a different edge during a drag.
     var contentLength: CGFloat { max(restingFrame.width, restingFrame.height) }

@@ -273,6 +273,37 @@ final class EdgeLayoutTests: XCTestCase {
         XCTAssertEqual(frame.midY, secondary.midY, accuracy: 0.001)
     }
 
+    // MARK: Z-order (overlapping tabs sharing an edge)
+
+    func testFrontmostOnVerticalEdgeIsTheHigherTab() {
+        // Two overlapping right-edge tabs: the top one (higher maxY) draws in front.
+        let top = CGRect(x: 960, y: 400, width: 40, height: 120)
+        let bottom = CGRect(x: 960, y: 320, width: 40, height: 120)   // overlaps, lower
+        XCTAssertEqual(EdgeLayout.isFrontmost(top, bottom, edge: .right), true)
+        XCTAssertEqual(EdgeLayout.isFrontmost(bottom, top, edge: .right), false)
+        XCTAssertEqual(EdgeLayout.isFrontmost(top, bottom, edge: .left), true)   // same rule on the left edge
+    }
+
+    func testFrontmostOnHorizontalEdgeIsTheLeftTab() {
+        // Two overlapping bottom-edge tabs: the left one (lower minX) draws in front.
+        let left = CGRect(x: 300, y: 0, width: 120, height: 40)
+        let right = CGRect(x: 380, y: 0, width: 120, height: 40)   // overlaps, further right
+        XCTAssertEqual(EdgeLayout.isFrontmost(left, right, edge: .bottom), true)
+        XCTAssertEqual(EdgeLayout.isFrontmost(right, left, edge: .bottom), false)
+        XCTAssertEqual(EdgeLayout.isFrontmost(left, right, edge: .top), true)   // same rule on the top edge
+    }
+
+    func testFrontmostIsNilForLevelTabs() {
+        // Level on the along-edge axis → no geometric winner; the caller breaks the tie.
+        let a = CGRect(x: 960, y: 400, width: 40, height: 120)
+        let b = CGRect(x: 940, y: 400, width: 40, height: 120)   // same maxY
+        XCTAssertNil(EdgeLayout.isFrontmost(a, b, edge: .right))
+
+        let c = CGRect(x: 300, y: 0, width: 120, height: 40)
+        let d = CGRect(x: 300, y: 20, width: 120, height: 40)    // same minX
+        XCTAssertNil(EdgeLayout.isFrontmost(c, d, edge: .bottom))
+    }
+
     // MARK: De-overlap (snap the newcomer; never move the incumbents)
 
     func testSnapWithNoFixedFramesLeavesTabPut() {

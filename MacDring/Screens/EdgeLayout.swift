@@ -243,6 +243,25 @@ enum EdgeLayout {
         return placed(at: best)
     }
 
+    // MARK: Z-order (overlapping tabs sharing an edge)
+
+    /// Front-to-back order for two tab frames sharing an edge, so any overlap draws
+    /// predictably: the **leading** tab is frontmost — top (higher `maxY`) on a
+    /// vertical edge, leading/left (lower `minX`) on a horizontal one — reading
+    /// top-to-bottom / left-to-right. Returns `true` if `a` should sit in front of `b`,
+    /// `false` if behind, or `nil` when they're level on the along-edge axis (the
+    /// caller breaks the tie, e.g. by id, to keep the order stable). Pure, so it's
+    /// unit-tested.
+    static func isFrontmost(_ a: CGRect, _ b: CGRect, edge: Edge) -> Bool? {
+        if edge.isVertical {
+            guard a.maxY != b.maxY else { return nil }
+            return a.maxY > b.maxY
+        } else {
+            guard a.minX != b.minX else { return nil }
+            return a.minX < b.minX
+        }
+    }
+
     private static func alignVertical(center: CGFloat, height: CGFloat, in vf: CGRect) -> CGFloat {
         clamp(center - height / 2, vf.minY, vf.maxY - height)
     }

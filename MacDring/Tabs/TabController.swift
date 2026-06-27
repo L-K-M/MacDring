@@ -130,6 +130,7 @@ final class TabController {
         }
 
         deOverlapStackedTabs()
+        restackTabs()
         refreshOpenDrawer()
         refreshConcealment(animated: false)
     }
@@ -191,6 +192,43 @@ final class TabController {
         var anchor = tab.anchor
         anchor.position = position
         store.setAnchor(anchor, forTab: tab.id, notify: false)
+    }
+
+    /// Gives tabs that share a display + edge a predictable z-order, so where they
+    /// overlap (allowed once `minTabGap` goes negative) the result is always drawn the
+    /// same way: the **leading** tab — top on a vertical edge, left on a horizontal one
+    /// — sits in front of the ones after it, reading top-to-bottom / left-to-right.
+    ///
+    /// The open tab is skipped — it sits flush *beside* its own drawer, which floats
+    /// above the pills, so its z among them doesn't matter — and every other shown tab
+    /// is restacked. Called after layout and when a drawer opens or closes, so the
+    /// order is restored even after a reconcile's `show()` re-fronts the pills while a
+    /// drawer is open. Pure window ordering — frames are untouched.
+    private func restackTabs() {
+        struct Key: Hashable { let screen: Int; let edge: Edge }
+        var groups: [Key: [(id: UUID, wc: TabWindowController)]] = [:]
+
+        for (id, wc) in tabWindows {
+            guard id != openTabID,   // the open tab rides beside its drawer; managed there
+                  wc.isShown,
+                  let screen = wc.currentScreen,
+                  let number = screenNumber(screen),
+                  let tab = store.tab(id: id) else { continue }
+            groups[Key(screen: number, edge: tab.anchor.edge), default: []].append((id, wc))
+        }
+
+        for (key, entries) in groups where entries.count > 1 {
+            // Leading first (front): top on a vertical edge, left on a horizontal one;
+            // the id breaks ties (level tabs) so the order is stable.
+            let ordered = entries.sorted { a, b in
+                EdgeLayout.isFrontmost(a.wc.restingFrame, b.wc.restingFrame, edge: key.edge)
+                    ?? (a.id.uuidString < b.id.uuidString)
+            }
+            // Tuck each tab just below the previous one, so the leading tab stays on top.
+            for i in 1..<ordered.count {
+                ordered[i].wc.order(below: ordered[i - 1].wc.windowNumber)
+            }
+        }
     }
 
     private func screenNumber(_ screen: NSScreen) -> Int? {
@@ -261,6 +299,7 @@ final class TabController {
         cancelReConceal(id)
         pendingSpringOpen?.cancel(); pendingSpringOpen = nil
         openTabID = id
+        restackTabs()   // re-seat the resting tabs (esp. a just-closed previous tab) below the new open one
         wc.reveal(duration: 0)   // restore a concealed (slid-off / sliver) tab to full size before opening
         wc.setOpen(true)
         refreshConcealment(animated: false)   // a drawer is open → suspend the edge-hover monitor
@@ -286,6 +325,7 @@ final class TabController {
             wc.animate(to: wc.restingFrame, duration: duration)   // slide the tab back to the edge
         }
         openTabID = nil
+        restackTabs()   // the tab rejoins its edge stack → restore the predictable z-order
         drawer.hide(duration: duration)
         stopMonitoring()
         stopFolderWatch()
