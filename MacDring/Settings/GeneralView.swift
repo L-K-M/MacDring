@@ -67,6 +67,13 @@ struct GeneralView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Idle tabs") {
+                Toggle("Reveal all hidden tabs together", isOn: $preferences.revealAllConcealedTogether)
+                Text("When you move the pointer to a screen edge to reveal one auto-hidden or auto-faded tab, every hidden tab reveals at once — and they hide again together when the pointer leaves.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Multiple displays") {
                 Picker("When a tab's display is disconnected", selection: $preferences.disconnectPolicy) {
                     ForEach(DisconnectPolicy.allCases) { Text($0.displayName).tag($0) }

@@ -57,7 +57,9 @@ them after a restart.
 - **Auto-hide / auto-fade tabs.** Set a tab to get out of the way when idle
   (**Settings → Tabs → When idle**): **Auto-hide** slides it off its edge leaving a
   thin sliver, **Auto-fade** dims it in place (opacity adjustable in **Settings →
-  Appearance**). Reveals the moment you move the pointer to that screen edge.
+  Appearance**). Reveals the moment you move the pointer to that screen edge. Turn on
+  **Settings → General → Idle tabs → Reveal all hidden tabs together** to have one
+  reveal bring back every hidden tab at once (and hide them together when you leave).
 
 ## Build & Run
 

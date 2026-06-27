@@ -372,15 +372,29 @@ final class TabController {
         let tabs = concealableTabs()
         guard !tabs.isEmpty else { stopRevealMonitoring(); return }
         startRevealMonitoring()
-        let mouse = NSEvent.mouseLocation
-        for (id, wc) in tabs { applyRevealState(id: id, wc: wc, mouse: mouse, animated: animated) }
+        evaluateConcealment(tabs, animated: animated)
     }
 
-    /// Reveals or conceals one tab from the cursor's position relative to its reveal
-    /// zone (the resting footprint, widened a little for an easier target).
-    private func applyRevealState(id: UUID, wc: TabWindowController, mouse: CGPoint, animated: Bool) {
+    /// Reveals or conceals every concealable tab for the current cursor. With
+    /// `revealAllConcealedTogether` on, hovering *any* tab's reveal zone reveals them
+    /// all (and they re-hide together once the cursor leaves every zone); otherwise
+    /// each tab follows only its own zone. The shared core of the reconcile snap and
+    /// the live mouse-moved monitor.
+    private func evaluateConcealment(_ tabs: [(id: UUID, wc: TabWindowController)], animated: Bool) {
+        let mouse = NSEvent.mouseLocation
+        let revealAll = preferences.revealAllConcealedTogether
+            && tabs.contains { revealZone(for: $0.wc).contains(mouse) }
+        for (id, wc) in tabs {
+            let reveal = revealAll || revealZone(for: wc).contains(mouse)
+            applyRevealState(id: id, wc: wc, reveal: reveal, animated: animated)
+        }
+    }
+
+    /// Applies one tab's reveal decision: reveal it, or — when it should hide —
+    /// schedule the delayed re-conceal (animated pass) or snap it hidden at once.
+    private func applyRevealState(id: UUID, wc: TabWindowController, reveal: Bool, animated: Bool) {
         let duration = animated ? animationDuration : 0
-        if revealZone(for: wc).contains(mouse) {
+        if reveal {
             cancelReConceal(id)
             wc.reveal(duration: duration)
         } else if wc.isConcealed {
@@ -398,14 +412,26 @@ final class TabController {
         wc.restingFrame.insetBy(dx: -Self.revealSlop, dy: -Self.revealSlop)
     }
 
+    /// Whether the current cursor location warrants `wc` staying revealed: it's in the
+    /// tab's own reveal zone, or — with `revealAllConcealedTogether` — in any
+    /// concealable tab's zone. Used to gate the delayed re-conceal so grouped tabs
+    /// stay out while the cursor is over any of them.
+    private func cursorReveals(_ wc: TabWindowController) -> Bool {
+        let mouse = NSEvent.mouseLocation
+        if revealZone(for: wc).contains(mouse) { return true }
+        guard preferences.revealAllConcealedTogether else { return false }
+        return concealableTabs().contains { revealZone(for: $0.wc).contains(mouse) }
+    }
+
     private func scheduleReConceal(_ id: UUID) {
         guard pendingReConceal[id] == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.pendingReConceal[id] = nil
             guard id != self.openTabID, id != self.draggingTabID, let wc = self.tabWindows[id] else { return }
-            // Only conceal if the cursor is still away from the tab's zone.
-            if !self.revealZone(for: wc).contains(NSEvent.mouseLocation) {
+            // Only conceal if the cursor still doesn't warrant revealing this tab — its
+            // own zone, or (with "reveal all together") any concealable tab's zone.
+            if !self.cursorReveals(wc) {
                 wc.conceal(duration: self.animationDuration)
             }
         }
@@ -419,10 +445,7 @@ final class TabController {
     }
 
     private func handleRevealMouseMoved() {
-        let mouse = NSEvent.mouseLocation
-        for (id, wc) in concealableTabs() {
-            applyRevealState(id: id, wc: wc, mouse: mouse, animated: true)
-        }
+        evaluateConcealment(concealableTabs(), animated: true)
     }
 
     private func startRevealMonitoring() {

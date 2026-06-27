@@ -29,6 +29,13 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(prefs.disconnectPolicy, .park)
         XCTAssertTrue(prefs.launchOnSingleClick)
         XCTAssertEqual(prefs.newTabConcealment, .never)
+        XCTAssertFalse(prefs.revealAllConcealedTogether)
+    }
+
+    func testRevealAllConcealedTogetherRoundTrips() {
+        let prefs = Preferences(defaults: defaults)
+        prefs.revealAllConcealedTogether = true
+        XCTAssertTrue(Preferences(defaults: defaults).revealAllConcealedTogether)
     }
 
     func testNewTabConcealmentRoundTripAndSeedsBehavior() {
