@@ -46,10 +46,11 @@ spirit of the classic **Fresh**-style utilities.
 
 > [!TIP]
 > Set the tab's **Layout** to **List** (Settings → Tabs → *Drawer*, or right-click →
-> *Configure Tab…*) to see entries top-to-bottom with a **relative date** ("2h ago",
-> "3d ago") — a natural fit for a Fresh tab read newest-first by Date Added. The same
-> date column appears on **Recents** and **folder** lists. Layout is per-tab, defaulting
-> to the global Appearance → Layout.
+> *Configure Tab…*) for a compact, Finder-style table — small icons with **Date Added**,
+> **Size**, and **Kind** columns — a natural fit for a Fresh tab read newest-first by
+> when files arrived. The list keeps the drawer at its configured size and **scrolls**.
+> The same columns appear on **Recents** (last-used date) and **folder** (modified date)
+> lists. Layout is per-tab, defaulting to the global Appearance → Layout.
 
 ### Works without Spotlight
 

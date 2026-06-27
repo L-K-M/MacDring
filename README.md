@@ -110,9 +110,11 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
   how it idles, and an optional hotkey. **Layout**, **open-on-hover**, and
   **close-when-you-click-elsewhere** follow the global default unless you override them
   here — pick *Grid* / *List* (or *On* / *Off*) for the tab, or *Use global default* to
-  follow the global setting again (the clear way to revert). The **list** layout shows
-  entries top-to-bottom with a **date** column for the date-ranked tabs (Fresh,
-  Recents, folder) — handy for a Fresh tab ordered by when files arrived.
+  follow the global setting again (the clear way to revert). The **list** layout is a
+  compact, scrolling Finder-style table — small icons with **Date**, **Size**, and
+  **Kind** columns (the date is Date Added for Fresh, last-used for Recents, modified
+  for folders). It keeps the drawer at its configured size and scrolls — handy for a
+  Fresh tab ordered by when files arrived.
 - **Global** (**Settings → Appearance / General**): **tab style (modern/classic)**,
   drawer material, grid vs. list layout (overridable per tab), icon size, corner radius, tab thickness,
   labels, single vs. double-click to open, the **open-on-hover / close-on-click

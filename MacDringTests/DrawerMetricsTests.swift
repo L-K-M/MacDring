@@ -52,6 +52,31 @@ final class DrawerMetricsTests: XCTestCase {
         XCTAssertGreaterThan(large.width, small.width)
     }
 
+    func testListHeightIsCappedToConfiguredSizeSoItScrolls() {
+        // Past the configured capacity the list stops growing (the drawer keeps its
+        // size and scrolls) — switching to List doesn't blow up the drawer.
+        let many = DrawerMetrics.contentSize(itemCount: 1000, maxSlot: 999, configuredRows: 2, layout: .list, iconSize: 64, columns: 4, in: visible)
+        let more = DrawerMetrics.contentSize(itemCount: 40, maxSlot: 39, configuredRows: 2, layout: .list, iconSize: 64, columns: 4, in: visible)
+        XCTAssertEqual(many.height, more.height, accuracy: 0.5)
+    }
+
+    func testListHeightTracksConfiguredRows() {
+        // More configured rows → a taller list (more rows visible before it scrolls).
+        let short = DrawerMetrics.contentSize(itemCount: 1000, maxSlot: 999, configuredRows: 2, layout: .list, iconSize: 64, columns: 4, in: visible)
+        let tall = DrawerMetrics.contentSize(itemCount: 1000, maxSlot: 999, configuredRows: 6, layout: .list, iconSize: 64, columns: 4, in: visible)
+        XCTAssertGreaterThan(tall.height, short.height)
+    }
+
+    func testListFitsMoreSmallRowsThanGridCells() {
+        // The list's compact rows mean it shows more entries than the grid's tall cells
+        // do in the same configured height.
+        let listCap = DrawerMetrics.contentSize(itemCount: 1000, maxSlot: 999, configuredRows: 3, layout: .list, iconSize: 64, columns: 4, in: visible)
+        let gridRowsTall = DrawerMetrics.contentSize(itemCount: 12, maxSlot: 11, configuredRows: 3, layout: .grid, iconSize: 64, columns: 4, in: visible)
+        // Both are sized from 3 configured rows; the list (small rows) is no taller than
+        // the grid (tall cells) — it packs the same vertical budget more densely.
+        XCTAssertLessThanOrEqual(listCap.height, gridRowsTall.height + 0.5)
+    }
+
     func testSearchableDrawerReservesRoomForFilterField() {
         // A searchable drawer is taller by exactly the filter field's reserved height,
         // so the grid still fits without a scroll bar (the filter doesn't change width).

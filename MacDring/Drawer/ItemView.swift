@@ -31,6 +31,17 @@ struct ItemView: View {
     /// An app item's bundle id (resolved off the render path, like the icon), so the
     /// running dot is a cheap `Set.contains` in `body`.
     @State private var bundleID: String?
+    /// File size and localized kind for the list layout's columns, resolved off the
+    /// render path (only in list mode). `nil` for folders / non-file items.
+    @State private var byteSize: Int64?
+    @State private var typeDescription: String?
+
+    /// Finder-style small icon for the list layout, regardless of the grid's icon size.
+    static let listIconSize: CGFloat = 16
+
+    /// The icon's rendered size: a fixed small glyph in list mode, the configured size
+    /// in grid mode.
+    private var effectiveIconSize: CGFloat { layout == .list ? Self.listIconSize : iconSize }
 
     var body: some View {
         cell
@@ -77,15 +88,26 @@ struct ItemView: View {
             // — a reorder swap into this (slot-keyed, reused) cell, a rename, or a
             // custom-icon change — and whenever the drawer bumps the nonce (e.g. the
             // Trash was emptied), so the icon always follows the item's state.
-            .task(id: IconKey(item: item, nonce: iconNonce)) {
+            .task(id: ResolveKey(item: item, nonce: iconNonce, list: layout == .list)) {
                 icon = ItemView.resolveIcon(item)
                 broken = BookmarkResolver.isBroken(item)
                 bundleID = ItemView.appBundleID(item)
+                // The list layout shows size + kind columns; resolve them off the render
+                // path too (and only when actually in a list).
+                if layout == .list {
+                    let meta = ItemView.resolveMetadata(item)
+                    byteSize = meta.size
+                    typeDescription = meta.kind
+                } else {
+                    byteSize = nil
+                    typeDescription = nil
+                }
             }
     }
 
-    /// Re-resolve key: the item plus the drawer's nonce.
-    private struct IconKey: Equatable { let item: DrawerItem; let nonce: Int }
+    /// Re-resolve key: the item, the drawer's nonce, and whether the list columns are
+    /// shown (so a grid→list switch re-resolves the metadata).
+    private struct ResolveKey: Equatable { let item: DrawerItem; let nonce: Int; let list: Bool }
 
     @ViewBuilder
     private var cell: some View {
@@ -99,31 +121,49 @@ struct ItemView: View {
                     .frame(maxWidth: iconSize + 28)
             }
         } else {
-            HStack(spacing: 9) {
+            // A Finder-style row: small icon + name, then a metadata table (date / size
+            // / kind) in fixed columns so they line up down the list. Columns reserve
+            // their width even when empty (apps / links have no date or size).
+            HStack(spacing: 8) {
                 iconImage
-                Text(item.displayName).lineLimit(1).truncationMode(.middle)
-                Spacer(minLength: 8)
-                // Date-ranked live items (Fresh / system Recents / folder) carry a date;
-                // the list shows it so "ordered by date" reads at a glance.
-                if let date = item.date {
-                    Text(ItemView.relativeDate(date))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .layoutPriority(1)   // keep the date legible; truncate the name first
-                }
+                Text(item.displayName)
+                    .lineLimit(1).truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                metaColumn(item.date.map(ItemView.listDate) ?? "", width: 104, alignment: .trailing)
+                metaColumn(byteSize.map(ItemView.listSize) ?? "", width: 52, alignment: .trailing)
+                metaColumn(typeDescription ?? "", width: 76, alignment: .leading)
             }
+            .font(.system(size: 12))
         }
     }
 
-    /// A compact relative date ("2h ago", "3d ago") for the list layout's date column.
-    static func relativeDate(_ date: Date) -> String {
-        relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    /// One metadata column: secondary-colored, fixed width, single line.
+    private func metaColumn(_ text: String, width: CGFloat, alignment: Alignment) -> some View {
+        Text(text)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(width: width, alignment: alignment)
     }
 
-    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
+    /// A Finder-style date for the list's date column: "Today at 9:03 PM", or
+    /// "18 Feb 2026 at 18:22" (locale-aware, with relative day names for recent dates).
+    static func listDate(_ date: Date) -> String { listDateFormatter.string(from: date) }
+
+    /// The item's size for the list's size column ("2.2 MB", "811 KB").
+    static func listSize(_ bytes: Int64) -> String { sizeFormatter.string(fromByteCount: bytes) }
+
+    private static let listDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        formatter.doesRelativeDateFormatting = true   // "Today" / "Yesterday" where it applies
+        return formatter
+    }()
+
+    private static let sizeFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
         return formatter
     }()
 
@@ -133,7 +173,7 @@ struct ItemView: View {
         Image(nsImage: icon ?? ItemView.placeholder)
             .resizable()
             .interpolation(.high)
-            .frame(width: iconSize, height: iconSize)
+            .frame(width: effectiveIconSize, height: effectiveIconSize)
             .overlay(alignment: .bottom) { runningDot }
     }
 
@@ -141,7 +181,7 @@ struct ItemView: View {
     @ViewBuilder
     private var runningDot: some View {
         if isAppRunning {
-            let dot = max(5, iconSize * 0.12)
+            let dot = max(4, effectiveIconSize * 0.12)
             Circle()
                 .fill(Color.green)
                 .overlay(Circle().strokeBorder(.black.opacity(0.25), lineWidth: 0.5))
@@ -161,6 +201,17 @@ struct ItemView: View {
     private static func appBundleID(_ item: DrawerItem) -> String? {
         guard item.kind == .application, let url = BookmarkResolver.url(for: item) else { return nil }
         return Bundle(url: url)?.bundleIdentifier
+    }
+
+    /// The item's byte size and localized kind ("ZIP archive", "Folder", …) for the
+    /// list columns, read off the render path. Size is `nil` for folders / non-file
+    /// items (where a single number is meaningless); kind comes from the filesystem.
+    private static func resolveMetadata(_ item: DrawerItem) -> (size: Int64?, kind: String?) {
+        guard let url = BookmarkResolver.url(for: item) else { return (nil, nil) }
+        let values = try? url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey, .localizedTypeDescriptionKey])
+        let isDirectory = values?.isDirectory ?? false
+        let size = isDirectory ? nil : values?.fileSize.map(Int64.init)
+        return (size, values?.localizedTypeDescription)
     }
 
     /// A 1×1 transparent image shown for the one frame before `.task` resolves the
