@@ -25,10 +25,10 @@ struct Tab: Codable, Identifiable, Equatable {
     /// What this tab's drawer shows (items / notes / folder).
     var kind: TabKind
 
-    /// How this tab's drawer arranges its items: follow the global default, or pin
-    /// grid / list for this tab. Date-ranked tabs (Fresh, system Recents) read well as
-    /// a date-ordered list.
-    var layout: TabLayout
+    /// How this tab's drawer arranges its items — **grid** or **list**. A per-tab
+    /// choice (there's no global default); date-ranked tabs (Fresh, system Recents)
+    /// read well as a date-ordered list.
+    var layout: DrawerLayout
 
     /// The note text for a `.notes` tab.
     var notes: String
@@ -63,7 +63,7 @@ struct Tab: Codable, Identifiable, Equatable {
          gridRows: Int = 2,
          locked: Bool = false,
          kind: TabKind = .items,
-         layout: TabLayout = .useGlobal,
+         layout: DrawerLayout = .grid,
          notes: String = "",
          folderBookmark: Data? = nil,
          folderURL: URL? = nil,
@@ -114,7 +114,9 @@ struct Tab: Codable, Identifiable, Equatable {
         gridRows = max(1, try c.decodeIfPresent(Int.self, forKey: .gridRows) ?? 2)
         locked = try c.decodeIfPresent(Bool.self, forKey: .locked) ?? false
         kind = c.decodeLenient(TabKind.self, forKey: .kind, fallback: .items)
-        layout = c.decodeLenient(TabLayout.self, forKey: .layout, fallback: .useGlobal)
+        // Older documents wrote a per-tab `useGlobal` (or nothing); both fall back to
+        // `.grid`, the layout the global default used to be.
+        layout = c.decodeLenient(DrawerLayout.self, forKey: .layout, fallback: .grid)
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         folderBookmark = try c.decodeIfPresent(Data.self, forKey: .folderBookmark)
         folderURL = try c.decodeIfPresent(URL.self, forKey: .folderURL)

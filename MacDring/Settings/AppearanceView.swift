@@ -11,9 +11,6 @@ struct AppearanceView: View {
                 Picker("Material", selection: $preferences.drawerMaterial) {
                     ForEach(DrawerMaterial.allCases) { Text($0.displayName).tag($0) }
                 }
-                Picker("Layout", selection: $preferences.drawerLayout) {
-                    ForEach(DrawerLayout.allCases) { Text($0.displayName).tag($0) }
-                }
                 VStack(alignment: .leading) {
                     Text("Icon size: \(Int(preferences.iconSize)) pt")
                     Slider(value: $preferences.iconSize, in: 32...128, step: 4)

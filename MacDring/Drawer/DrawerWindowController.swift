@@ -260,7 +260,7 @@ final class DrawerWindowController {
         model.rows = max(1, tab.gridRows)
         model.locked = tab.locked
         model.kind = tab.kind
-        model.layout = tab.layout.resolved(default: preferences.drawerLayout)
+        model.layout = tab.layout
         switch tab.kind {
         case .items:
             model.items = tab.items

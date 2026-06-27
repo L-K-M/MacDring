@@ -216,10 +216,9 @@ private struct TabEditor: View {
             Section("Drawer") {
                 if draft.kind != .notes {
                     Picker("Layout", selection: $draft.layout) {
-                        Text("Use global default (\(preferences.drawerLayout.displayName))").tag(TabLayout.useGlobal)
-                        Text("Grid").tag(TabLayout.grid)
-                        Text("List").tag(TabLayout.list)
+                        ForEach(DrawerLayout.allCases) { Text($0.displayName).tag($0) }
                     }
+                    .pickerStyle(.segmented)
                 }
                 Stepper("Columns: \(draft.gridColumns)", value: $draft.gridColumns, in: 1...10)
                 Stepper("Rows: \(draft.gridRows)", value: $draft.gridRows, in: 1...12)

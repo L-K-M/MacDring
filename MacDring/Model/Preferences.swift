@@ -20,7 +20,6 @@ final class Preferences: ObservableObject {
         static let drawerMaterial = DrawerMaterial.popover
         static let defaultTabColorHex = "#0A84FF"
         static let iconSize = 64.0
-        static let drawerLayout = DrawerLayout.grid
         static let tabStyle = TabStyle.modern
         static let gridColumns = 4.0
         static let gridRows = 2.0
@@ -42,7 +41,6 @@ final class Preferences: ObservableObject {
         static let drawerMaterial = "drawerMaterial"
         static let defaultTabColorHex = "defaultTabColorHex"
         static let iconSize = "iconSize"
-        static let drawerLayout = "drawerLayout"
         static let tabStyle = "tabStyle"
         static let gridColumns = "gridColumns"
         static let gridRows = "gridRows"
@@ -74,10 +72,6 @@ final class Preferences: ObservableObject {
 
     @Published var iconSize: Double {
         didSet { defaults.set(iconSize, forKey: Key.iconSize) }
-    }
-
-    @Published var drawerLayout: DrawerLayout {
-        didSet { defaults.set(drawerLayout.rawValue, forKey: Key.drawerLayout) }
     }
 
     /// The visual style of tab pills (modern pill vs. classic folder tab).
@@ -174,7 +168,6 @@ final class Preferences: ObservableObject {
         drawerMaterial = DrawerMaterial(rawValue: defaults.string(forKey: Key.drawerMaterial) ?? "") ?? Default.drawerMaterial
         defaultTabColorHex = Self.validColor(defaults.string(forKey: Key.defaultTabColorHex), default: Default.defaultTabColorHex)
         iconSize = Self.clamp(defaults.object(forKey: Key.iconSize) as? Double ?? Default.iconSize, 32, 128, Default.iconSize)
-        drawerLayout = DrawerLayout(rawValue: defaults.string(forKey: Key.drawerLayout) ?? "") ?? Default.drawerLayout
         tabStyle = TabStyle(rawValue: defaults.string(forKey: Key.tabStyle) ?? "") ?? Default.tabStyle
         gridColumns = Self.clamp(defaults.object(forKey: Key.gridColumns) as? Double ?? Default.gridColumns, 1, 12, Default.gridColumns)
         gridRows = Self.clamp(defaults.object(forKey: Key.gridRows) as? Double ?? Default.gridRows, 1, 16, Default.gridRows)

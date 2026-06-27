@@ -107,17 +107,17 @@ For day-to-day development, open `MacDring.xcodeproj` in Xcode and run.
 
 - **Per tab** (right-click → *Configure Tab…*, or **Settings → Tabs**): name,
   color, glyph, edge, display, position, keep-open, **drawer layout (grid / list)**,
-  how it idles, and an optional hotkey. **Layout**, **open-on-hover**, and
-  **close-when-you-click-elsewhere** follow the global default unless you override them
-  here — pick *Grid* / *List* (or *On* / *Off*) for the tab, or *Use global default* to
-  follow the global setting again (the clear way to revert). The **list** layout is a
-  compact, scrolling Finder-style table — small icons with **Date**, **Size**, and
-  **Kind** columns (the date is Date Added for Fresh, last-used for Recents, modified
-  for folders). The drawer's **Columns / Rows** size it just like the grid (it scrolls
-  past what fits); a narrower drawer shows fewer of the metadata columns. Handy for a
-  Fresh tab ordered by when files arrived.
+  how it idles, and an optional hotkey. **Layout** is a straight per-tab choice; the
+  **list** layout is a compact, scrolling Finder-style table — small icons with
+  **Date**, **Size**, and **Kind** columns (the date is Date Added for Fresh, last-used
+  for Recents, modified for folders). The drawer's **Columns / Rows** size it just like
+  the grid (it scrolls past what fits); a narrower drawer shows fewer of the metadata
+  columns. Handy for a Fresh tab ordered by when files arrived.
+  **Open-on-hover** and **close-when-you-click-elsewhere** follow the global default
+  unless you override them here — pick *On* / *Off* for the tab, or *Use global default*
+  to follow the global setting again (the clear way to revert).
 - **Global** (**Settings → Appearance / General**): **tab style (modern/classic)**,
-  drawer material, grid vs. list layout (overridable per tab), icon size, corner radius, tab thickness,
+  drawer material, icon size, corner radius, tab thickness,
   labels, single vs. double-click to open, the **open-on-hover / close-on-click
   defaults** (overridable per tab), animation speed, the multi-display disconnect
   policy, and launch at login.

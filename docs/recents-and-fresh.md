@@ -50,7 +50,7 @@ spirit of the classic **Fresh**-style utilities.
 > **Size**, and **Kind** columns — a natural fit for a Fresh tab read newest-first by
 > when files arrived. The list keeps the drawer at its configured size and **scrolls**.
 > The same columns appear on **Recents** (last-used date) and **folder** (modified date)
-> lists. Layout is per-tab, defaulting to the global Appearance → Layout.
+> lists. Layout is a per-tab choice (Grid or List).
 
 ### Works without Spotlight
 

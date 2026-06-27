@@ -24,7 +24,6 @@ final class PreferencesTests: XCTestCase {
         let prefs = Preferences(defaults: defaults)
         XCTAssertEqual(prefs.drawerMaterial, Preferences.Default.drawerMaterial)
         XCTAssertEqual(prefs.iconSize, Preferences.Default.iconSize)
-        XCTAssertEqual(prefs.drawerLayout, .grid)
         XCTAssertEqual(prefs.tabThickness, Preferences.Default.tabThickness)
         XCTAssertEqual(prefs.disconnectPolicy, .park)
         XCTAssertTrue(prefs.launchOnSingleClick)
@@ -50,13 +49,11 @@ final class PreferencesTests: XCTestCase {
     func testEnumRoundTrip() {
         let prefs = Preferences(defaults: defaults)
         prefs.drawerMaterial = .sidebar
-        prefs.drawerLayout = .list
         prefs.disconnectPolicy = .moveToMain
         prefs.tabWindowLevel = .normal
 
         let reloaded = Preferences(defaults: defaults)
         XCTAssertEqual(reloaded.drawerMaterial, .sidebar)
-        XCTAssertEqual(reloaded.drawerLayout, .list)
         XCTAssertEqual(reloaded.disconnectPolicy, .moveToMain)
         XCTAssertEqual(reloaded.tabWindowLevel, .normal)
     }
