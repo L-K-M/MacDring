@@ -42,6 +42,7 @@ enum FolderLister {
             // persisted and every read path falls back to `url`. See ANALYSIS.md I1.
             var item = DrawerItem.transientFileItem(entry.url)
             item.slot = index
+            item.date = entry.modified   // Date Modified — shown by the list layout
             return item
         }
     }

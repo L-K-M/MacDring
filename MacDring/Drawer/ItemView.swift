@@ -102,10 +102,30 @@ struct ItemView: View {
             HStack(spacing: 9) {
                 iconImage
                 Text(item.displayName).lineLimit(1).truncationMode(.middle)
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
+                // Date-ranked live items (Fresh / system Recents / folder) carry a date;
+                // the list shows it so "ordered by date" reads at a glance.
+                if let date = item.date {
+                    Text(ItemView.relativeDate(date))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .layoutPriority(1)   // keep the date legible; truncate the name first
+                }
             }
         }
     }
+
+    /// A compact relative date ("2h ago", "3d ago") for the list layout's date column.
+    static func relativeDate(_ date: Date) -> String {
+        relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
 
     private var iconImage: some View {
         // Render from the cached icon; until `.task` resolves it (one frame), show a

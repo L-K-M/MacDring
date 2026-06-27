@@ -44,6 +44,13 @@ spirit of the classic **Fresh**-style utilities.
 | **Item kind** | the file's own kind (file / folder / app) |
 | **Click** | open it |
 
+> [!TIP]
+> Set the tab's **Layout** to **List** (Settings → Tabs → *Drawer*, or right-click →
+> *Configure Tab…*) to see entries top-to-bottom with a **relative date** ("2h ago",
+> "3d ago") — a natural fit for a Fresh tab read newest-first by Date Added. The same
+> date column appears on **Recents** and **folder** lists. Layout is per-tab, defaulting
+> to the global Appearance → Layout.
+
 ### Works without Spotlight
 
 The Fresh tab fills itself **two ways**, so it surfaces files even when Spotlight is

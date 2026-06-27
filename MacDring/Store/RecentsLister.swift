@@ -22,7 +22,8 @@ enum RecentsLister {
     /// Pure: maps recent records to launchable items, in order, with sequential slots.
     static func items(from recents: [RecentItem]) -> [DrawerItem] {
         recents.prefix(RecentsStore.limit).enumerated().map { index, recent in
-            DrawerItem(kind: recent.kind, displayName: recent.name, url: recent.url, slot: index)
+            DrawerItem(kind: recent.kind, displayName: recent.name, url: recent.url,
+                       slot: index, date: recent.date)   // last used — shown by the list layout
         }
     }
 }

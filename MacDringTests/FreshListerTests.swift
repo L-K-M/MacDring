@@ -24,6 +24,12 @@ final class FreshListerTests: XCTestCase {
         XCTAssertEqual(BookmarkResolver.url(for: item), url)
     }
 
+    func testItemsCarryTheirDateAddedForTheListLayout() throws {
+        let r = result("report.pdf", "/Users/me/Downloads/report.pdf", daysAgo: 2)
+        let item = try XCTUnwrap(FreshLister.items(from: [r]).first)
+        XCTAssertEqual(item.date, r.date)
+    }
+
     func testCapsToLimit() {
         let many = (0..<(FreshLister.limit + 10)).map { result("f\($0)", "/f\($0)", daysAgo: Double($0)) }
         XCTAssertEqual(FreshLister.items(from: many).count, FreshLister.limit)

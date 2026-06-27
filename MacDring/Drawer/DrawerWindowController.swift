@@ -260,6 +260,7 @@ final class DrawerWindowController {
         model.rows = max(1, tab.gridRows)
         model.locked = tab.locked
         model.kind = tab.kind
+        model.layout = tab.layout.resolved(default: preferences.drawerLayout)
         switch tab.kind {
         case .items:
             model.items = tab.items
@@ -321,7 +322,7 @@ final class DrawerWindowController {
                 itemCount: model.items.count,
                 maxSlot: model.items.map(\.slot).max() ?? -1,
                 configuredRows: model.rows,
-                layout: preferences.drawerLayout,
+                layout: model.layout,
                 iconSize: CGFloat(preferences.iconSize),
                 columns: model.columns,
                 searchable: model.isSearchable,

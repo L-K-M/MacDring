@@ -213,10 +213,17 @@ private struct TabEditor: View {
                 Toggle("Locked (can't be moved)", isOn: $draft.locked)
             }
 
-            Section("Drawer size") {
+            Section("Drawer") {
+                if draft.kind != .notes {
+                    Picker("Layout", selection: $draft.layout) {
+                        Text("Use global default (\(preferences.drawerLayout.displayName))").tag(TabLayout.useGlobal)
+                        Text("Grid").tag(TabLayout.grid)
+                        Text("List").tag(TabLayout.list)
+                    }
+                }
                 Stepper("Columns: \(draft.gridColumns)", value: $draft.gridColumns, in: 1...10)
                 Stepper("Rows: \(draft.gridRows)", value: $draft.gridRows, in: 1...12)
-                Text("Sizes the drawer. Items can be placed anywhere in the grid, with gaps; for a notes tab it sizes the text area.")
+                Text("Layout and size for the drawer. Items can be placed anywhere in the grid, with gaps; for a notes tab the columns/rows size the text area. The list layout shows entries top-to-bottom and adds a date column for the Fresh, Recents, and folder tabs.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

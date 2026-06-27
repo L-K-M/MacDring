@@ -32,6 +32,11 @@ struct DrawerItem: Codable, Identifiable, Equatable {
     /// fills it with the lowest free slot (used for new items and migration).
     var slot: Int
 
+    /// A ranking/recency date for the item, when it has one — Date Added (Fresh),
+    /// last used (system Recents), or modified (folder). Carried only on **transient**
+    /// live items so the list layout can show it; `nil` for persisted `.items`.
+    var date: Date?
+
     init(id: UUID = UUID(),
          kind: ItemKind,
          displayName: String,
@@ -39,7 +44,8 @@ struct DrawerItem: Codable, Identifiable, Equatable {
          url: URL? = nil,
          customIconBookmark: Data? = nil,
          iconStyle: IconStyle? = nil,
-         slot: Int = -1) {
+         slot: Int = -1,
+         date: Date? = nil) {
         self.id = id
         self.kind = kind
         self.displayName = displayName
@@ -48,6 +54,7 @@ struct DrawerItem: Codable, Identifiable, Equatable {
         self.customIconBookmark = customIconBookmark
         self.iconStyle = iconStyle
         self.slot = slot
+        self.date = date
     }
 
     /// Decodes forward-compatibly: an unknown `kind` raw value (written by a
@@ -66,10 +73,11 @@ struct DrawerItem: Codable, Identifiable, Equatable {
         customIconBookmark = try c.decodeIfPresent(Data.self, forKey: .customIconBookmark)
         iconStyle = c.decodeLenient(IconStyle?.self, forKey: .iconStyle, fallback: nil)
         slot = try c.decodeIfPresent(Int.self, forKey: .slot) ?? -1
+        date = try c.decodeIfPresent(Date.self, forKey: .date)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, displayName, bookmark, url, customIconBookmark, iconStyle, slot
+        case id, kind, displayName, bookmark, url, customIconBookmark, iconStyle, slot, date
     }
 }
 

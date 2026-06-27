@@ -48,10 +48,40 @@ final class LauncherDocumentCodableTests: XCTestCase {
         XCTAssertEqual(tab.gridRows, 2)
         XCTAssertFalse(tab.locked)
         XCTAssertEqual(tab.kind, .items)
+        XCTAssertEqual(tab.layout, .useGlobal)
         XCTAssertEqual(tab.notes, "")
         XCTAssertNil(tab.folderURL)
         XCTAssertEqual(tab.recentsSource, .macDring)
         XCTAssertEqual(decoded.version, LauncherDocument.currentVersion)
+    }
+
+    func testLayoutRoundTripsAndDefaultsToUseGlobal() throws {
+        let tab = Tab(title: "Fresh", colorHex: "#FF9F0A",
+                      anchor: ScreenAnchor(displayUUID: "U", edge: .right, position: 0.5),
+                      kind: .fresh, layout: .list)
+        let data = try JSONEncoder().encode(LauncherDocument(tabs: [tab]))
+        XCTAssertEqual(try JSONDecoder().decode(LauncherDocument.self, from: data).tabs.first?.layout, .list)
+
+        // A tab persisted before the layout field existed follows the global default.
+        let legacy = #"""
+        {"tabs":[{"anchor":{"displayUUID":"D","edge":"right","position":0.5},"kind":"fresh"}]}
+        """#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(LauncherDocument.self, from: legacy)
+        XCTAssertEqual(decoded.tabs.first?.layout, .useGlobal)
+    }
+
+    func testDrawerItemDateRoundTrips() throws {
+        // A dated transient item (e.g. Fresh) round-trips its date…
+        let dated = DrawerItem(kind: .file, displayName: "report.pdf",
+                               url: URL(fileURLWithPath: "/x/report.pdf"), slot: 0,
+                               date: Date(timeIntervalSince1970: 1_700_000_000))
+        let decodedDated = try JSONDecoder().decode(DrawerItem.self, from: JSONEncoder().encode(dated))
+        XCTAssertEqual(decodedDated.date, dated.date)
+
+        // …and a normal persisted item (no date) decodes back with a nil date.
+        let plain = DrawerItem(kind: .url, displayName: "Example", url: URL(string: "https://example.com"), slot: 1)
+        let decodedPlain = try JSONDecoder().decode(DrawerItem.self, from: JSONEncoder().encode(plain))
+        XCTAssertNil(decodedPlain.date)
     }
 
     func testConcealmentRoundTripsAndDefaultsToNever() throws {

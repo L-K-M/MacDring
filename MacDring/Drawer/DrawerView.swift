@@ -241,7 +241,7 @@ struct DrawerView: View {
 
     @ViewBuilder
     private var itemsLayout: some View {
-        if preferences.drawerLayout == .grid {
+        if model.layout == .grid {
             let gridColumns = Array(repeating: GridItem(.flexible(), spacing: 10), count: columns)
             LazyVGrid(columns: gridColumns, spacing: 12) {
                 ForEach(Array(0..<(rows * columns)), id: \.self) { slot in
@@ -367,7 +367,7 @@ struct DrawerView: View {
         ItemView(
             item: item,
             iconSize: CGFloat(preferences.iconSize),
-            layout: layout ?? preferences.drawerLayout,
+            layout: layout ?? model.layout,
             launchOnSingleClick: preferences.launchOnSingleClick,
             onLaunch: { model.onLaunch?(item) },
             onReveal: { model.onRevealItem?(item) },

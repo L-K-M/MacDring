@@ -21,6 +21,7 @@ enum FreshLister {
             // read path falls back to `url`. See ANALYSIS.md I1 / FolderLister.
             var item = DrawerItem.transientFileItem(result.url)
             item.slot = index
+            item.date = result.date   // Date Added — shown by the list layout
             return item
         }
     }

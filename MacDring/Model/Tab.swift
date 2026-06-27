@@ -25,6 +25,11 @@ struct Tab: Codable, Identifiable, Equatable {
     /// What this tab's drawer shows (items / notes / folder).
     var kind: TabKind
 
+    /// How this tab's drawer arranges its items: follow the global default, or pin
+    /// grid / list for this tab. Date-ranked tabs (Fresh, system Recents) read well as
+    /// a date-ordered list.
+    var layout: TabLayout
+
     /// The note text for a `.notes` tab.
     var notes: String
 
@@ -58,6 +63,7 @@ struct Tab: Codable, Identifiable, Equatable {
          gridRows: Int = 2,
          locked: Bool = false,
          kind: TabKind = .items,
+         layout: TabLayout = .useGlobal,
          notes: String = "",
          folderBookmark: Data? = nil,
          folderURL: URL? = nil,
@@ -77,6 +83,7 @@ struct Tab: Codable, Identifiable, Equatable {
         self.gridRows = gridRows
         self.locked = locked
         self.kind = kind
+        self.layout = layout
         self.notes = notes
         self.folderBookmark = folderBookmark
         self.folderURL = folderURL
@@ -107,6 +114,7 @@ struct Tab: Codable, Identifiable, Equatable {
         gridRows = max(1, try c.decodeIfPresent(Int.self, forKey: .gridRows) ?? 2)
         locked = try c.decodeIfPresent(Bool.self, forKey: .locked) ?? false
         kind = c.decodeLenient(TabKind.self, forKey: .kind, fallback: .items)
+        layout = c.decodeLenient(TabLayout.self, forKey: .layout, fallback: .useGlobal)
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         folderBookmark = try c.decodeIfPresent(Data.self, forKey: .folderBookmark)
         folderURL = try c.decodeIfPresent(URL.self, forKey: .folderURL)
@@ -118,7 +126,7 @@ struct Tab: Codable, Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, title, colorHex, glyph, anchor, items, behavior, hotkey
-        case gridColumns, gridRows, locked, kind, notes, folderBookmark, folderURL
+        case gridColumns, gridRows, locked, kind, layout, notes, folderBookmark, folderURL
         case folderSort, folderShowsHidden, recentsSource, iconStyles
     }
 }

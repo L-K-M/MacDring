@@ -32,6 +32,9 @@ final class DrawerModel: ObservableObject {
 
     /// What the drawer shows.
     @Published var kind: TabKind = .items
+    /// How the drawer arranges items (grid / list) — the open tab's per-tab `layout`
+    /// already resolved against the global default, so the view and sizing agree.
+    @Published var layout: DrawerLayout = .grid
     /// The note text (for `.notes` tabs).
     @Published var notes: String = ""
     /// Whether a `.notes` tab is showing the rendered-Markdown **view** (vs. the
