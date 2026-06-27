@@ -399,8 +399,10 @@ final class EdgeLayoutTests: XCTestCase {
     func testFoldingSnapOverAStackLeavesIncumbentsPutAndMovesOnlyTheNewcomer() {
         // Mirrors the controller's de-overlap fold: place tabs in stacking order, each
         // snapped against the ones already placed. Two non-overlapping incumbents must
-        // not budge; a third dropped on top of one snaps clear.
-        let gap = EdgeLayout.minTabGap
+        // not budge; a third dropped on top of one is the only one that moves. Uses a
+        // positive gap so "snapped clear" is unambiguous, independent of how the
+        // configured `minTabGap` is tuned.
+        let gap: CGFloat = 6
         let a = EdgeLayout.tabFrame(edge: .right, position: 0.25, size: pill, in: visible)
         let b = EdgeLayout.tabFrame(edge: .right, position: 0.75, size: pill, in: visible)
         let newcomer = a   // dropped onto incumbent `a`

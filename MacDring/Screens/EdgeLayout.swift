@@ -10,10 +10,11 @@ enum EdgeLayout {
     /// Gap between a tab pill and its drawer.
     static let drawerGap: CGFloat = 8
 
-    /// Minimum clearance kept between two tabs that share an edge when one has to
-    /// snap clear of another. Small, so tabs are allowed to sit close together —
-    /// just enough of a hairline that two pills never render flush as one blob.
-    static let minTabGap: CGFloat = 2
+    /// Minimum spacing kept between two tabs that share an edge when one snaps clear
+    /// of another. May be **negative**, which lets tabs overlap by up to that many
+    /// points before the snap separates them — so they can sit very close, even
+    /// slightly stacked, rather than being forced apart.
+    static let minTabGap: CGFloat = -16
 
     // MARK: Tab placement
 
