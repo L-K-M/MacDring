@@ -34,4 +34,13 @@ enum TabKind: String, Codable, CaseIterable, Identifiable {
         case .fresh: return "Fresh"
         }
     }
+
+    var defaultLayout: DrawerLayout {
+        switch self {
+        case .recents, .fresh:
+            return .list
+        case .items, .notes, .folder, .disks, .network, .cloud:
+            return .grid
+        }
+    }
 }

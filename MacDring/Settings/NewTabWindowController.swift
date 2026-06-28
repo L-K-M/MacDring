@@ -74,6 +74,7 @@ final class NewTabWindowController: NSObject, NSWindowDelegate {
             gridColumns: Int(preferences.gridColumns),
             gridRows: Int(preferences.gridRows),
             kind: config.kind,
+            layout: config.kind.defaultLayout,
             folderBookmark: config.folderBookmark,
             folderURL: config.folderURL
         )

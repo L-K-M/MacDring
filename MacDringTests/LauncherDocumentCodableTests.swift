@@ -158,6 +158,13 @@ final class LauncherDocumentCodableTests: XCTestCase {
         XCTAssertTrue(decoded.tabs.first?.items.isEmpty ?? false)
     }
 
+    func testDateRankedTabKindsDefaultToListLayout() {
+        XCTAssertEqual(TabKind.recents.defaultLayout, .list)
+        XCTAssertEqual(TabKind.fresh.defaultLayout, .list)
+        XCTAssertEqual(TabKind.items.defaultLayout, .grid)
+        XCTAssertEqual(TabKind.folder.defaultLayout, .grid)
+    }
+
     func testOneMalformedTabIsDroppedNotTheWholeDocument() throws {
         // The first tab is missing its required `anchor`; the second is valid.
         // The bad record should be skipped while the good one survives — losing a
