@@ -39,7 +39,7 @@ struct TabStripView: View {
             .onTapGesture { model.onTap?() }
             .onHover { model.onHoverChanged?($0) }
             .gesture(dragGesture)
-            .onDrop(of: [UTType.fileURL, UTType.url], isTargeted: dropTargetBinding) { providers in
+            .onDrop(of: acceptedDropTypes, isTargeted: dropTargetBinding) { providers in
                 handleDrop(providers)
             }
             .help(model.title)
@@ -201,6 +201,10 @@ struct TabStripView: View {
     }
 
     // MARK: Drop
+
+    private var acceptedDropTypes: [UTType] {
+        model.acceptsWebURLDrops ? [.fileURL, .url] : [.fileURL]
+    }
 
     private var dropTargetBinding: Binding<Bool> {
         Binding(

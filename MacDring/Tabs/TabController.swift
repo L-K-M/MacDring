@@ -254,7 +254,7 @@ final class TabController {
         let id = tab.id
         wc.onTap = { [weak self] in self?.toggleDrawer(id) }
         wc.onHoverChanged = { [weak self] inside in self?.handleHover(id, inside: inside) }
-        wc.onDropURLs = { [weak self] urls in self?.handleFileDrop(urls, slot: -1, toTab: id) }
+        wc.onDropURLs = { [weak self] urls in self?.handleTabPillDrop(urls, toTab: id) }
         wc.model.onDragHover = { [weak self] targeted in self?.handleDragHover(id, targeted: targeted) }
         wc.onDragWillBegin = { [weak self] in self?.beginDrag(id) }
         wc.onDragChanged = { [weak self] in self?.previewDrag(id) }
@@ -619,6 +619,12 @@ final class TabController {
     }
 
     // MARK: File drops & spring-loading
+
+    private func handleTabPillDrop(_ urls: [URL], toTab id: UUID) {
+        guard let tab = store.tab(id: id) else { return }
+        let accepted = tab.kind == .items ? urls : urls.filter(\.isFileURL)
+        handleFileDrop(accepted, slot: -1, toTab: id)
+    }
 
     /// Routes files **and web links** dropped on a tab/drawer. `slot` is the drawer
     /// slot they landed on (or -1 for the tab pill / drawer background): dropping on
