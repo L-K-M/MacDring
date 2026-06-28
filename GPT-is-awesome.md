@@ -1,200 +1,237 @@
-# GPT-is-awesome.md
+# GPT Audit Notes
 
-A current-state review of MacDring, written after reading the Swift/AppKit/SwiftUI
-surface, tests, workflows, docs, and the existing backlog. The old `awesome.md`
-was a useful fossil record, but many of its red flags are already fixed here:
-lenient decoding, backup rotation, Carbon hotkey chaining, tab hover replay,
-drawer drop highlighting, Settings miniaturization, SemVer prerelease ordering,
-and release-test gating all have current code.
+Date: 2026-06-28
 
-Legend: **High confidence** means I would implement it in a small branch. **Needs
-design** means the bug or improvement is real, but the best behavior should be
-chosen deliberately.
+Scope: repository review of MacDring on `main`, with emphasis on bugs, performance/stutter risks, visual/layout issues, missing features, and improvement ideas. The untracked `.claude/` directory was present before this audit and was not touched.
 
-## Bugs and behavior issues
+## Legend
 
-1. **Folder drawers accept web-link drops, then silently do nothing.**
-   `DrawerHostingView.droppableModel` accepts `NSURL` objects with
-   `.urlReadingFileURLsOnly: false` for both items and folder tabs
-   ([DrawerWindowController.swift:45](MacDring/Drawer/DrawerWindowController.swift:45)).
-   Later `handleFileDrop` filters folder-tab drops to `fileURLs`
-   ([TabController.swift:630](MacDring/Tabs/TabController.swift:630)) and moves
-   only those into the folder ([TabController.swift:653](MacDring/Tabs/TabController.swift:653)).
-   Dragging a browser URL onto a folder drawer shows acceptance feedback but
-   stores/moves nothing. **High confidence:** folder drawers should only advertise
-   file URL drops; items drawers can keep accepting files and web URLs.
+- Severity: High, Medium, Low, Idea.
+- Confidence: High, Medium, Low.
+- Disposition: `PR now` means I think the fix is small, independently valuable, and low-risk enough to implement immediately. `Design first` means the code issue is real but behavior or UX should be decided before changing it. `Backlog` means useful but not urgent, larger, or needing manual profiling.
 
-2. **A drag exit from one tab can cancel another tab's pending spring-open.**
-   `pendingSpringOpen` is a single work item
-   ([TabController.swift:26](MacDring/Tabs/TabController.swift:26)). When a drag
-   exits any tab, `handleDragHover(... targeted: false)` cancels it without
-   knowing which tab scheduled it ([TabController.swift:678](MacDring/Tabs/TabController.swift:678)).
-   An enter-B / exit-A ordering can suppress B's spring-loaded drawer. **High
-   confidence:** track the pending spring-open tab ID and cancel only matching exits.
+## Findings
 
-3. **System-only Recents tabs show a clear button that cannot clear system recents.**
-   The drawer header shows the trash/clear button for every `.recents` tab
-   ([DrawerView.swift:171](MacDring/Drawer/DrawerView.swift:171)), but the action
-   only clears `RecentsStore.shared`, MacDring's own history
-   ([TabController.swift:758](MacDring/Tabs/TabController.swift:758)). For a
-   `.system` source, and for a `.both` source with only Spotlight results, the
-   button appears to do nothing. **High confidence:** expose whether the open
-   recents drawer has clearable MacDring history and hide/disable the button otherwise.
+### 1. Future-version imports can bypass the newer-schema save protection
 
-4. **Type-to-find navigation can interfere with marked-text composition.**
-   The local key monitor swallows Return, Enter, Up, and Down while searching
-   ([TabController.swift:1048](MacDring/Tabs/TabController.swift:1048),
-   [TabController.swift:1074](MacDring/Tabs/TabController.swift:1074)). That is
-   fine for Latin text, but CJK/IME input uses marked text and often needs those
-   keys to choose or confirm a composition. **High confidence:** if the current
-   first responder is an `NSTextInputClient` with marked text, let the event pass.
+- Severity: Medium
+- Confidence: High
+- Disposition: PR now
+- Evidence: `MacDring/Store/TabStore.swift` imports a decoded document with `replaceTabs(...)`, but leaves the in-memory `document.version` at the current app version. `saveNow()` correctly refuses to rewrite documents with `version > LauncherDocument.currentVersion`, but that guard no longer applies after import.
+- Impact: Importing a layout exported by a newer MacDring can silently discard unknown future fields and then save the downgraded schema.
+- Suggested fix: Reject imports whose document version is newer than this build, and test that the current tabs remain unchanged.
 
-5. **`RecentsStore.save` can erase history on an encoding failure.**
-   It writes `defaults.set(try? JSONEncoder().encode(items), ...)`
-   ([RecentsStore.swift:54](MacDring/Store/RecentsStore.swift:54)). `nil` removes
-   the key, so a failed encode loses the last good persisted recents list. The
-   model is simple enough that this is rare, but the failure mode is needless.
-   **High confidence:** only update UserDefaults after a successful encode and log
-   failures.
+### 2. `replaceTabs(_:)` can persist invalid item slots
 
-6. **Move-to-main and first-run fallback use `NSScreen.main`, which is not stable
-   "primary display" identity.** `reconcile` places disconnected tabs on
-   `NSScreen.main` under the move-to-main policy
-   ([TabController.swift:122](MacDring/Tabs/TabController.swift:122)), and
-   `DisplayRegistry.mainScreenUUID()` prefers `NSScreen.main`
-   ([DisplayRegistry.swift:44](MacDring/Screens/DisplayRegistry.swift:44)).
-   AppKit's main screen follows keyboard/window focus. MacDring also makes its
-   drawer panel key, so this fallback can drift toward the last active panel's
-   display rather than the menu-bar/primary display. **High confidence:** prefer
-   `NSScreen.screens.first` for deterministic primary-display fallback.
+- Severity: Low
+- Confidence: High
+- Disposition: PR now
+- Evidence: `MacDring/Store/TabStore.swift` normalizes item slots on load, `addTab`, `updateTab`, and import, but `replaceTabs(_:)` assigns the array directly.
+- Impact: A reorder path or future caller can persist duplicate or negative slots even though the rest of the store tries to maintain valid grid positions.
+- Suggested fix: Normalize item slots inside `replaceTabs(_:)` too.
 
-7. **Spotlight query start failure leaves async live tabs waiting forever.**
-   `SpotlightQuery.start` configures the query and calls `query.start()` without
-   checking the Boolean result ([SpotlightQuery.swift:58](MacDring/Store/SpotlightQuery.swift:58)).
-   If the query cannot start, the completion never fires. Fresh has a direct-scan
-   fallback, but system Recents can stay empty/stale with no clear failure path.
-   **High confidence:** if `start()` returns false, tear down and complete with `[]`.
+### 3. Unknown future icon bases can discard icon styles
 
-8. **Settings can still clobber concurrent tab changes.**
-   `TabEditor` owns a full `Tab` draft and commits the whole value on every change
-   ([TabsView.swift:163](MacDring/Settings/TabsView.swift:163),
-   [TabsView.swift:346](MacDring/Settings/TabsView.swift:346)). If a file is
-   dropped onto the tab, notes are edited in the drawer, or a live icon override is
-   changed while Settings is open, the next Name/Color/Behavior edit can write an
-   older snapshot back over those changes. **Needs design:** field-wise commits or
-   a merge-against-baseline editor would fix this, but it touches the settings data
-   flow and deserves a careful pass.
+- Severity: Low/Medium
+- Confidence: High
+- Disposition: PR now
+- Evidence: `MacDring/Model/IconStyle.swift` decodes `IconStyle.Base` strictly. A future `base` raw value throws. `DrawerItem.iconStyle` can then degrade to `nil`, while one bad entry in `Tab.iconStyles` can make the whole live-icon dictionary fall back to empty.
+- Impact: Users running an older build after a newer one can lose custom icon presentation unnecessarily.
+- Suggested fix: Decode `base` leniently with `.folder` as the fallback and add coverage for unknown raw values.
 
-9. **The drawer drag operation badge says "copy" even when the action is move,
-   open-with, trash, or add-a-reference.** `DrawerHostingView.updateDrag` always
-   returns `.copy` ([DrawerWindowController.swift:58](MacDring/Drawer/DrawerWindowController.swift:58)).
-   For folder-target drops, `FileMover.move` removes the original file
-   ([FileMover.swift:8](MacDring/Launch/FileMover.swift:8)); for items tabs it adds
-   a launcher reference; for app targets it opens with the app. **Needs design:**
-   `.generic` would avoid the false green-plus promise, but Finder-style modifier
-   behavior may be worth designing before changing the cursor globally.
+### 4. Update downloads use the remote asset name as a path component
 
-10. **Drawer drop-highlight cleanup depends on AppKit sending a separate end/exit.**
-    `performDragOperation` clears `fileDropSlot` but not `isDropTargeted`
-    ([DrawerWindowController.swift:82](MacDring/Drawer/DrawerWindowController.swift:82)).
-    `draggingEnded` normally clears both, but clearing both in `performDragOperation`
-    is safer and avoids a stuck bright outline if AppKit skips the extra callback.
-    **High confidence:** clear both fields on performed drops and empty drop failures.
+- Severity: Low
+- Confidence: Medium/High
+- Disposition: PR now
+- Evidence: `MacDring/Updates/UpdateDownloader.swift` passes `asset.name` directly into `appendingPathComponent`.
+- Impact: GitHub release asset names are normally trusted, but path separators, empty names, `.`/`..`, or control-ish names are needless risk in reusable download code.
+- Suggested fix: Sanitize to the last path component, reject pathlike placeholders, and preserve collision handling.
 
-## General issues
+### 5. Settings file/link additions can duplicate existing targets
 
-1. **A few UI paths still do synchronous filesystem work on the render path.**
-   `ItemView` wisely moved drawer icon and metadata resolution into `.task`, but
-   the Settings item list still calls `ItemView.resolveIcon(item)` directly in the
-   form row ([TabsView.swift:259](MacDring/Settings/TabsView.swift:259)). The Trash
-   context menu also checks every mounted trash synchronously while building the menu
-   ([ItemView.swift:78](MacDring/Drawer/ItemView.swift:78)). This is mostly fine for
-   tiny local layouts, but network volumes and large setups can make Settings feel
-   sticky.
+- Severity: Low
+- Confidence: High
+- Disposition: PR now
+- Evidence: `MacDring/Settings/TabsView.swift` appends files and links directly to the local draft. The drag/drop path goes through `TabStore.addItem`, which deduplicates by resolved target.
+- Impact: The same app/file/link can appear multiple times depending on whether the user added it from Settings or by dropping it.
+- Suggested fix: Reuse equivalent target deduplication when appending to the Settings draft.
 
-2. **Launch/file operation failures are mostly logged, not surfaced.**
-   `FileMover.move`, `FileMover.trash`, `DiskEjector.eject`, and app open-with all
-   return or log failure, but the drawer generally refreshes as if the action worked.
-   A small transient failure badge/toast would make "file in use", "eject failed",
-   or "couldn't move" understandable without Console.
+### 6. Fresh and Recents tabs default to grid even though their data is date-ranked
 
-3. **CI/CD docs are stale about release signing.**
-   The workflow now runs tests before release and signs with
-   `codesign --force --sign -` ([release.yml:87](.github/workflows/release.yml:87)),
-   but the root `CICD.md` still says the app is signed with `--deep`
-   ([CICD.md:56](CICD.md:56)). **High confidence:** update the prose so future
-   release work starts from the truth.
+- Severity: Low
+- Confidence: Medium/High
+- Disposition: PR now
+- Evidence: `MacDring/Model/Tab.swift` notes that date-ranked tabs read well as a list, but `MacDring/Settings/NewTabWindowController.swift` creates every tab with the default `.grid` layout.
+- Impact: Newly-created Fresh/Recents tabs start in a less informative layout and hide the date-oriented design until the user discovers the per-tab setting.
+- Suggested fix: Default Fresh and Recents to `.list`; keep other tab kinds unchanged.
 
-4. **There are still small hygiene nits.**
-   `GitHubReleaseClient.fetch` force-unwraps a constructed URL
-   ([GitHubReleaseClient.swift:42](MacDring/Updates/GitHubReleaseClient.swift:42)),
-   `DrawerItem.swift` has trailing whitespace before the Trash factory
-   ([DrawerItem.swift:176](MacDring/Model/DrawerItem.swift:176)), and
-   `DrawerMetrics.notesSize` sizes notes from icon dimensions
-   ([DrawerMetrics.swift:28](MacDring/Drawer/DrawerMetrics.swift:28)). None are
-   urgent, but they are easy cleanups when those files are touched.
+### 7. Drawer level ignores the user's tab-window-level preference
 
-## Missing features worth considering
+- Severity: Medium
+- Confidence: High
+- Disposition: PR now, if mapped conservatively
+- Evidence: `MacDring/Drawer/DrawerWindowController.swift` hard-codes the drawer panel level to `.popUpMenu`, while tab windows honor `Preferences.tabWindowLevel`.
+- Impact: A user choosing normal-level tabs can still get a drawer floating at menu level above unrelated windows.
+- Suggested fix: Let `DrawerWindowController` apply a level from preferences, likely keeping the drawer just above its tab but not hard-coded to popup-menu level in normal mode.
 
-1. **2-D keyboard navigation when not filtering.** Type-to-find is great, but arrow
-   movement through the visible grid/list would make drawers usable without search,
-   especially for small, muscle-memory layouts.
+### 8. Folder tab listing can block the main path on large or slow directories
 
-2. **Quick Look for file/folder items.** Spacebar preview, or a context-menu
-   "Quick Look", would feel native and would make Fresh/Recents tabs much more useful.
+- Severity: High
+- Confidence: High
+- Disposition: Backlog, larger PR
+- Evidence: `MacDring/Store/FolderLister.swift` calls `contentsOfDirectory`, reads resource values for every entry, sorts everything, and only then applies the 300-item limit. The drawer applies folder contents synchronously when opening or refreshing.
+- Impact: Huge folders, slow external disks, cloud-backed folders, or network volumes can stutter drawer opening and file-system refreshes.
+- Suggested fix: Move listing off-main, keep previous content or show loading while listing, and discard stale results if another tab opens first. Consider preserving exact sort semantics even if early capping is introduced.
 
-3. **Separators, spacers, and labels.** A non-launchable drawer item kind would let
-   users make little sections inside an items tab without needing fake folders.
+### 9. Settings can overwrite concurrent tab changes from a stale draft
 
-4. **Named layouts/profiles.** Import/export is already there. Keeping named
-   snapshots inside the app would support "work", "travel", "presentation", or
-   "minimal mode" setups with very little new model complexity.
+- Severity: High
+- Confidence: High
+- Disposition: Backlog, needs careful store API work
+- Evidence: `MacDring/Settings/TabsView.swift` stores a whole `Tab` as `@State draft` and calls `store.updateTab(draft)` on any draft change. `updateTab` replaces the entire tab.
+- Impact: If the user edits Settings while a drawer drop, notes edit, icon customization, live-source style update, or another window updates the same tab, the next Settings field change can clobber those unrelated fields from the stale draft.
+- Suggested fix: Prefer field-specific store mutations, or resync/merge the draft against the latest store value before committing.
 
-5. **Accessibility labels and VoiceOver pass.** The icon-only header controls have
-   `.help`, but not a complete accessibility story. A focused pass would improve
-   keyboard/screen-reader confidence without threatening the no-permission promise.
+### 10. Settings item rows synchronously resolve icons during view rendering
 
-6. **Optional folder-item popouts.** Folder tabs exist, but a folder item still opens
-   in Finder. A spring-open nested drawer would be delightfully DragThing-adjacent,
-   though it should be opt-in so the app stays calm.
+- Severity: Medium
+- Confidence: High
+- Disposition: Backlog or combine with a Settings refactor
+- Evidence: `MacDring/Settings/TabsView.swift` calls `ItemView.resolveIcon(item)` directly inside the `ForEach` body.
+- Impact: Large item lists, network paths, broken bookmarks, or custom icon files can make Settings scroll or load less smoothly.
+- Suggested fix: Use a small async/cached row view, mirroring the drawer's attempt to keep icon work off the render path.
 
-## Visual and layout notes
+### 11. Drawer item icon/metadata tasks may still perform disk work on the main actor
 
-1. **The current screenshot looks polished.** The pill/drawer join, edge-sharp
-   corners, and tab color accents read well. The earlier "tab does not attach to
-   drawer" class of issue appears addressed by `minExtent` and inner-corner squaring
-   in `DrawerWindowController.computeOpenFrame`
-   ([DrawerWindowController.swift:332](MacDring/Drawer/DrawerWindowController.swift:332)).
+- Severity: Medium
+- Confidence: Medium
+- Disposition: Backlog, profile first
+- Evidence: `MacDring/Drawer/ItemView.swift` uses `.task` for icon and metadata resolution. That avoids doing work in `body`, but SwiftUI view tasks may still run on the main actor depending on isolation.
+- Impact: Large drawers can still jank if bookmark resolution, `NSWorkspace` icon lookup, bundle reads, or resource-value reads are expensive.
+- Suggested fix: Move filesystem/icon resolution into detached work and publish the result back on the main actor. Add a small cache keyed by resolved URL and icon style.
 
-2. **The drop cursor and highlights need semantic tightening.** The slot rings are
-   useful, but the copy badge conflicts with move/trash/open-with behavior. This is
-   the most visible remaining interaction ambiguity.
+### 12. Launching applications explicitly activates the target app
 
-3. **Settings item rows can stutter on icon-heavy tabs.** This is the same render-path
-   icon issue from General issue 1, but it is also visual: a Settings form should
-   scroll like paper, not like it is touching every network bookmark on the way by.
+- Severity: Medium/High
+- Confidence: High
+- Disposition: Design first
+- Evidence: `MacDring/Launch/ItemLauncher.swift` sets `NSWorkspace.OpenConfiguration.activates = true` for app launch and open-with drops, while the project guidance says tab/drawer interactions should not steal focus.
+- Impact: Clicking an app launcher or dropping onto an app can change the frontmost app immediately.
+- Suggested fix: Decide whether MacDring should always launch in the background, expose a preference, or use modifier-click for background launch. This is behaviorally important enough to decide before changing.
 
-4. **Notes sizing feels tied to launcher icon settings.** The behavior is documented,
-   but "icon size changes my note page size" is conceptually odd. A future notes
-   width/height preset, or fixed text-area sizing constants, would make that pane
-   feel more intentional.
+### 13. Click-outside dismissal likely misses clicks inside MacDring's own windows
 
-## Delightful or quirky ideas
+- Severity: Medium
+- Confidence: Medium/High
+- Disposition: Backlog, manual validation needed
+- Evidence: `MacDring/Tabs/TabController.swift` uses a global mouse monitor for outside-app clicks and a local key monitor for Escape. Global mouse monitors do not report events delivered to the same app.
+- Impact: Clicking Settings, the New Tab dialog, or other MacDring UI while a drawer is open may not consistently close the drawer.
+- Suggested fix: Add a local mouse-down monitor that closes only for clicks outside drawer/tab panels.
 
-1. **Drop receipts.** After a successful drop, briefly show a tiny "Added", "Moved",
-   "Opened with", or "Trashed" pulse in the drawer header. It would also solve the
-   silent-failure gap by having a natural place for "Could not eject" or "Move failed".
+### 14. Tab-pill URL drops are accepted for folder/live tabs but ignored
 
-2. **Recent drop stack.** A temporary "last dropped" mini row at the top of a drawer
-   could make bulk filing feel satisfying and give users a quick undo/remove target.
+- Severity: Low
+- Confidence: High
+- Disposition: PR now or small backlog
+- Evidence: `MacDring/Tabs/TabStripView.swift` accepts both file URLs and web URLs. Folder drop handling only processes file URLs, and the drawer-level AppKit drop path already restricts folder tabs to file URLs.
+- Impact: Dropping a browser URL onto a folder tab can appear accepted but do nothing useful.
+- Suggested fix: Make tab-pill drop acceptance kind-aware, or reject non-file URL drops for folder/live tabs before reporting success.
 
-3. **Edge weather.** Not actual weather: a subtle per-edge "busy" shimmer while a
-   folder/Fresh/Recents live listing is refreshing, so async updates feel alive.
+### 15. List layout lacks empty-slot drop targets
 
-4. **Icon recipe presets.** The generated icon editor could offer a few named styles
-   ("Project", "Archive", "Server", "Scratch") built from the existing `IconStyle`
-   primitives. No heavy assets required.
+- Severity: Low
+- Confidence: High
+- Disposition: Backlog
+- Evidence: `MacDring/Drawer/DrawerView.swift` reports row frames for existing list items only, while grid layout reports every slot.
+- Impact: In list layout, dropping into blank space falls back to generic append behavior instead of a precise target.
+- Suggested fix: Add synthetic slot frames for empty rows or a dedicated append target below the last visible row.
 
-5. **A tiny command palette.** From the menu-bar item: fuzzy search all tabs/items,
-   jump to a tab, add a link, toggle idle hiding, check updates. MacDring is spatial
-   first, but a keyboard command layer would be a nice power-user secret door.
+### 16. Hotkey registration failures are only logged
+
+- Severity: Low/Medium
+- Confidence: Medium
+- Disposition: Backlog
+- Evidence: `MacDring/Tabs/TabController.swift` logs registration failures from `MacDring/Hotkeys/CarbonHotkey.swift`, but Settings still shows the hotkey as configured.
+- Impact: A user can believe a hotkey works when macOS rejected it or another tab already owns it.
+- Suggested fix: Surface registration status in Settings, and preflight duplicate hotkeys before saving.
+
+### 17. Broken items are dimmed but have no clear relink action
+
+- Severity: Low
+- Confidence: Medium/High
+- Disposition: Backlog
+- Evidence: `MacDring/Drawer/ItemView.swift` dims broken targets and provides help text, but the planned relink affordance is not visible in the context menu.
+- Impact: Users can see that an item is broken but have no direct repair path.
+- Suggested fix: Add `Relink...` for broken file/app/folder items and update the bookmark/URL after the user selects a replacement.
+
+### 18. Fresh and system Recents have no loading or timeout state
+
+- Severity: Medium
+- Confidence: Medium
+- Disposition: Backlog
+- Evidence: `MacDring/Store/SpotlightQuery.swift` gathers asynchronously, while `MacDring/Drawer/DrawerView.swift` can show an empty-state message before query completion.
+- Impact: A live tab can look empty or broken while Spotlight is still gathering, unavailable, or slow.
+- Suggested fix: Add a live-items loading/error state and source-specific empty copy.
+
+### 19. Fresh tabs do a direct filesystem scan twice on open
+
+- Severity: Low
+- Confidence: High
+- Disposition: Backlog
+- Evidence: Fresh content is seeded in `DrawerWindowController.apply(tab:)`, then `TabController.startFreshQuery` performs another `FreshLister.contents()` call before starting Spotlight.
+- Impact: Small but avoidable repeated I/O on drawer open.
+- Suggested fix: Pass through the already-seeded items or cache the scan briefly.
+
+### 20. Cloud tabs do not appear to refresh live when providers appear or disappear
+
+- Severity: Low
+- Confidence: Medium
+- Disposition: Backlog
+- Evidence: Disks/network tabs observe workspace volume notifications, and folders have a dispatch source watcher. Cloud tabs are listed on open but do not appear to watch `~/Library/CloudStorage` or the iCloud container parent.
+- Impact: New or removed cloud providers may not show until reopening or refreshing the drawer.
+- Suggested fix: Watch the relevant cloud roots, or periodically refresh only while a cloud drawer is open.
+
+### 21. The Settings `+` button only creates a generic Items tab
+
+- Severity: Medium
+- Confidence: High
+- Disposition: Design first
+- Evidence: `MacDring/Settings/TabsView.swift` creates a hard-coded Items tab, while the menu/New Tab dialog supports Items, Notes, Folder, Disks, Network, Cloud, Recents, and Fresh.
+- Impact: Settings makes the most interesting tab types less discoverable.
+- Suggested fix: Reuse the New Tab dialog or attach a menu to the `+` button.
+
+### 22. New Tab dialog uses a fixed compact size
+
+- Severity: Low
+- Confidence: Medium
+- Disposition: Backlog
+- Evidence: `MacDring/Settings/NewTabView.swift` uses a fixed frame around a grouped form.
+- Impact: Localization, larger text, or future controls can clip.
+- Suggested fix: Use a minimum size and fit the content height naturally.
+
+## Delightful or Quirky Ideas
+
+- Spring-load countdown glow: while a dragged item hovers over a tab and the spring-open timer is pending, animate a subtle charging outline around the tab.
+- URL favicons: replace the generic globe for web links with cached favicons when feasible.
+- Fresh sparkle: briefly sparkle newly-arrived Fresh items, matching the Fresh tab's `sparkles` glyph.
+- Folder truncation badge: show `300+` or similar when `FolderLister.limit` truncates a large directory.
+- Recents time buckets: group list layout sections as Today, Yesterday, This Week, and Older.
+- Cloud-provider personality: give iCloud, Dropbox, Google Drive, OneDrive, and Box default colors/glyph treatments in cloud tabs.
+- DragThing nostalgia mode: in classic tab style, add a tiny bevel/highlight animation when a drawer opens.
+- Search aliases: let short terms like `dl`, `icloud`, `trash`, and provider names match common drawer items.
+- Dock-edge warning: when a tab is placed on the Dock edge, show a gentle hint explaining that `visibleFrame` may shift available space.
+- Peek mode: modifier-hover a Notes, Fresh, or Recents tab to preview the drawer without keying search or editing.
+
+## Immediate PR Queue
+
+I will implement the following entries because they are small, high-confidence, and can be isolated into separate branches:
+
+- Entry 1: reject future-version layout imports.
+- Entry 2: normalize slots in `replaceTabs(_:)`.
+- Entry 3: leniently decode future `IconStyle.Base` values.
+- Entry 4: sanitize update-download asset filenames.
+- Entry 5: deduplicate Settings-added items.
+- Entry 6: default new Fresh/Recents tabs to list layout.
+- Entry 7: make drawer level follow the tab-window-level preference if the existing API supports a minimal mapping.
+- Entry 14: reject URL drops that folder/live tab pills cannot handle.
