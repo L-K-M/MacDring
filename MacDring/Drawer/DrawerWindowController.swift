@@ -47,9 +47,16 @@ private final class DrawerHostingView: NSHostingView<DrawerView> {
               model.kind != .network, model.kind != .cloud, model.kind != .recents,
               model.kind != .fresh,
               sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self],
-                                                      options: [.urlReadingFileURLsOnly: false])
+                                                      options: pasteboardOptions(for: model))
         else { return nil }
         return model
+    }
+
+    /// Folder drawers file dropped items into the mirrored directory, so accepting
+    /// browser URLs would show a valid drop and then do nothing. Items drawers can
+    /// still accept both file URLs and web links because they create launcher items.
+    private func pasteboardOptions(for model: DrawerModel) -> [NSPasteboard.ReadingOptionKey: Any] {
+        [.urlReadingFileURLsOnly: model.kind == .folder]
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { updateDrag(sender) }
@@ -83,8 +90,9 @@ private final class DrawerHostingView: NSHostingView<DrawerView> {
         guard let model = droppableModel(sender) else { return false }
         let target = slot(at: sender.draggingLocation, model) ?? -1
         let urls = (sender.draggingPasteboard.readObjects(forClasses: [NSURL.self],
-                                                          options: [.urlReadingFileURLsOnly: false]) as? [URL]) ?? []
+                                                          options: pasteboardOptions(for: model)) as? [URL]) ?? []
         model.fileDropSlot = nil
+        model.isDropTargeted = false
         guard !urls.isEmpty else { return false }
         model.onDropFiles?(urls, target)   // routed by TabController (open-with / move-in / add)
         return true
