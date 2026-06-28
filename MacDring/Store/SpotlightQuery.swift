@@ -67,7 +67,12 @@ final class SpotlightQuery {
         ) { [weak self] _ in self?.finish() }
 
         self.query = query
-        query.start()
+        guard query.start() else {
+            let completion = self.completion
+            cancel()
+            completion?([])
+            return
+        }
     }
 
     /// Stops any in-flight lookup and forgets its completion (no callback will fire).
