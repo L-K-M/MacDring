@@ -35,7 +35,6 @@ struct TabStripView: View {
                 width: (isVertical && !isClassic) ? thickness : nil,
                 height: (!isVertical && !isClassic) ? thickness : nil
             )
-            .overlay(alignment: .topTrailing) { recentArrivalDot }
             .animation(.easeInOut(duration: 0.25), value: model.hasRecentArrival)
             .contentShape(Rectangle())
             .onTapGesture { model.onTap?() }
@@ -65,18 +64,15 @@ struct TabStripView: View {
         }
     }
 
-    /// A small "just landed" dot at the pill's inner corner, shown when something
-    /// arrived recently (driven by `TabController` for Fresh tabs). Sits slightly
-    /// proud of the corner so it reads on any tab color/edge.
+    /// A small "just landed" dot shown just past the label when something arrived
+    /// recently (driven by `TabController` for Fresh tabs). A bare `Circle` inherits
+    /// the pill's foreground, so it reads as a text-colored bullet. Placed as a
+    /// content overlay (see `contentStack`) so it never shifts the tab's size.
     @ViewBuilder
     private var recentArrivalDot: some View {
         if model.hasRecentArrival {
             Circle()
-                .fill(Color.orange)
-                .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1))
-                .frame(width: 9, height: 9)
-                .shadow(color: .black.opacity(0.35), radius: 1)
-                .padding(2)
+                .frame(width: 5, height: 5)
                 .transition(.scale.combined(with: .opacity))
                 .allowsHitTesting(false)
         }
@@ -138,8 +134,19 @@ struct TabStripView: View {
 
     // MARK: Content (glyph + label)
 
-    @ViewBuilder
+    /// The glyph + label, with the "just landed" dot trailing the text — past it on a
+    /// horizontal tab, below it on a vertical one. Attached as an overlay (offset into
+    /// the pill's padding) so toggling the dot never resizes the tab, and inheriting
+    /// the content's foreground so it reads as a text-colored bullet.
     private var contentStack: some View {
+        content
+            .overlay(alignment: isVertical ? .bottom : .trailing) {
+                recentArrivalDot.offset(x: isVertical ? 0 : 6, y: isVertical ? 6 : 0)
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if isVertical {
             VStack(spacing: 5) {
                 glyphView
