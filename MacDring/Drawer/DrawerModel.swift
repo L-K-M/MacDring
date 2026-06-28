@@ -43,6 +43,9 @@ final class DrawerModel: ObservableObject {
     @Published var notesPreview = true
     /// The linked directory (for `.folder` tabs), used by "Open in Finder".
     @Published var folderURL: URL?
+    /// Whether the open `.recents` drawer has MacDring-owned history that the header
+    /// clear button can actually remove. System Spotlight recents are read-only.
+    @Published var canClearRecents = false
 
     /// Bumped to force drawer item icons to re-resolve in place even though the
     /// items are unchanged — e.g. the Trash icon (full → empty) after emptying.

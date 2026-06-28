@@ -269,6 +269,9 @@ final class DrawerWindowController {
         model.locked = tab.locked
         model.kind = tab.kind
         model.layout = tab.layout
+        model.canClearRecents = tab.kind == .recents
+            && tab.recentsSource.includesMacDring
+            && !RecentsStore.shared.items.isEmpty
         switch tab.kind {
         case .items:
             model.items = tab.items

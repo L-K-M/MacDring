@@ -168,9 +168,8 @@ struct DrawerView: View {
                 headerButton("folder", help: "Open folder in Finder") { model.onOpenFolder?() }
                     .disabled(model.folderURL == nil)
             }
-            if model.kind == .recents {
+            if model.kind == .recents, model.canClearRecents {
                 headerButton("trash", help: "Clear recent items") { model.onClearRecents?() }
-                    .disabled(model.items.isEmpty)
             }
             headerButton(model.locked ? "lock.fill" : "lock.open",
                          help: model.locked ? "Unlock this tab's position" : "Lock this tab's position") {
