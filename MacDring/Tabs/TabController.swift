@@ -41,6 +41,9 @@ final class TabController {
     /// `DispatchSource`); `nil` when no folder drawer is open.
     private var folderWatch: DispatchSourceFileSystemObject?
     private var folderWatchPath: String?
+    /// Watches the home Trash so the Trash item's icon (full/empty) and count badge
+    /// update live when Finder empties it. Lives for the controller's lifetime.
+    private var trashWatch: DispatchSourceFileSystemObject?
     private var pendingFolderRefresh: DispatchWorkItem?
 
     /// One-shot Spotlight lookup backing the open **Fresh** tab and the **system**
@@ -65,6 +68,12 @@ final class TabController {
     /// How far past a tab's resting footprint the cursor still counts as "hovering"
     /// it (an easier target than the thin revealed sliver).
     private static let revealSlop: CGFloat = 6
+    /// A more generous reveal margin used while a *file drag* nears a concealed tab's
+    /// edge, so spring-loading has a real pill to target rather than a 3 pt sliver.
+    private static let peekSlop: CGFloat = 60
+    /// The guide the dragged tab is currently magnetized to, so the alignment haptic
+    /// fires once per snap rather than every mouse-move while snapped.
+    private var lastSnapGuide: Double?
     /// Delay before an idle tab re-conceals after the cursor leaves its zone.
     private static let reConcealDelay: TimeInterval = 0.45
     /// The pill's along-edge length captured at drag start, kept constant while
@@ -86,6 +95,7 @@ final class TabController {
         wireDrawer()
         startVolumeMonitoring()
         startRunningAppMonitoring()
+        startTrashWatch()
         store.onChange = { [weak self] in self?.reconcile() }
         registry.onChange = { [weak self] in self?.reconcile() }
         // A preference change reconciles every tab window (re-measure + reposition,
@@ -429,12 +439,31 @@ final class TabController {
     /// the live mouse-moved monitor.
     private func evaluateConcealment(_ tabs: [(id: UUID, wc: TabWindowController)], animated: Bool) {
         let mouse = NSEvent.mouseLocation
+        // While a file is being dragged near a concealed tab, pre-reveal it from a
+        // more generous "peek" zone so spring-loading has a full pill to aim at.
+        let peeking = fileBeingDragged()
+        func zone(_ wc: TabWindowController) -> CGRect { peeking ? peekZone(for: wc) : revealZone(for: wc) }
         let revealAll = preferences.revealAllConcealedTogether
-            && tabs.contains { revealZone(for: $0.wc).contains(mouse) }
+            && tabs.contains { zone($0.wc).contains(mouse) }
         for (id, wc) in tabs {
-            let reveal = revealAll || revealZone(for: wc).contains(mouse)
+            let reveal = revealAll || zone(wc).contains(mouse)
             applyRevealState(id: id, wc: wc, reveal: reveal, animated: animated)
         }
+    }
+
+    /// The wider region whose hover reveals a concealed tab while a file drag is in
+    /// flight (the drag-over "peek").
+    private func peekZone(for wc: TabWindowController) -> CGRect {
+        wc.restingFrame.insetBy(dx: -Self.peekSlop, dy: -Self.peekSlop)
+    }
+
+    /// Whether a file drag is currently in progress (left button down with file URLs
+    /// on the drag pasteboard) — gates the drag-over peek. The button check avoids a
+    /// false positive from the drag pasteboard retaining the last drag's contents.
+    private func fileBeingDragged() -> Bool {
+        guard NSEvent.pressedMouseButtons & 0x1 != 0 else { return false }
+        return NSPasteboard(name: .drag).canReadObject(forClasses: [NSURL.self],
+                                                       options: [.urlReadingFileURLsOnly: true])
     }
 
     /// Applies one tab's reveal decision: reveal it, or — when it should hide —
@@ -498,7 +527,10 @@ final class TabController {
     private func startRevealMonitoring() {
         // Mouse-moved monitors need no permission (unlike key monitors / event taps).
         if revealMonitorGlobal == nil {
-            revealMonitorGlobal = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+            // `.leftMouseDragged` (in addition to `.mouseMoved`) so a file drag from
+            // Finder toward a concealed tab triggers the peek even though the cursor
+            // isn't "moving" in the plain sense while the button is held.
+            revealMonitorGlobal = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
                 self?.handleRevealMouseMoved()
             }
         }
@@ -522,6 +554,7 @@ final class TabController {
     private func beginDrag(_ id: UUID) {
         closeDrawer()
         draggingTabID = id
+        lastSnapGuide = nil
         cancelReConceal(id)
         tabWindows[id]?.reveal(duration: 0)   // a slid-off / faded tab becomes fully grabbable
         dragLocked = store.tab(id: id)?.locked ?? false
@@ -535,8 +568,29 @@ final class TabController {
     /// locked tab doesn't move.
     private func previewDrag(_ id: UUID) {
         guard !dragLocked, let wc = tabWindows[id], let target = dragTarget() else { return }
+        // Fire the alignment haptic the moment the pill magnetizes to a new guide.
+        let guide = magnetized(target, excluding: id).guide
+        if guide != lastSnapGuide {
+            if guide != nil {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .drawCompleted)
+            }
+            lastSnapGuide = guide
+        }
         let frame = snappedDragFrame(id, wc: wc, target: target)
         wc.previewSnap(toFrame: frame, edge: target.edge, on: target.screen)
+    }
+
+    /// The drag target's position magnetized to the quarter guides (0/¼/½/¾/1) and to
+    /// neighboring tabs' positions, plus the guide it locked onto (`nil` = free) for
+    /// haptic timing.
+    private func magnetized(_ target: (screen: NSScreen, edge: Edge, position: Double),
+                            excluding id: UUID) -> (position: Double, guide: Double?) {
+        let vf = target.screen.visibleFrame
+        let neighbors = restingFrames(onEdge: target.edge, screen: target.screen, excluding: id).map {
+            EdgeLayout.position(forPoint: CGPoint(x: $0.midX, y: $0.midY), edge: target.edge, in: vf)
+        }
+        let snap = EdgeLayout.snappedPosition(target.position, guides: EdgeLayout.snapGuides + neighbors)
+        return (snap.position, snap.snappedGuide)
     }
 
     /// Commit the **snapped** position on release — the same legal slot the preview
@@ -544,6 +598,7 @@ final class TabController {
     /// locked tab doesn't move.
     private func endDrag(_ id: UUID) {
         draggingTabID = nil
+        lastSnapGuide = nil
         defer { refreshConcealment(animated: true) }   // re-arm auto-hide/fade for the dropped tab
         guard !dragLocked else { return }
         guard let wc = tabWindows[id], let target = dragTarget(),
@@ -570,7 +625,8 @@ final class TabController {
     /// untouched.
     private func snappedDragFrame(_ id: UUID, wc: TabWindowController,
                                   target: (screen: NSScreen, edge: Edge, position: Double)) -> CGRect {
-        let tentative = wc.dragFrame(edge: target.edge, position: target.position,
+        let position = magnetized(target, excluding: id).position
+        let tentative = wc.dragFrame(edge: target.edge, position: position,
                                      length: dragLength, on: target.screen)
         let others = restingFrames(onEdge: target.edge, screen: target.screen, excluding: id)
         return EdgeLayout.snappedAlongEdge(incoming: tentative, fixed: others, edge: target.edge,
@@ -655,7 +711,11 @@ final class TabController {
             return
         }
         if let target, target.kind == .trash {
-            FileMover.trash(urls)   // drop onto Trash → move the files to the Trash
+            if FileMover.trash(urls) {   // drop onto Trash → move the files to the Trash
+                // The classic "poof" where the files vanished into the Trash.
+                NSAnimationEffect.poof.show(centeredAt: NSEvent.mouseLocation,
+                                            size: NSSize(width: 32, height: 32), completionHandler: nil)
+            }
             drawer.model.iconNonce += 1   // the Trash now has something — re-resolve its icon to "full"
             if tab.kind == .folder { refreshOpenDrawer() }
             return
@@ -1024,6 +1084,23 @@ final class TabController {
         folderWatchPath = nil
         pendingFolderRefresh?.cancel()
         pendingFolderRefresh = nil
+    }
+
+    /// Watches the home Trash (its fd, via a `DispatchSource`) and bumps the drawer's
+    /// icon nonce when it changes, so an open Trash item flips full↔empty and its
+    /// count badge updates the instant Finder empties it or something is trashed.
+    private func startTrashWatch() {
+        guard trashWatch == nil,
+              let trash = try? FileManager.default.url(for: .trashDirectory, in: .userDomainMask,
+                                                       appropriateFor: nil, create: false) else { return }
+        let fd = open(trash.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd, eventMask: [.write, .delete, .rename], queue: .main)
+        source.setEventHandler { [weak self] in self?.drawer.model.iconNonce += 1 }
+        source.setCancelHandler { close(fd) }
+        trashWatch = source
+        source.resume()
     }
 
     /// Coalesces a burst of directory-change events into a single re-list.
