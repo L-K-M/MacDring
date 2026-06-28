@@ -45,4 +45,25 @@ final class CloudListerTests: XCTestCase {
         let roots = CloudLister.cloudRoots(home: home)
         XCTAssertEqual(Set(roots.map(\.name)), ["iCloud Drive", "Dropbox"])
     }
+
+    func testProviderIconStyleMapsKnownProviders() {
+        XCTAssertEqual(CloudLister.providerIconStyle(forName: "iCloud Drive")?.colorHex, "#3B9EFF")
+        XCTAssertEqual(CloudLister.providerIconStyle(forName: "Dropbox")?.colorHex, "#0061FF")
+        XCTAssertEqual(CloudLister.providerIconStyle(forName: "Google Drive")?.colorHex, "#1FA463")
+        XCTAssertEqual(CloudLister.providerIconStyle(forName: "OneDrive")?.colorHex, "#0078D4")
+        XCTAssertEqual(CloudLister.providerIconStyle(forName: "Box")?.colorHex, "#0061D5")
+        // "Dropbox" contains "box" but must resolve to Dropbox, not Box (order matters).
+        XCTAssertEqual(CloudLister.providerIconStyle(forName: "Dropbox")?.symbol, "shippingbox.fill")
+        // Unknown provider keeps the generic cloud icon (nil style).
+        XCTAssertNil(CloudLister.providerIconStyle(forName: "Mystery Cloud"))
+    }
+
+    func testProviderIconStyleAttachedToItems() {
+        let items = CloudLister.items(from: [
+            CloudLister.CloudRoot(url: URL(fileURLWithPath: "/x/Dropbox"), name: "Dropbox"),
+            CloudLister.CloudRoot(url: URL(fileURLWithPath: "/x/Mystery"), name: "Mystery"),
+        ])
+        XCTAssertEqual(items.first(where: { $0.displayName == "Dropbox" })?.iconStyle?.colorHex, "#0061FF")
+        XCTAssertNil(items.first(where: { $0.displayName == "Mystery" })?.iconStyle)
+    }
 }

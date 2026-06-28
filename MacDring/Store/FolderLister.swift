@@ -28,16 +28,22 @@ enum FolderLister {
     /// The tab's directory contents as launchable items (empty if not a folder tab
     /// or the directory can't be read), ordered by the tab's `folderSort`.
     static func contents(of tab: Tab) -> [DrawerItem] {
-        guard tab.kind == .folder, let url = resolveFolder(tab) else { return [] }
+        listing(of: tab).items
+    }
+
+    /// Like `contents(of:)`, but also reports whether the directory held more entries
+    /// than `limit` (so the drawer can show a "300+" truncation badge).
+    static func listing(of tab: Tab) -> (items: [DrawerItem], truncated: Bool) {
+        guard tab.kind == .folder, let url = resolveFolder(tab) else { return ([], false) }
         let fileManager = FileManager.default
         var options: FileManager.DirectoryEnumerationOptions = []
         if !tab.folderShowsHidden { options.insert(.skipsHiddenFiles) }
         let keys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey]
         guard let urls = try? fileManager.contentsOfDirectory(
-            at: url, includingPropertiesForKeys: keys, options: options) else { return [] }
+            at: url, includingPropertiesForKeys: keys, options: options) else { return ([], false) }
 
-        let entries = urls.map(entry(for:))
-        return sorted(entries, by: tab.folderSort).prefix(limit).enumerated().map { index, entry in
+        let entries = sorted(urls.map(entry(for:)), by: tab.folderSort)
+        let items = entries.prefix(limit).enumerated().map { index, entry -> DrawerItem in
             // Transient items skip the per-file bookmark — folder items are never
             // persisted and every read path falls back to `url`. See ANALYSIS.md I1.
             var item = DrawerItem.transientFileItem(entry.url)
@@ -45,6 +51,7 @@ enum FolderLister {
             item.date = entry.modified   // Date Modified — shown by the list layout
             return item
         }
+        return (items, entries.count > limit)
     }
 
     /// Pure: folders before files, then the chosen order within each group.

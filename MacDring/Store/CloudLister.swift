@@ -27,14 +27,35 @@ enum CloudLister {
     }
 
     /// Pure: sorts the cloud roots by name and maps them to `.cloud` items with
-    /// sequential grid slots.
+    /// sequential grid slots, giving each a recognized provider a branded icon.
     static func items(from roots: [CloudRoot]) -> [DrawerItem] {
         let sorted = roots.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
         return sorted.prefix(limit).enumerated().map { index, root in
-            DrawerItem(kind: .cloud, displayName: root.name, url: root.url, slot: index)
+            var item = DrawerItem(kind: .cloud, displayName: root.name, url: root.url, slot: index)
+            // A per-provider color/glyph "personality"; the tab's own `iconStyles`
+            // override (applied after listing) still win for a user-customized icon.
+            item.iconStyle = providerIconStyle(forName: root.name)
+            return item
         }
+    }
+
+    /// A brand-flavored generated icon (color + glyph) for a recognized cloud
+    /// provider, keyed loosely off its Finder display name; `nil` for an unknown
+    /// provider, which keeps the generic cloud icon. Order matters — "Dropbox"
+    /// before "Box", "OneDrive" before the generic "Drive". Pure / unit-tested.
+    static func providerIconStyle(forName name: String) -> IconStyle? {
+        let n = name.lowercased()
+        func style(_ hex: String, _ symbol: String) -> IconStyle {
+            IconStyle(base: .tile, colorHex: hex, symbol: symbol)
+        }
+        if n.contains("icloud") { return style("#3B9EFF", "icloud.fill") }
+        if n.contains("dropbox") { return style("#0061FF", "shippingbox.fill") }
+        if n.contains("onedrive") || n.contains("one drive") { return style("#0078D4", "cloud.fill") }
+        if n.contains("google") || n.contains("drive") { return style("#1FA463", "triangle.fill") }
+        if n.contains("box") { return style("#0061D5", "square.stack.3d.up.fill") }
+        return nil
     }
 
     /// iCloud Drive plus the File-Provider cloud providers macOS keeps under

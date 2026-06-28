@@ -7,11 +7,14 @@ import SwiftUI
 /// CommonMark (nested lists, tables, code fences, blockquotes, …) is out of scope.
 struct MarkdownText: View {
     let text: String
+    /// Called with a line index when its `- [ ]` / `- [x]` checkbox is tapped, so a
+    /// notes preview can rewrite the source. `nil` (the default) renders read-only.
+    var onToggle: ((Int) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            ForEach(Array(text.components(separatedBy: .newlines).enumerated()), id: \.offset) { _, raw in
-                view(for: MarkdownText.classify(raw))
+            ForEach(Array(text.components(separatedBy: .newlines).enumerated()), id: \.offset) { index, raw in
+                view(for: MarkdownText.classify(raw), index: index)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -19,12 +22,24 @@ struct MarkdownText: View {
     }
 
     @ViewBuilder
-    private func view(for line: Line) -> some View {
+    private func view(for line: Line, index: Int) -> some View {
         switch line {
         case .blank:
             Color.clear.frame(height: 4)
         case .heading(let level, let text):
             inline(text).font(MarkdownText.headingFont(level)).bold()
+        case .checkbox(let isChecked, let text):
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Button { onToggle?(index) } label: {
+                    Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                        .foregroundStyle(isChecked ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(onToggle == nil)
+                inline(text)
+                    .strikethrough(isChecked, color: .secondary)
+                    .foregroundStyle(isChecked ? .secondary : .primary)
+            }
         case .bullet(let text):
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("•").foregroundStyle(.secondary)
@@ -58,6 +73,7 @@ struct MarkdownText: View {
     enum Line: Equatable {
         case blank
         case heading(level: Int, text: String)
+        case checkbox(isChecked: Bool, text: String)
         case bullet(text: String)
         case paragraph(text: String)
     }
@@ -76,10 +92,37 @@ struct MarkdownText: View {
                 return .heading(level: min(level, 3), text: String(rest).trimmingCharacters(in: .whitespaces))
             }
         }
+        // Checkbox item: '- [ ] text' (unchecked) or '- [x] text' (checked) — must be
+        // tested before the plain bullet, which also starts with '- '.
+        if trimmed.hasPrefix("- [") {
+            let body = trimmed.dropFirst(2)   // drop the "- "
+            if body.count >= 3, body.first == "[",
+               body[body.index(body.startIndex, offsetBy: 2)] == "]" {
+                let mark = body[body.index(after: body.startIndex)]
+                let rest = String(body.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                if mark == " " { return .checkbox(isChecked: false, text: rest) }
+                if mark == "x" || mark == "X" { return .checkbox(isChecked: true, text: rest) }
+            }
+        }
         // Bullet list item: '- ' or '* '.
         if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
             return .bullet(text: String(trimmed.dropFirst(2)))
         }
         return .paragraph(text: raw)
+    }
+
+    /// Flips the checkbox marker on line `lineIndex` of `text` (`[ ]`↔`[x]`),
+    /// returning the rewritten source. A no-op if that line isn't a checkbox. Pure.
+    static func togglingCheckbox(in text: String, lineIndex: Int) -> String {
+        var lines = text.components(separatedBy: .newlines)
+        guard lines.indices.contains(lineIndex),
+              case .checkbox(let isChecked, _) = classify(lines[lineIndex]) else { return text }
+        let line = lines[lineIndex]
+        if isChecked, let r = line.range(of: "[x]", options: .caseInsensitive) {
+            lines[lineIndex] = line.replacingCharacters(in: r, with: "[ ]")
+        } else if !isChecked, let r = line.range(of: "[ ]") {
+            lines[lineIndex] = line.replacingCharacters(in: r, with: "[x]")
+        }
+        return lines.joined(separator: "\n")
     }
 }

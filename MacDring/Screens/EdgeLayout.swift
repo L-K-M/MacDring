@@ -285,6 +285,25 @@ enum EdgeLayout {
         }
     }
 
+    // MARK: Drag magnetization (snap guides)
+
+    /// The fractional guides a dragged tab magnetizes to: the quarter points along
+    /// the edge. Combined at the call site with neighboring tabs' positions.
+    static let snapGuides: [Double] = [0, 0.25, 0.5, 0.75, 1.0]
+
+    /// Snaps a fractional `position` to the nearest `guide` within `tolerance`.
+    /// Returns the (possibly unchanged) position and the guide it locked onto, or
+    /// `nil` when nothing was close enough — the caller uses the guide identity to
+    /// fire an alignment haptic only when the lock *changes*. Pure / unit-tested.
+    static func snappedPosition(_ position: Double, guides: [Double] = snapGuides,
+                                tolerance: Double = 0.03) -> (position: Double, snappedGuide: Double?) {
+        guard let nearest = guides.min(by: { abs($0 - position) < abs($1 - position) }),
+              abs(nearest - position) <= tolerance else {
+            return (position, nil)
+        }
+        return (nearest, nearest)
+    }
+
     // MARK: Helpers
 
     /// Clamps `v` to `[lo, hi]`; if the window is larger than the available

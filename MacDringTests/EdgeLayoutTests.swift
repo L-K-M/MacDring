@@ -447,4 +447,29 @@ final class EdgeLayoutTests: XCTestCase {
         XCTAssertFalse(placed[2].insetBy(dx: 0.5, dy: 0.5).intersects(a))   // newcomer snapped clear of `a`
         XCTAssertFalse(placed[2].insetBy(dx: 0.5, dy: 0.5).intersects(b))
     }
+
+    // MARK: Position snapping (drag magnetization)
+
+    func testSnappedPositionLocksToNearestGuideWithinTolerance() {
+        let near = EdgeLayout.snappedPosition(0.49, tolerance: 0.03)
+        XCTAssertEqual(near.position, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(near.snappedGuide, 0.5)
+
+        let edge = EdgeLayout.snappedPosition(0.02, tolerance: 0.03)
+        XCTAssertEqual(edge.position, 0.0, accuracy: 0.0001)
+        XCTAssertEqual(edge.snappedGuide, 0.0)
+    }
+
+    func testSnappedPositionLeavesPositionWhenNoGuideIsClose() {
+        let result = EdgeLayout.snappedPosition(0.40, tolerance: 0.03)   // 0.10 from 0.5, 0.15 from 0.25
+        XCTAssertEqual(result.position, 0.40, accuracy: 0.0001)
+        XCTAssertNil(result.snappedGuide)
+    }
+
+    func testSnappedPositionAcceptsNeighborGuides() {
+        // A neighbor position passed in as a guide magnetizes too.
+        let result = EdgeLayout.snappedPosition(0.31, guides: [0, 0.3, 1], tolerance: 0.03)
+        XCTAssertEqual(result.position, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(result.snappedGuide, 0.3)
+    }
 }

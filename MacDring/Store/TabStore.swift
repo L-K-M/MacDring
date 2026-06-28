@@ -165,6 +165,37 @@ final class TabStore: ObservableObject {
         }
     }
 
+    /// Re-mints bookmarks that have gone stale (their target moved or was renamed) so
+    /// items keep resolving instead of silently falling back to a now-wrong path.
+    /// Resolves and re-mints off the main thread, then writes the refreshed bookmarks
+    /// back on it without notifying `onChange` (the resolved URLs are unchanged, so
+    /// nothing needs to reconcile). Safe to call once at launch; a no-op when nothing
+    /// is stale.
+    func remintStaleBookmarks() {
+        let snapshot = document.tabs
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            var fresh: [UUID: Data] = [:]   // itemID → re-minted bookmark
+            for tab in snapshot {
+                for item in tab.items {
+                    guard let data = item.bookmark,
+                          let resolved = BookmarkResolver.resolve(data), resolved.isStale,
+                          let minted = BookmarkResolver.makeBookmark(for: resolved.url) else { continue }
+                    fresh[item.id] = minted
+                }
+            }
+            guard !fresh.isEmpty else { return }
+            DispatchQueue.main.async {
+                self?.mutate(notifyChange: false) {
+                    for ti in $0.tabs.indices {
+                        for ii in $0.tabs[ti].items.indices where fresh[$0.tabs[ti].items[ii].id] != nil {
+                            $0.tabs[ti].items[ii].bookmark = fresh[$0.tabs[ti].items[ii].id]
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: Import / export
 
     /// The current document encoded as pretty-printed JSON, for backup/export.

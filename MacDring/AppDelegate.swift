@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller.onOpenSettings = { [weak self] tabID in self?.settingsWindow.show(selectTab: tabID) }
         setUpStatusItem()
         controller.start()
+        store.remintStaleBookmarks()   // heal bookmarks whose targets moved/renamed
         updateChecker.start()   // check GitHub for a newer release on launch + daily
     }
 

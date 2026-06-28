@@ -30,4 +30,21 @@ final class MarkdownTextTests: XCTestCase {
         XCTAssertEqual(MarkdownText.classify("Just **bold** and `code`."),
                        .paragraph(text: "Just **bold** and `code`."))
     }
+
+    func testCheckboxes() {
+        XCTAssertEqual(MarkdownText.classify("- [ ] buy milk"), .checkbox(isChecked: false, text: "buy milk"))
+        XCTAssertEqual(MarkdownText.classify("- [x] done"), .checkbox(isChecked: true, text: "done"))
+        XCTAssertEqual(MarkdownText.classify("- [X] also done"), .checkbox(isChecked: true, text: "also done"))
+        // Not a well-formed checkbox → falls through to a plain bullet.
+        XCTAssertEqual(MarkdownText.classify("- [] malformed"), .bullet(text: "[] malformed"))
+    }
+
+    func testTogglingCheckboxFlipsTheMarker() {
+        let src = "- [ ] a\n- [x] b\nplain"
+        XCTAssertEqual(MarkdownText.togglingCheckbox(in: src, lineIndex: 0), "- [x] a\n- [x] b\nplain")
+        XCTAssertEqual(MarkdownText.togglingCheckbox(in: src, lineIndex: 1), "- [ ] a\n- [ ] b\nplain")
+        // Non-checkbox line and out-of-range index are no-ops.
+        XCTAssertEqual(MarkdownText.togglingCheckbox(in: src, lineIndex: 2), src)
+        XCTAssertEqual(MarkdownText.togglingCheckbox(in: src, lineIndex: 9), src)
+    }
 }
