@@ -1064,6 +1064,11 @@ final class TabController {
     /// key, else the event passes on.
     private func handleDrawerKey(_ event: NSEvent) -> NSEvent? {
         let model = drawer.model
+        // While an input method is composing marked text (CJK, accent pickers, etc.),
+        // Return and arrows belong to the text system, not drawer result navigation.
+        if (NSApp.keyWindow?.firstResponder as? NSTextInputClient)?.hasMarkedText() == true {
+            return event
+        }
         // The filter field (a focused text field) handles character input and Delete
         // itself; the monitor only swallows the keys that drive result navigation so
         // they don't move the text cursor instead.
@@ -1107,4 +1112,3 @@ final class TabController {
         hotkeys.removeAll()
     }
 }
-
