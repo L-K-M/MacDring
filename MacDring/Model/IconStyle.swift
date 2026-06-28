@@ -39,7 +39,7 @@ struct IconStyle: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        base = try c.decodeIfPresent(Base.self, forKey: .base) ?? .folder
+        base = c.decodeLenient(Base.self, forKey: .base, fallback: .folder)
         colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex) ?? "#0A84FF"
         symbol = try c.decodeIfPresent(String.self, forKey: .symbol)
     }
