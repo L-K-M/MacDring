@@ -148,7 +148,7 @@ final class DrawerWindowController {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.isRestorable = false
-        panel.level = .popUpMenu   // above the tab pills
+        panel.level = preferences.tabWindowLevel.drawerWindowLevel   // above its tab, within the chosen mode
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
         let container = NSView(frame: panel.frame)
@@ -172,6 +172,7 @@ final class DrawerWindowController {
     /// + small inward slide. The slide stays on the drawer's own screen, so it
     /// never bleeds onto an adjacent display at a shared edge.
     func show(tab: Tab, tabFrame: CGRect, edge: Edge, on screen: NSScreen, duration: TimeInterval) {
+        panel.level = preferences.tabWindowLevel.drawerWindowLevel
         apply(tab: tab)
         model.clearSearch()   // each open starts unfiltered
         model.edge = edge
