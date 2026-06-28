@@ -24,6 +24,7 @@ final class TabController {
     private var localKeyMonitor: Any?
     private var pendingHoverClose: DispatchWorkItem?
     private var pendingSpringOpen: DispatchWorkItem?
+    private var pendingSpringOpenTabID: UUID?
     private var cancellables = Set<AnyCancellable>()
 
     /// Observers for volume mount/unmount/rename, so an open Disks/Network drawer
@@ -297,7 +298,7 @@ final class TabController {
         }
         cancelHoverClose()
         cancelReConceal(id)
-        pendingSpringOpen?.cancel(); pendingSpringOpen = nil
+        cancelSpringOpen()
         openTabID = id
         restackTabs()   // re-seat the resting tabs (esp. a just-closed previous tab) below the new open one
         wc.reveal(duration: 0)   // restore a concealed (slid-off / sliver) tab to full size before opening
@@ -318,7 +319,7 @@ final class TabController {
 
     private func closeDrawer() {
         cancelHoverClose()
-        pendingSpringOpen?.cancel(); pendingSpringOpen = nil
+        cancelSpringOpen()
         let duration = animationDuration
         if let id = openTabID, let wc = tabWindows[id] {
             wc.setOpen(false)
@@ -676,12 +677,24 @@ final class TabController {
     /// Spring-loads a tab: hovering it with a file drag opens its drawer after a
     /// short delay, so the file can be dropped onto the drawer's contents.
     private func handleDragHover(_ id: UUID, targeted: Bool) {
-        guard targeted else { pendingSpringOpen?.cancel(); pendingSpringOpen = nil; return }
+        guard targeted else { cancelSpringOpen(for: id); return }
         guard openTabID != id else { return }
-        pendingSpringOpen?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.openDrawer(id) }
+        cancelSpringOpen()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingSpringOpen = nil
+            self?.pendingSpringOpenTabID = nil
+            self?.openDrawer(id)
+        }
         pendingSpringOpen = work
+        pendingSpringOpenTabID = id
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    private func cancelSpringOpen(for id: UUID? = nil) {
+        guard id == nil || pendingSpringOpenTabID == id else { return }
+        pendingSpringOpen?.cancel()
+        pendingSpringOpen = nil
+        pendingSpringOpenTabID = nil
     }
 
     // MARK: Hotkeys
