@@ -2,11 +2,6 @@
 
 ## 1. Open bugs
 
-- **B4 🟡 Stale bookmarks are never refreshed.** `BookmarkResolver.resolve` reports
-  `isStale`, but no caller consumes it and no store sweep re-mints stale bookmarks.
-  _device_ — re-minting and confirming items still resolve across real
-  moves/renames/volume changes needs on-device filesystem verification.
-
 - **B5 / G9 🔴 Stale Settings draft can wipe concurrent changes.** `TabEditor` holds a
   whole-`Tab` `@State` draft re-seeded only on selection change and commits the
   entire draft on every keystroke, so a concurrent pill drop / notes edit / icon
@@ -137,33 +132,52 @@ in-place updates (install stays the user's responsibility).
 
 ## 5. Ideas (delight backlog)
 
+### Implemented (now on main)
+
+This batch of ideas shipped (plus the self-healing-bookmarks sweep, ex-B4).
+**Caveat:** written against the codebase but not compiled here — run `xcodebuild`
+on a Mac before release, and the interaction/visual ones especially want hands-on
+checking (drag haptics, drag-over peek, the trash poof, the Fresh sparkle, the
+Appearance preview, and favicon fetching).
+
+- **Snap guides + haptics during tab drag** — `EdgeLayout.snappedPosition` magnetizes
+  to 0/¼/½/¾/1 and neighbors; an `.alignment` haptic ticks on each new lock.
+- **Undo toast for file moves** — "Moved N items to X — Undo" in the drawer header,
+  reversible via `FileMover.undo`.
+- **Trash delight** — red count badge + classic poof on drop-to-trash + a
+  `DispatchSource` Trash watch that refreshes the icon when Finder empties it.
+- **Self-healing bookmarks** — `TabStore.remintStaleBookmarks` sweeps stale bookmarks
+  at launch (off-main resolve, main-thread write-back).
+- **Checklist notes** — `MarkdownText` renders `- [ ]` / `- [x]` as tappable
+  checkboxes that rewrite the note source.
+- **Live preview in Appearance** — a mini edge+pill+drawer mock re-rendering as the
+  thickness / radius / translucency / style / color controls change.
+- **Drag-over "peek"** — a file drag nearing a concealed tab's edge reveals it from a
+  wider peek zone (gated on an in-flight file drag).
+- **Eject All** — a Disks-tab header button ejects every volume with a per-item spinner.
+- **URL favicons** — `FaviconCache` swaps the globe for a cached `favicon.ico`.
+- **Fresh sparkle** — items that landed within 5 min get a one-shot sparkle.
+- **Folder truncation badge** — "300+" when `FolderLister.listing` reports a capped directory.
+- **Recents time buckets** — the Recents list groups into Today / Yesterday / This Week / Older.
+- **Cloud-provider personality** — `CloudLister` brands iCloud / Dropbox / Google Drive /
+  OneDrive / Box with per-provider colors and glyphs.
+
+### Still on the backlog
+
 Future-pass ideas — none are bugs; each needs design + visual iteration.
 
-From the deep review:
-- **"Just landed" live Fresh tab** — keep the Spotlight query live while open,
-  shimmer new arrivals in, and badge the closed Fresh pill when something lands.
+- **"Just landed" live Fresh tab** — keep the Spotlight query live while open and
+  badge the *closed* Fresh pill when something lands (the arrival sparkle shipped; the
+  live-while-open query and pill badge remain).
 - **Reconnect "wave"** — stagger parked pills' slide-in by ~40 ms when a display returns.
-- **Snap guides + haptics during tab drag** — magnetize to 0/¼/½/¾/1 and neighbors with an alignment tick.
-- **Undo toast for file moves** — "Moved 3 items to Projects — Undo" in the drawer header.
-- **Trash delight** — count badge + classic poof on drop-to-trash + a watch that flips the icon when Finder empties it.
-- **Self-healing bookmarks** — a launch-time sweep that re-mints stale bookmarks (B4).
 - **Read-only "time traveler" banner** — when `document.version > currentVersion`, load best-effort and explain why saving is disabled.
 - **Frecency Recents** — add a launch counter and a "Frequent" sort.
-- **Checklist notes** — teach `MarkdownText.classify` a `- [ ]` / `- [x]` case with tappable checkboxes.
-- **Live preview in Appearance** — a mini edge+pill+drawer mock re-rendering as you drag the sliders.
-- **Drag-over "peek"** — pre-reveal a concealed tab's sliver to a full pill while a file drag nears its edge.
 - **Shift-drag to duplicate a tab** onto another edge/display.
 - **Search upgrades** — initials/fuzzy matching ("xc" → Xcode) with matched-range bolding, ⌘1–9 to launch the Nth result, ⇧Return to reveal.
 - **Running-app powers** — Quit/Hide in a running app's context menu; ⌥-click to hide others.
-- **Eject All** header button on the Disks tab with per-item spinners.
 - **Display picker as a map** — a drag-on-a-diagram widget mirroring System Settings → Displays.
 - **Versioned export envelope** — wrap `exportData()` so import errors can say "made by a newer version".
 - **Spring-load countdown glow** — while a dragged item hovers a tab with the spring-open timer pending, animate a charging outline around the tab.
-- **URL favicons** — replace the generic globe for web links with cached favicons when feasible.
-- **Fresh sparkle** — briefly sparkle newly-arrived Fresh items, matching the tab's `sparkles` glyph.
-- **Folder truncation badge** — show `300+` when `FolderLister.limit` truncates a large directory.
-- **Recents time buckets** — group list sections as Today, Yesterday, This Week, Older.
-- **Cloud-provider personality** — default colors/glyphs for iCloud, Dropbox, Google Drive, OneDrive, Box.
 - **DragThing nostalgia mode** — in classic tab style, a tiny bevel/highlight animation when a drawer opens.
 - **Search aliases** — let short terms like `dl`, `icloud`, `trash`, and provider names match common items.
 - **Dock-edge warning** — when a tab is placed on the Dock edge, hint that `visibleFrame` may shift.
