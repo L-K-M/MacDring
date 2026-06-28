@@ -1,42 +1,5 @@
 # awesome.md — Open Items Backlog
 
-The single consolidated backlog for MacDring, merging the original full-codebase
-review ("the deep review", items `B…`) and the GPT audit (items `G…`), reconciled
-against `main` on 2026-06-28. Findings that were fixed — companion PRs #42–#49, the
-merged GPT PRs #53–#60, follow-up commits, and the reconciliation pass — are cleared
-out. What remains is **open**, each annotated with why it isn't being implemented yet.
-
-**Legend:** 🔴 high · 🟡 medium · 🔵 low.
-**Disposition:** _device_ = needs on-device GUI/animation/filesystem verification ·
-_design_ = needs a product/UX decision · _large_ = multi-file refactor / feature project.
-
-## Resolved since the review
-
-From the deep review, fixed on `main`: **B1, B2, B3, B6, B7, B8, B9, B12, B13, B16,
-B18, B19, B21–B27, B29a, B29c, B30** (companion PRs #42–#49 and follow-ups), the dead
-drop-highlight (B9), and the wrong `TrashInspector` test assertion. From the GPT
-audit: findings **G1–G7** and **G14** shipped as PRs #53–#60 (reject future-version
-imports · normalize `replaceTabs` slots · lenient `IconStyle.Base` · sanitize
-download names · dedup Settings items · default Fresh/Recents to list · drawer level
-follows the tab-window-level preference · kind-aware tab-pill URL drops); **G11** was
-already satisfied (the drawer's `ItemView` resolves icon/metadata in a `.task` off
-the render path).
-
-Implemented during reconciliation:
-- **B14** — cache failed hotkey specs so a reconcile no longer re-attempts (and
-  re-logs) a spec macOS already rejected; the cache clears when the spec changes.
-  (Also closes the retry/log-spam half of **G16**.)
-- **B15** — `endDrag`'s failure path now calls `reconcile()` instead of leaving the
-  pill stranded at its preview position until an unrelated reconcile.
-- **B17c** — middle-clicks now dismiss the drawer (`.otherMouseDown` added to the
-  global click monitor).
-- **B29b** — `GitHubReleaseClient.fetch` no longer force-unwraps its URL; it throws
-  `ClientError.badURL`, honoring the repo's no-force-unwrap rule.
-- **`applicationSupportsSecureRestorableState`** now returns `true`, silencing the
-  macOS 14+ warning.
-
----
-
 ## 1. Open bugs
 
 - **B4 🟡 Stale bookmarks are never refreshed.** `BookmarkResolver.resolve` reports
@@ -125,10 +88,6 @@ Implemented during reconciliation:
 - **⌘W doesn't close Settings** — no File→Close in the main menu. _design_ — the menu
   item is easy, but adding a File menu to an `LSUIElement` agent is a minor product
   choice. (The related `applicationSupportsSecureRestorableState` warning is fixed.)
-
-- **G12 App launch explicitly activates the target app** while project guidance says
-  drawer interactions shouldn't steal focus. _design_ — always-background vs. a
-  preference vs. modifier-click is a product call (Dock-like launch usually activates).
 
 - **G15 List layout lacks empty-slot drop targets** (grid reports every slot; the list
   reports only existing rows, so blank-space drops fall back to generic append).
