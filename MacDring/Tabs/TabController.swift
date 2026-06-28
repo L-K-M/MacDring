@@ -714,7 +714,7 @@ final class TabController {
             if FileMover.trash(urls) {   // drop onto Trash → move the files to the Trash
                 // The classic "poof" where the files vanished into the Trash.
                 NSAnimationEffect.poof.show(centeredAt: NSEvent.mouseLocation,
-                                            size: NSSize(width: 32, height: 32), completionHandler: nil)
+                                            size: NSSize(width: 32, height: 32), completionHandler: {})
             }
             drawer.model.iconNonce += 1   // the Trash now has something — re-resolve its icon to "full"
             if tab.kind == .folder { refreshOpenDrawer() }

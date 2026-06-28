@@ -27,14 +27,15 @@ final class FaviconCache: @unchecked Sendable {
 
     /// Fetches the host's favicon if it isn't cached and hasn't already failed.
     /// Returns the image (cached or freshly fetched) or `nil`. Network work runs off
-    /// the main actor via `URLSession`'s async API.
+    /// the main actor via `URLSession`'s async API. The locked cache reads/writes are
+    /// in synchronous helpers, so no lock is held across the `await`.
     func fetch(for url: URL) async -> NSImage? {
         guard let host = host(of: url) else { return nil }
-        lock.lock()
-        if let cached = images[host] { lock.unlock(); return cached }
-        if tried.contains(host) { lock.unlock(); return nil }
-        tried.insert(host)
-        lock.unlock()
+        switch claim(host) {
+        case .cached(let image): return image
+        case .skip: return nil
+        case .proceed: break
+        }
 
         var components = URLComponents()
         components.scheme = "https"
@@ -45,7 +46,24 @@ final class FaviconCache: @unchecked Sendable {
               (response as? HTTPURLResponse)?.statusCode == 200,
               let image = NSImage(data: data), image.isValid else { return nil }
 
-        lock.lock(); images[host] = image; lock.unlock()
+        store(image, for: host)
         return image
+    }
+
+    private enum Claim { case cached(NSImage); case skip; case proceed }
+
+    /// Synchronously decides whether `fetch` should hit the network, marking the host
+    /// as tried so a miss isn't retried.
+    private func claim(_ host: String) -> Claim {
+        lock.lock(); defer { lock.unlock() }
+        if let cached = images[host] { return .cached(cached) }
+        if tried.contains(host) { return .skip }
+        tried.insert(host)
+        return .proceed
+    }
+
+    private func store(_ image: NSImage, for host: String) {
+        lock.lock(); defer { lock.unlock() }
+        images[host] = image
     }
 }
