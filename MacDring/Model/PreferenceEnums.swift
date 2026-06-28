@@ -66,4 +66,13 @@ enum TabWindowLevel: String, Codable, CaseIterable, Identifiable {
     var nsWindowLevel: NSWindow.Level {
         self == .floating ? .floating : .normal
     }
+
+    var drawerWindowLevel: NSWindow.Level {
+        switch self {
+        case .floating:
+            return .popUpMenu
+        case .normal:
+            return NSWindow.Level(rawValue: NSWindow.Level.normal.rawValue + 1)
+        }
+    }
 }

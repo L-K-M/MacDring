@@ -65,6 +65,12 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(reloaded.tabWindowLevel, .normal)
     }
 
+    func testDrawerWindowLevelTracksTabWindowLevel() {
+        XCTAssertEqual(TabWindowLevel.floating.drawerWindowLevel, .popUpMenu)
+        XCTAssertGreaterThan(TabWindowLevel.normal.drawerWindowLevel.rawValue, NSWindow.Level.normal.rawValue)
+        XCTAssertLessThan(TabWindowLevel.normal.drawerWindowLevel.rawValue, NSWindow.Level.floating.rawValue)
+    }
+
     func testNumericRoundTrip() {
         let prefs = Preferences(defaults: defaults)
         prefs.iconSize = 96
