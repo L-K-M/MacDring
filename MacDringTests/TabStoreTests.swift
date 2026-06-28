@@ -375,4 +375,18 @@ final class TabStoreTests: XCTestCase {
         let onDisk = try String(contentsOf: storeURL, encoding: .utf8)
         XCTAssertEqual(onDisk, futureJSON, "a newer-versioned document must never be rewritten by an older build")
     }
+
+    func testImportRejectsDocumentFromANewerVersion() throws {
+        let store = TabStore(storeURL: storeURL)
+        store.addTab(makeTab("Existing"))
+
+        let futureJSON = """
+        { "version": 99,
+          "tabs": [ { "title": "Future",
+                      "anchor": { "displayUUID": "D1", "edge": "right", "position": 0.5 } } ] }
+        """
+
+        XCTAssertFalse(store.importData(Data(futureJSON.utf8)))
+        XCTAssertEqual(store.tabs.map(\.title), ["Existing"])
+    }
 }
