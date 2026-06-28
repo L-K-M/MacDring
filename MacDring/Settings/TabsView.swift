@@ -466,7 +466,7 @@ private struct TabEditor: View {
         panel.message = "Choose apps, files, or folders to add"
         if panel.runModal() == .OK {
             for url in panel.urls {
-                draft.items.append(DrawerItem.fromFileURL(url))
+                draft.items.appendDeduplicatingTarget(DrawerItem.fromFileURL(url))
             }
         }
     }
@@ -487,7 +487,7 @@ private struct TabEditor: View {
                 Spacer()
                 Button("Cancel") { showingLinkSheet = false }
                 Button("Add") {
-                    if let item = DrawerItem.fromLink(linkText) { draft.items.append(item) }
+                    if let item = DrawerItem.fromLink(linkText) { draft.items.appendDeduplicatingTarget(item) }
                     showingLinkSheet = false
                 }
                 .keyboardShortcut(.defaultAction)

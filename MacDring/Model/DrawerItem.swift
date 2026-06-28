@@ -115,6 +115,16 @@ extension Array where Element == DrawerItem {
             return item
         }
     }
+
+    /// Appends `item` unless this array already contains an item pointing at the same
+    /// resolved target. Mirrors `TabStore.addItem` for draft-only Settings edits.
+    mutating func appendDeduplicatingTarget(_ item: DrawerItem) {
+        if let target = BookmarkResolver.url(for: item)?.standardized,
+           contains(where: { BookmarkResolver.url(for: $0)?.standardized == target }) {
+            return
+        }
+        append(item)
+    }
 }
 
 extension DrawerItem {
