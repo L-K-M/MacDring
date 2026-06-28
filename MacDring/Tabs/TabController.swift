@@ -119,8 +119,8 @@ final class TabController {
             if let screen = registry.screen(for: tab.anchor.displayUUID) {
                 wc.place(on: screen)
                 wc.show()
-            } else if preferences.disconnectPolicy == .moveToMain, let main = NSScreen.main {
-                wc.place(on: main)
+            } else if preferences.disconnectPolicy == .moveToMain, let primary = DisplayRegistry.primaryScreen {
+                wc.place(on: primary)
                 wc.show()
             } else {
                 wc.hide()                      // park until the display returns
@@ -339,7 +339,7 @@ final class TabController {
     /// the tab is actually shown.
     private func resolvedScreen(for tab: Tab) -> NSScreen? {
         if let screen = registry.screen(for: tab.anchor.displayUUID) { return screen }
-        if preferences.disconnectPolicy == .moveToMain { return NSScreen.main }
+        if preferences.disconnectPolicy == .moveToMain { return DisplayRegistry.primaryScreen }
         return nil
     }
 

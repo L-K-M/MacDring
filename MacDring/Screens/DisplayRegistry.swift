@@ -39,11 +39,16 @@ final class DisplayRegistry {
         NSScreen.screens.first { self.uuid(for: $0) == uuid }
     }
 
-    /// The main screen's UUID — the fallback target for unknown displays (e.g.
+    /// The deterministic primary display (the menu-bar display). `NSScreen.main`
+    /// follows keyboard/window focus, which can be a MacDring drawer panel.
+    static var primaryScreen: NSScreen? {
+        NSScreen.screens.first ?? NSScreen.main
+    }
+
+    /// The primary screen's UUID — the fallback target for unknown displays (e.g.
     /// importing a layout on a new machine).
     func mainScreenUUID() -> String? {
-        if let main = NSScreen.main, let id = uuid(for: main) { return id }
-        return NSScreen.screens.first.flatMap { uuid(for: $0) }
+        Self.primaryScreen.flatMap { uuid(for: $0) }
     }
 
     /// Converts a `CGDirectDisplayID` into its persistent UUID string.
