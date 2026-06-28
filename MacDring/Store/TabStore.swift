@@ -147,7 +147,13 @@ final class TabStore: ObservableObject {
 
     /// Replaces the entire tab list (e.g. after a reorder in Settings).
     func replaceTabs(_ tabs: [Tab]) {
-        mutate { $0.tabs = tabs }
+        mutate {
+            $0.tabs = tabs.map { tab in
+                var tab = tab
+                tab.items = tab.items.assigningMissingSlots()
+                return tab
+            }
+        }
     }
 
     /// Applies a change to every tab's behavior in one mutation. A general-purpose
