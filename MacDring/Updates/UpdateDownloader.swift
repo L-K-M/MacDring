@@ -41,7 +41,9 @@ struct UpdateDownloader {
     private static func sanitizedFileName(_ fileName: String) -> String {
         let trimmed = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = (trimmed as NSString).lastPathComponent
-        if name.isEmpty || name == "." || name == ".." { return "download" }
+        // `lastPathComponent` collapses an all-separator name (e.g. "///") to "/",
+        // which would otherwise resolve back to the directory itself.
+        if name.isEmpty || name == "." || name == ".." || name == "/" { return "download" }
         return name
     }
 }

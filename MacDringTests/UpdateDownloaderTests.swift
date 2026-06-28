@@ -42,10 +42,19 @@ final class UpdateDownloaderTests: XCTestCase {
         defer { try? fm.removeItem(at: dir) }
 
         let nested = UpdateDownloader.uniqueDestination(in: dir, fileName: "../../MacDring.dmg", fileManager: fm)
-        XCTAssertEqual(nested.deletingLastPathComponent(), dir)
+        // Compare paths, not URLs: `deletingLastPathComponent()` always yields a
+        // trailing slash that `dir` (built via `appendingPathComponent`) lacks, so a
+        // direct URL equality would fail on the trailing-slash difference alone.
+        XCTAssertEqual(nested.deletingLastPathComponent().path, dir.path)
         XCTAssertEqual(nested.lastPathComponent, "MacDring.dmg")
 
         let empty = UpdateDownloader.uniqueDestination(in: dir, fileName: "   ", fileManager: fm)
         XCTAssertEqual(empty.lastPathComponent, "download")
+
+        // An all-separator name collapses to "/" via lastPathComponent, which must
+        // still fall back to "download" rather than resolving to the directory itself.
+        let slashes = UpdateDownloader.uniqueDestination(in: dir, fileName: "///", fileManager: fm)
+        XCTAssertEqual(slashes.deletingLastPathComponent().path, dir.path)
+        XCTAssertEqual(slashes.lastPathComponent, "download")
     }
 }
