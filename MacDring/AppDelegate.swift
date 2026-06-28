@@ -40,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller.saveAndTeardown()
     }
 
+    /// Opt into secure state restoration. We persist no NSWindow state ourselves,
+    /// but macOS 14+ logs a warning unless the delegate answers this explicitly.
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
+
     // MARK: Main menu
 
     /// Installs an App + Edit menu so the standard text-editing shortcuts

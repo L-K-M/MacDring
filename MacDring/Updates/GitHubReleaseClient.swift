@@ -13,11 +13,13 @@ struct GitHubReleaseClient {
     enum ClientError: LocalizedError {
         case badResponse(Int)
         case noReleases
+        case badURL
 
         var errorDescription: String? {
             switch self {
             case .badResponse(let code): return "GitHub returned HTTP \(code)."
             case .noReleases: return "No published releases were found."
+            case .badURL: return "Couldn't build a valid GitHub API URL."
             }
         }
     }
@@ -39,7 +41,9 @@ struct GitHubReleaseClient {
     }
 
     private func fetch<T: Decodable>(_ type: T.Type, path: String) async throws -> T {
-        let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/\(path)")!
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/\(path)") else {
+            throw ClientError.badURL
+        }
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")

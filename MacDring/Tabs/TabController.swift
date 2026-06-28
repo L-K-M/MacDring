@@ -17,6 +17,11 @@ final class TabController {
 
     private var tabWindows: [UUID: TabWindowController] = [:]
     private var hotkeys: [UUID: (hotkey: CarbonHotkey, spec: HotkeySpec)] = [:]
+    /// Specs macOS already refused to register this session (a system-reserved combo,
+    /// or one another app/tab owns). Cached so a reconcile doesn't re-attempt — and
+    /// re-log — the same failing spec on every store mutation; cleared when the spec
+    /// changes so a new combination is retried.
+    private var failedHotkeySpecs: [UUID: HotkeySpec] = [:]
     private var openTabID: UUID?
     private var hotkeyCounter: UInt32 = 1
 
@@ -541,7 +546,13 @@ final class TabController {
         defer { refreshConcealment(animated: true) }   // re-arm auto-hide/fade for the dropped tab
         guard !dragLocked else { return }
         guard let wc = tabWindows[id], let target = dragTarget(),
-              let uuid = registry.uuid(for: target.screen) else { return }
+              let uuid = registry.uuid(for: target.screen) else {
+            // Couldn't resolve a drop target (e.g. released over no known display):
+            // snap the pill back to its stored resting frame instead of leaving it
+            // stranded at the preview position until an unrelated reconcile.
+            reconcile()
+            return
+        }
         let snapped = snappedDragFrame(id, wc: wc, target: target)
         let position = EdgeLayout.position(forPoint: CGPoint(x: snapped.midX, y: snapped.midY),
                                            edge: target.edge, in: target.screen.visibleFrame)
@@ -711,6 +722,8 @@ final class TabController {
             return
         }
         if let existing = hotkeys[tab.id], existing.spec == spec { return }
+        // Already tried and failed this exact spec — don't retry/re-log until it changes.
+        if failedHotkeySpecs[tab.id] == spec { return }
         unregisterHotkey(tab.id)
 
         let hotkey = CarbonHotkey(identifier: hotkeyCounter)
@@ -719,12 +732,16 @@ final class TabController {
         hotkey.onPressed = { [weak self] in self?.toggleDrawer(id) }
         if hotkey.register(keyCode: spec.keyCode, modifiers: spec.carbonModifiers) {
             hotkeys[tab.id] = (hotkey, spec)
+            failedHotkeySpecs[tab.id] = nil
+        } else {
+            failedHotkeySpecs[tab.id] = spec
         }
     }
 
     private func unregisterHotkey(_ id: UUID) {
         hotkeys[id]?.hotkey.unregister()
         hotkeys[id] = nil
+        failedHotkeySpecs[id] = nil
     }
 
     // MARK: Drawer wiring & launching
@@ -1054,7 +1071,7 @@ final class TabController {
         stopMonitoring()
         // Mouse-down in another app closes the drawer (unless the tab is pinned).
         // Global *mouse* monitors need no permission; we only watch keys locally.
-        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
             guard let self else { return }
             DispatchQueue.main.async {
                 guard let id = self.openTabID, let tab = self.store.tab(id: id) else {
