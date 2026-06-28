@@ -60,6 +60,22 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(Set(saved.items.map(\.slot)).count, saved.items.count, "slots should be distinct")
     }
 
+    func testReplaceTabsNormalizesItemSlots() {
+        let store = TabStore(storeURL: storeURL)
+        var tab = makeTab()
+        tab.items = [
+            DrawerItem(kind: .file, displayName: "A", slot: -1),
+            DrawerItem(kind: .file, displayName: "B", slot: 0),
+            DrawerItem(kind: .file, displayName: "C", slot: 0),
+        ]
+
+        store.replaceTabs([tab])
+
+        let saved = store.tab(id: tab.id)!
+        XCTAssertTrue(saved.items.allSatisfy { $0.slot >= 0 })
+        XCTAssertEqual(Set(saved.items.map(\.slot)).count, saved.items.count)
+    }
+
     func testUpdateAllBehaviorsAppliesToEveryTab() {
         let store = TabStore(storeURL: storeURL)
         var a = makeTab("A"); a.behavior = TabBehavior(openOnHover: false, autoHide: true)
