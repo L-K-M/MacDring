@@ -1,22 +1,5 @@
 # GPT Audit Notes — Open Items
 
-Original audit dated 2026-06-28, reconciled against `main` the same day. Findings
-that shipped or were implemented during this pass are cleared out; what remains is
-**open**, each tagged with why it isn't being implemented now.
-
-**Disposition:** _device_ = needs on-device verification · _design_ = needs a
-product/UX decision · _large_ = multi-file refactor / feature.
-
-## Resolved
-
-Findings **1–7** and **14** shipped as PRs #53–#60: reject future-version imports ·
-normalize `replaceTabs` slots · lenient `IconStyle.Base` decoding · sanitize
-update-download filenames · deduplicate Settings-added items · default Fresh/Recents
-to list layout · drawer level follows the tab-window-level preference · kind-aware
-tab-pill URL drops. Finding **11** was already satisfied — the drawer's `ItemView`
-resolves icon/metadata in a `.task` off the render path. The retry/log-spam half of
-**16** is fixed (TabController now caches failed hotkey specs; see awesome.md B14).
-
 ## Open — needs a design / product decision
 
 - **8. Folder listing blocks the main path on large/slow dirs.** `FolderLister.contents`
@@ -77,10 +60,15 @@ resolves icon/metadata in a `.task` off the render path. The retry/log-spam half
   whether the looser layout reads well across locales / Dynamic Type wants on-device
   visual verification.
 
-## Delightful or quirky ideas (backlog)
+## Delightful or Quirky Ideas
 
-Future-pass idea list — each needs design + visual iteration: spring-load countdown
-glow · URL favicons · Fresh sparkle on new arrivals · folder truncation badge (`300+`) ·
-Recents time buckets (Today / Yesterday / This Week / Older) · cloud-provider
-personality · DragThing nostalgia mode · search aliases (`dl`, `icloud`, `trash`) ·
-Dock-edge placement warning · peek mode.
+- Spring-load countdown glow: while a dragged item hovers over a tab and the spring-open timer is pending, animate a subtle charging outline around the tab.
+- URL favicons: replace the generic globe for web links with cached favicons when feasible.
+- Fresh sparkle: briefly sparkle newly-arrived Fresh items, matching the Fresh tab's `sparkles` glyph.
+- Folder truncation badge: show `300+` or similar when `FolderLister.limit` truncates a large directory.
+- Recents time buckets: group list layout sections as Today, Yesterday, This Week, and Older.
+- Cloud-provider personality: give iCloud, Dropbox, Google Drive, OneDrive, and Box default colors/glyph treatments in cloud tabs.
+- DragThing nostalgia mode: in classic tab style, add a tiny bevel/highlight animation when a drawer opens.
+- Search aliases: let short terms like `dl`, `icloud`, `trash`, and provider names match common drawer items.
+- Dock-edge warning: when a tab is placed on the Dock edge, show a gentle hint explaining that `visibleFrame` may shift available space.
+- Peek mode: modifier-hover a Notes, Fresh, or Recents tab to preview the drawer without keying search or editing.
