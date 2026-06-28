@@ -28,4 +28,13 @@ final class DrawerItemTests: XCTestCase {
         XCTAssertEqual(item?.kind, .url)
         XCTAssertEqual(item?.url?.scheme, "https")
     }
+
+    func testAppendDeduplicatingTargetSkipsExistingURL() {
+        var items = [DrawerItem(kind: .url, displayName: "Example", url: URL(string: "https://example.com"))]
+
+        items.appendDeduplicatingTarget(DrawerItem(kind: .url, displayName: "Example Again", url: URL(string: "https://example.com")))
+
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.displayName, "Example")
+    }
 }
