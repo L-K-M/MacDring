@@ -23,7 +23,7 @@ struct UpdateDownloader {
     /// `Foo-2.dmg`, …) so re-downloading never clobbers an existing file.
     static func uniqueDestination(in directory: URL, fileName: String,
                                   fileManager: FileManager = .default) -> URL {
-        let name = fileName.isEmpty ? "download" : fileName
+        let name = sanitizedFileName(fileName)
         let first = directory.appendingPathComponent(name)
         guard fileManager.fileExists(atPath: first.path) else { return first }
 
@@ -36,5 +36,12 @@ struct UpdateDownloader {
             if !fileManager.fileExists(atPath: candidate.path) { return candidate }
             index += 1
         }
+    }
+
+    private static func sanitizedFileName(_ fileName: String) -> String {
+        let trimmed = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = (trimmed as NSString).lastPathComponent
+        if name.isEmpty || name == "." || name == ".." { return "download" }
+        return name
     }
 }
