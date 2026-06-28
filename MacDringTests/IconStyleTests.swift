@@ -19,6 +19,18 @@ final class IconStyleTests: XCTestCase {
         XCTAssertNil(decoded.symbol)
     }
 
+    func testDecodeUnknownBaseFallsBackWithoutDroppingStyle() throws {
+        let json = """
+        { "base": "futureShape", "colorHex": "#112233", "symbol": "star.fill" }
+        """
+
+        let decoded = try JSONDecoder().decode(IconStyle.self, from: Data(json.utf8))
+
+        XCTAssertEqual(decoded.base, .folder)
+        XCTAssertEqual(decoded.colorHex, "#112233")
+        XCTAssertEqual(decoded.symbol, "star.fill")
+    }
+
     // MARK: applyingIconStyles (live items keyed by path)
 
     func testApplyingIconStylesKeysByPath() {
