@@ -35,6 +35,8 @@ struct TabStripView: View {
                 width: (isVertical && !isClassic) ? thickness : nil,
                 height: (!isVertical && !isClassic) ? thickness : nil
             )
+            .overlay(alignment: .topTrailing) { recentArrivalDot }
+            .animation(.easeInOut(duration: 0.25), value: model.hasRecentArrival)
             .contentShape(Rectangle())
             .onTapGesture { model.onTap?() }
             .onHover { model.onHoverChanged?($0) }
@@ -60,6 +62,23 @@ struct TabStripView: View {
         switch preferences.tabStyle {
         case .modern:  modernTab
         case .classic: classicTab
+        }
+    }
+
+    /// A small "just landed" dot at the pill's inner corner, shown when something
+    /// arrived recently (driven by `TabController` for Fresh tabs). Sits slightly
+    /// proud of the corner so it reads on any tab color/edge.
+    @ViewBuilder
+    private var recentArrivalDot: some View {
+        if model.hasRecentArrival {
+            Circle()
+                .fill(Color.orange)
+                .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1))
+                .frame(width: 9, height: 9)
+                .shadow(color: .black.opacity(0.35), radius: 1)
+                .padding(2)
+                .transition(.scale.combined(with: .opacity))
+                .allowsHitTesting(false)
         }
     }
 

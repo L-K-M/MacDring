@@ -14,6 +14,9 @@ final class TabStripModel: ObservableObject {
     @Published var isOpen: Bool = false
     /// A file/app is being dragged over the pill (drives the drop highlight).
     @Published var isDropTargeted: Bool = false
+    /// Something landed recently (a Fresh tab whose newest item is within the recent
+    /// window) — drives the "just landed" dot on the closed pill.
+    @Published var hasRecentArrival: Bool = false
 
     // Interaction callbacks (set by the window controller).
     var onTap: (() -> Void)?

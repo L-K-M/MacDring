@@ -157,6 +157,8 @@ Appearance preview, and favicon fetching).
 - **Eject All** — a Disks-tab header button ejects every volume with a per-item spinner.
 - **URL favicons** — `FaviconCache` swaps the globe for a cached `favicon.ico`.
 - **Fresh sparkle** — items that landed within 5 min get a one-shot sparkle.
+- **"Just landed" Fresh pill dot** — the closed Fresh tab pill shows a dot when its
+  newest item arrived within ~20 min (a light 60 s re-scan keeps it current).
 - **Folder truncation badge** — "300+" when `FolderLister.listing` reports a capped directory.
 - **Recents time buckets** — the Recents and Fresh lists group into Today / Yesterday / This Week / Older.
 - **Cloud-provider personality** — `CloudLister` brands iCloud / Dropbox / Google Drive /
@@ -166,9 +168,9 @@ Appearance preview, and favicon fetching).
 
 Future-pass ideas — none are bugs; each needs design + visual iteration.
 
-- **"Just landed" live Fresh tab** — keep the Spotlight query live while open and
-  badge the *closed* Fresh pill when something lands (the arrival sparkle shipped; the
-  live-while-open query and pill badge remain).
+- **"Just landed" live Fresh tab** — keep the Spotlight query live while the drawer is
+  open so arrivals stream in without reopening (the arrival sparkle and the closed-pill
+  dot shipped; only the live-while-open query remains).
 - **Reconnect "wave"** — stagger parked pills' slide-in by ~40 ms when a display returns.
 - **Read-only "time traveler" banner** — when `document.version > currentVersion`, load best-effort and explain why saving is disabled.
 - **Frecency Recents** — add a launch counter and a "Frequent" sort.

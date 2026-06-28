@@ -45,6 +45,11 @@ final class TabController {
     /// update live when Finder empties it. Lives for the controller's lifetime.
     private var trashWatch: DispatchSourceFileSystemObject?
     private var pendingFolderRefresh: DispatchWorkItem?
+    /// A light repeating scan that lights the Fresh tab pill's "just landed" dot;
+    /// runs only while a Fresh tab exists.
+    private var freshBadgeTimer: Timer?
+    /// How recently a Fresh item must have arrived to light the pill dot.
+    private static let freshRecentWindow: TimeInterval = 20 * 60
 
     /// One-shot Spotlight lookup backing the open **Fresh** tab and the **system**
     /// source of a Recents tab; cancelled when the drawer closes or another tab opens.
@@ -150,6 +155,7 @@ final class TabController {
         restackTabs()
         refreshOpenDrawer()
         refreshConcealment(animated: false)
+        updateFreshBadgeTimer()
     }
 
     /// Spaces tabs that share a display + edge so they don't render on top of each
@@ -1086,6 +1092,40 @@ final class TabController {
         pendingFolderRefresh = nil
     }
 
+    /// Keeps the Fresh "just landed" pill dot in sync: scans now and, while any Fresh
+    /// tab exists, keeps a 60 s timer alive so the dot lights within a minute of a
+    /// file arriving and fades on its own once it's older than `freshRecentWindow`.
+    private func updateFreshBadgeTimer() {
+        guard store.tabs.contains(where: { $0.kind == .fresh }) else {
+            freshBadgeTimer?.invalidate()
+            freshBadgeTimer = nil
+            return
+        }
+        refreshFreshBadges()
+        if freshBadgeTimer == nil {
+            freshBadgeTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+                self?.refreshFreshBadges()
+            }
+        }
+    }
+
+    /// Lights every Fresh tab pill's dot when the newest item in the (shared) Fresh
+    /// scopes landed within `freshRecentWindow`. One scan covers all Fresh tabs; it
+    /// runs off the main thread and applies the result on it.
+    private func refreshFreshBadges() {
+        let freshTabIDs = store.tabs.filter { $0.kind == .fresh }.map(\.id)
+        guard !freshTabIDs.isEmpty else { return }
+        let now = Date()
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let results = FreshScanner.results(scopes: FreshLister.scopes(), limit: FreshLister.limit, now: now)
+            let recent = results.contains { now.timeIntervalSince($0.date) <= Self.freshRecentWindow }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                for id in freshTabIDs { self.tabWindows[id]?.model.hasRecentArrival = recent }
+            }
+        }
+    }
+
     /// Watches the home Trash (its fd, via a `DispatchSource`) and bumps the drawer's
     /// icon nonce when it changes, so an open Trash item flips full↔empty and its
     /// count badge updates the instant Finder empties it or something is trashed.
@@ -1260,6 +1300,8 @@ final class TabController {
         stopVolumeMonitoring()
         stopFolderWatch()
         stopRunningAppMonitoring()
+        freshBadgeTimer?.invalidate()
+        freshBadgeTimer = nil
         drawer.hide(duration: 0)     // instant on quit, no animation
         openTabID = nil
         for (_, wc) in tabWindows { wc.close() }
