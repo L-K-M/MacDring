@@ -52,7 +52,11 @@ final class RecentsStore: ObservableObject {
     // MARK: Persistence
 
     private func save() {
-        defaults.set(try? JSONEncoder().encode(items), forKey: RecentsStore.key)
+        do {
+            defaults.set(try JSONEncoder().encode(items), forKey: RecentsStore.key)
+        } catch {
+            NSLog("MacDring: couldn't save recent items: \(error.localizedDescription)")
+        }
     }
 
     private static func load(from defaults: UserDefaults) -> [RecentItem] {
