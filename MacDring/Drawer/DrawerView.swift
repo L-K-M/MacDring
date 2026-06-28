@@ -255,7 +255,7 @@ struct DrawerView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
             } else {
-                MarkdownText(text: model.notes)
+                MarkdownText(text: model.notes, onToggle: toggleNoteCheckbox)
                     .padding(10)
             }
         }
@@ -266,6 +266,15 @@ struct DrawerView: View {
 
     private var notesBinding: Binding<String> {
         Binding(get: { model.notes }, set: { model.notes = $0; model.onNotesChanged?($0) })
+    }
+
+    /// Flips the `- [ ]` / `- [x]` checkbox on note line `index` (tapped in the
+    /// preview) and persists it, without leaving the rendered view.
+    private func toggleNoteCheckbox(_ index: Int) {
+        let updated = MarkdownText.togglingCheckbox(in: model.notes, lineIndex: index)
+        guard updated != model.notes else { return }
+        model.notes = updated
+        model.onNotesChanged?(updated)
     }
 
     // MARK: Items / folder grid

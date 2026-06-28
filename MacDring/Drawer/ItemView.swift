@@ -122,6 +122,11 @@ struct ItemView: View {
                     typeDescription = nil
                 }
                 trashCount = item.kind == .trash ? TrashInspector.trashCount() : 0
+                // Best-effort: swap the globe for the site's favicon once fetched.
+                if item.kind == .url, let url = item.url,
+                   let favicon = await FaviconCache.shared.fetch(for: url), !Task.isCancelled {
+                    icon = favicon
+                }
             }
     }
 
@@ -328,6 +333,9 @@ struct ItemView: View {
         }
         switch item.kind {
         case .url:
+            // A cached favicon replaces the generic globe; the async fetch that fills
+            // the cache is kicked from `ItemView`'s `.task`.
+            if let url = item.url, let favicon = FaviconCache.shared.cached(for: url) { return favicon }
             return symbol("globe")
         default:
             if let url = BookmarkResolver.url(for: item) {
