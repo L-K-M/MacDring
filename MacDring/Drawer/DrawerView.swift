@@ -295,9 +295,10 @@ struct DrawerView: View {
         } else {
             VStack(alignment: .leading, spacing: 2) {
                 let ordered = model.items.sorted { $0.slot < $1.slot }
-                if model.kind == .recents {
-                    // A date-ranked Recents list reads better grouped into recency
-                    // sections (Today / Yesterday / This Week / Older).
+                if model.kind == .recents || model.kind == .fresh {
+                    // The date-ranked lists (Recents by last-used, Fresh by Date Added)
+                    // read better grouped into recency sections (Today / Yesterday /
+                    // This Week / Older).
                     ForEach(TimeBucket.grouped(ordered, now: Date()) { $0.date }) { section in
                         Text(section.bucket.title)
                             .font(.caption.bold())

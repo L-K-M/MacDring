@@ -158,7 +158,7 @@ Appearance preview, and favicon fetching).
 - **URL favicons** — `FaviconCache` swaps the globe for a cached `favicon.ico`.
 - **Fresh sparkle** — items that landed within 5 min get a one-shot sparkle.
 - **Folder truncation badge** — "300+" when `FolderLister.listing` reports a capped directory.
-- **Recents time buckets** — the Recents list groups into Today / Yesterday / This Week / Older.
+- **Recents time buckets** — the Recents and Fresh lists group into Today / Yesterday / This Week / Older.
 - **Cloud-provider personality** — `CloudLister` brands iCloud / Dropbox / Google Drive /
   OneDrive / Box with per-provider colors and glyphs.
 
