@@ -9,6 +9,7 @@ final class TabStripModel: ObservableObject {
     @Published var colorHex: String
     @Published var glyph: TabGlyph
     @Published var edge: Edge
+    @Published var acceptsWebURLDrops: Bool
     /// The drawer for this tab is currently open (drives the pill highlight).
     @Published var isOpen: Bool = false
     /// A file/app is being dragged over the pill (drives the drop highlight).
@@ -29,10 +30,11 @@ final class TabStripModel: ObservableObject {
     /// Move the tab to a different screen edge (pill context menu).
     var onMoveToEdge: ((Edge) -> Void)?
 
-    init(title: String, colorHex: String, glyph: TabGlyph, edge: Edge) {
+    init(title: String, colorHex: String, glyph: TabGlyph, edge: Edge, acceptsWebURLDrops: Bool) {
         self.title = title
         self.colorHex = colorHex
         self.glyph = glyph
         self.edge = edge
+        self.acceptsWebURLDrops = acceptsWebURLDrops
     }
 }

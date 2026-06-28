@@ -61,7 +61,8 @@ final class TabWindowController {
         self.tabID = tab.id
         self.preferences = preferences
         self.anchor = tab.anchor
-        self.model = TabStripModel(title: tab.title, colorHex: tab.colorHex, glyph: tab.glyph, edge: tab.anchor.edge)
+        self.model = TabStripModel(title: tab.title, colorHex: tab.colorHex, glyph: tab.glyph,
+                                   edge: tab.anchor.edge, acceptsWebURLDrops: tab.kind == .items)
 
         let hosting = FirstMouseTabHostingView(rootView: TabStripView(model: model, preferences: preferences))
         hosting.translatesAutoresizingMaskIntoConstraints = true
@@ -161,6 +162,7 @@ final class TabWindowController {
         model.colorHex = tab.colorHex
         model.glyph = tab.glyph
         model.edge = tab.anchor.edge
+        model.acceptsWebURLDrops = tab.kind == .items
 
         // On a concealment-style change, re-seed the concealed flag: a concealable
         // style starts concealed (so the next `place` doesn't flash it onto the edge
