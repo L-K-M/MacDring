@@ -174,6 +174,10 @@ final class TabStore: ObservableObject {
     @discardableResult
     func importData(_ data: Data) -> Bool {
         guard let doc = TabStore.decode(data) else { return false }
+        guard doc.version <= LauncherDocument.currentVersion else {
+            NSLog("MacDring: imported layout is version \(doc.version), newer than this build's \(LauncherDocument.currentVersion) — refusing import so newer data isn't downgraded")
+            return false
+        }
         replaceTabs(TabStore.normalizingSlots(doc).tabs)
         return true
     }
