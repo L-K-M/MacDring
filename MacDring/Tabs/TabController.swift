@@ -30,6 +30,7 @@ final class TabController {
     private var pendingHoverClose: DispatchWorkItem?
     private var pendingSpringOpen: DispatchWorkItem?
     private var pendingSpringOpenTabID: UUID?
+    private var undoToastClearItem: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
 
     /// Observers for volume mount/unmount/rename, so an open Disks/Network drawer
@@ -660,7 +661,7 @@ final class TabController {
             return
         }
         if let target, target.kind == .folder, let directory = BookmarkResolver.url(for: target) {
-            FileMover.move(fileURLs, into: directory)   // only files can be filed in
+            moveFilesWithUndo(fileURLs, into: directory)   // only files can be filed in
             if tab.kind == .folder { refreshOpenDrawer() }
             return
         }
@@ -670,7 +671,7 @@ final class TabController {
             return   // notes take no drops; the live listings (Disks/Network/Cloud/Recents/Fresh) are read-only
         case .folder:
             guard let directory = FolderLister.resolveFolder(tab) else { return }
-            FileMover.move(fileURLs, into: directory)
+            moveFilesWithUndo(fileURLs, into: directory)
             if openTabID == id { refreshOpenDrawer() } else { openDrawer(id) }
         case .items:
             let dropped = urls.map { DrawerItem.fromDroppedURL($0) }   // files & links, in drop order
@@ -759,6 +760,7 @@ final class TabController {
         drawer.model.onResetItemIcon = { [weak self] item in self?.resetItemIcon(item) }
         drawer.model.onCustomizeItemIcon = { [weak self] item in self?.customizeIcon(item) }
         drawer.model.onEjectItem = { [weak self] item in self?.ejectDisk(item) }
+        drawer.model.onEjectAll = { [weak self] in self?.ejectAllDisks() }
         drawer.model.onDropFiles = { [weak self] urls, slot in
             guard let self, let id = self.openTabID else { return }
             self.handleFileDrop(urls, slot: slot, toTab: id)
@@ -926,6 +928,47 @@ final class TabController {
         if openTabReflectsVolumes {
             refreshOpenDrawer()
         }
+    }
+
+    /// Ejects every ejectable volume in the open Disks drawer, showing a per-item
+    /// spinner while each unmount runs off the main thread (the call blocks), then
+    /// refreshes the listing once they've all completed.
+    private func ejectAllDisks() {
+        let items = drawer.model.items
+        guard !items.isEmpty else { return }
+        drawer.model.ejectingItemIDs = Set(items.map(\.id))
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            for item in items { DiskEjector.eject(item) }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.drawer.model.ejectingItemIDs = []
+                if self.openTabReflectsVolumes { self.refreshOpenDrawer() }
+            }
+        }
+    }
+
+    /// Moves dropped files into `directory`, then shows an Undo toast in the drawer
+    /// header that can move them back. A no-op (no toast) if nothing actually moved.
+    private func moveFilesWithUndo(_ urls: [URL], into directory: URL) {
+        let result = FileMover.movingFiles(urls, into: directory)
+        guard !result.moves.isEmpty else { return }
+        let moves = result.moves
+        let n = moves.count
+        let name = directory.lastPathComponent
+        showUndoToast("Moved \(n) item\(n == 1 ? "" : "s") to \(name)") { [weak self] in
+            FileMover.undo(moves)
+            self?.refreshOpenDrawer()
+        }
+    }
+
+    /// Shows a transient Undo toast in the open drawer's header, auto-dismissed after
+    /// a few seconds (cancelling any previous one).
+    private func showUndoToast(_ message: String, action: @escaping () -> Void) {
+        undoToastClearItem?.cancel()
+        drawer.model.undoToast = DrawerUndo(message: message, action: action)
+        let clear = DispatchWorkItem { [weak self] in self?.drawer.model.undoToast = nil }
+        undoToastClearItem = clear
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: clear)
     }
 
     /// Watches for volumes mounting, unmounting, or being renamed so an open

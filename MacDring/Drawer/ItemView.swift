@@ -25,6 +25,10 @@ struct ItemView: View {
     var onCustomizeIcon: (() -> Void)?
     /// Bundle IDs of currently-running apps — drives the "running" dot on app items.
     var runningBundleIDs: Set<String> = []
+    /// This disk item is being ejected (Eject All) — shows a spinner over its icon.
+    var isEjecting: Bool = false
+    /// This item just arrived (a Fresh listing) — plays a one-shot sparkle.
+    var sparkle: Bool = false
 
     // Icon and broken-ness are resolved off the render path (in `.task`, once per
     // item/nonce change) and cached here, so `body` does no disk I/O on every
@@ -38,6 +42,11 @@ struct ItemView: View {
     /// render path (only in list mode). `nil` for folders / non-file items.
     @State private var byteSize: Int64?
     @State private var typeDescription: String?
+    /// The Trash's item count for the count badge (resolved off the render path, like
+    /// the icon). 0 hides the badge.
+    @State private var trashCount = 0
+    /// Drives the one-shot sparkle fade for a newly-arrived Fresh item.
+    @State private var sparkleOpacity: Double = 0
 
     /// Finder-style small icon for the list layout, regardless of the grid's icon size.
     static let listIconSize: CGFloat = 16
@@ -112,6 +121,7 @@ struct ItemView: View {
                     byteSize = nil
                     typeDescription = nil
                 }
+                trashCount = item.kind == .trash ? TrashInspector.trashCount() : 0
             }
     }
 
@@ -189,6 +199,55 @@ struct ItemView: View {
             .interpolation(.high)
             .frame(width: effectiveIconSize, height: effectiveIconSize)
             .overlay(alignment: .bottom) { runningDot }
+            .overlay(alignment: .topTrailing) { trashBadge }
+            .overlay { ejectingSpinner }
+            .overlay { sparkleOverlay }
+    }
+
+    /// A small red count badge on the Trash icon (grid only — a 16 pt list glyph is
+    /// too small for it). Shares the full/empty icon's `.DS_Store`-counting caveat.
+    @ViewBuilder
+    private var trashBadge: some View {
+        if item.kind == .trash, trashCount > 0, layout == .grid {
+            Text("\(trashCount)")
+                .font(.system(size: max(7, effectiveIconSize * 0.22), weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, max(3, effectiveIconSize * 0.06))
+                .padding(.vertical, 1)
+                .background(Capsule().fill(Color.red))
+                .fixedSize()
+                .offset(x: effectiveIconSize * 0.18, y: -effectiveIconSize * 0.12)
+        }
+    }
+
+    /// A dimming spinner over a disk icon while it's being ejected (Eject All).
+    @ViewBuilder
+    private var ejectingSpinner: some View {
+        if isEjecting {
+            ZStack {
+                Color.black.opacity(0.3)
+                ProgressView().controlSize(.small)
+            }
+            .frame(width: effectiveIconSize, height: effectiveIconSize)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    /// A one-shot sparkle that fades out over a newly-arrived Fresh item's icon.
+    @ViewBuilder
+    private var sparkleOverlay: some View {
+        if sparkle {
+            Image(systemName: "sparkles")
+                .font(.system(size: effectiveIconSize * 0.55))
+                .foregroundStyle(.yellow)
+                .shadow(color: .yellow.opacity(0.7), radius: 3)
+                .opacity(sparkleOpacity)
+                .allowsHitTesting(false)
+                .onAppear {
+                    sparkleOpacity = 0.9
+                    withAnimation(.easeOut(duration: 1.3)) { sparkleOpacity = 0 }
+                }
+        }
     }
 
     /// A small green dot on the bottom edge of a **running** app's icon (Dock-style).

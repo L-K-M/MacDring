@@ -17,6 +17,14 @@ enum TrashInspector {
         trashDirectories(fileManager: fileManager).allSatisfy { isEmpty($0, fileManager: fileManager) }
     }
 
+    /// The total number of items across every trash Finder's "Empty Trash" clears —
+    /// for the Trash item's count badge. Sums each directory's metadata entry count
+    /// (no listing → no prompt). Like the full/empty icon it inherits the
+    /// `.DS_Store`-counting caveat (ANALYSIS.md / awesome.md B28).
+    static func trashCount(fileManager: FileManager = .default) -> Int {
+        trashDirectories(fileManager: fileManager).reduce(0) { $0 + (entryCount(of: $1) ?? 0) }
+    }
+
     /// Every trash directory Finder's "Empty Trash" clears: the user's home Trash
     /// (boot volume) plus each *other* mounted volume's per-user `.Trashes/<uid>`
     /// that actually exists. (A volume only grows a `.Trashes/<uid>` once you trash

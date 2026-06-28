@@ -4,9 +4,19 @@ import Foundation
 /// renaming to avoid collisions. Used when a file is dropped onto a folder item
 /// or a folder tab.
 enum FileMover {
+    /// A completed move, for undo: the file went from `from` to `to`.
+    struct Move: Equatable { let from: URL; let to: URL }
+
     @discardableResult
     static func move(_ urls: [URL], into directory: URL) -> Bool {
-        let fileManager = FileManager.default
+        movingFiles(urls, into: directory).allSucceeded
+    }
+
+    /// Moves files into `directory` and returns the completed `from → to` pairs (so a
+    /// caller can offer an Undo) plus whether every move succeeded.
+    static func movingFiles(_ urls: [URL], into directory: URL,
+                            fileManager: FileManager = .default) -> (moves: [Move], allSucceeded: Bool) {
+        var moves: [Move] = []
         var allSucceeded = true
         for url in urls {
             // A file dropped into the directory it already lives in is a no-op
@@ -20,9 +30,28 @@ enum FileMover {
             let destination = uniqueDestination(for: url, in: directory, fileManager: fileManager)
             do {
                 try fileManager.moveItem(at: url, to: destination)
+                moves.append(Move(from: url, to: destination))
             } catch {
                 allSucceeded = false
                 NSLog("MacDring: couldn't move \(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        return (moves, allSucceeded)
+    }
+
+    /// Reverses completed moves (best-effort), putting each file back where it came
+    /// from. Returns whether every reversal succeeded.
+    @discardableResult
+    static func undo(_ moves: [Move], fileManager: FileManager = .default) -> Bool {
+        var allSucceeded = true
+        for move in moves.reversed() {
+            do {
+                try fileManager.createDirectory(at: move.from.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+                try fileManager.moveItem(at: move.to, to: move.from)
+            } catch {
+                allSucceeded = false
+                NSLog("MacDring: couldn't undo move of \(move.to.lastPathComponent): \(error.localizedDescription)")
             }
         }
         return allSucceeded

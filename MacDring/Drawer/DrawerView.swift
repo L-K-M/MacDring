@@ -48,6 +48,7 @@ struct DrawerView: View {
 
         VStack(alignment: .leading, spacing: 10) {
             header
+            if let undo = model.undoToast { undoBanner(undo) }
             if model.isSearchable { searchBar }
             bodyContent
         }
@@ -160,13 +161,20 @@ struct DrawerView: View {
                 .font(.headline)
             Spacer(minLength: 12)
             if model.kind != .notes {
-                Text("\(model.items.count)")
+                // A trailing "+" when the listing was capped (e.g. a folder with
+                // more than `FolderLister.limit` entries): "300+".
+                Text("\(model.items.count)\(model.itemsTruncated ? "+" : "")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .help(model.itemsTruncated ? "Showing the first \(model.items.count) items" : "")
             }
             if model.kind == .folder {
                 headerButton("folder", help: "Open folder in Finder") { model.onOpenFolder?() }
                     .disabled(model.folderURL == nil)
+            }
+            if model.kind == .disks {
+                headerButton("eject", help: "Eject all volumes") { model.onEjectAll?() }
+                    .disabled(model.items.isEmpty || !model.ejectingItemIDs.isEmpty)
             }
             if model.kind == .recents, model.canClearRecents {
                 headerButton("trash", help: "Clear recent items") { model.onClearRecents?() }
@@ -184,6 +192,30 @@ struct DrawerView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help(help)
+    }
+
+    /// A transient "Moved N items — Undo" banner, shown after a drop moved files into
+    /// a folder/app. The controller dismisses it after a few seconds; Undo reverses
+    /// the move (and dismisses immediately).
+    private func undoBanner(_ undo: DrawerUndo) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.uturn.backward.circle")
+                .foregroundStyle(.secondary)
+            Text(undo.message)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 8)
+            Button("Undo") { undo.action(); model.undoToast = nil }
+                .controlSize(.small)
+            Button { model.undoToast = nil } label: { Image(systemName: "xmark") }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+                .help("Dismiss")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.10)))
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: Notes
@@ -252,27 +284,43 @@ struct DrawerView: View {
                 }
             }
         } else {
-            VStack(spacing: 2) {
-                ForEach(model.items.sorted { $0.slot < $1.slot }) { item in
-                    let fileDropHere = model.fileDropSlot == item.slot
-                    // Match the grid: a file dragged onto a folder/app is a
-                    // "file into / open with" target — give it a distinct ring.
-                    let intoTarget = fileDropHere && (item.kind == .folder || item.kind == .application)
-                    inCellItem(item)
-                        .padding(.vertical, 3)
-                        .padding(.horizontal, 4)
-                        .background(RoundedRectangle(cornerRadius: 8)
-                            .fill(.white.opacity(fileDropHere ? 0.16 : 0)))
-                        .overlay {
-                            if intoTarget {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .strokeBorder(Color(hexString: model.colorHex), lineWidth: 2)
-                            }
-                        }
-                        .background(slotFrameReporter(item.slot))
+            VStack(alignment: .leading, spacing: 2) {
+                let ordered = model.items.sorted { $0.slot < $1.slot }
+                if model.kind == .recents {
+                    // A date-ranked Recents list reads better grouped into recency
+                    // sections (Today / Yesterday / This Week / Older).
+                    ForEach(TimeBucket.grouped(ordered, now: Date()) { $0.date }) { section in
+                        Text(section.bucket.title)
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+                        ForEach(section.items) { listRow($0) }
+                    }
+                } else {
+                    ForEach(ordered) { listRow($0) }
                 }
             }
         }
+    }
+
+    /// One row of the list layout: the item plus its file-drop highlight ring.
+    private func listRow(_ item: DrawerItem) -> some View {
+        let fileDropHere = model.fileDropSlot == item.slot
+        // Match the grid: a file dragged onto a folder/app is a
+        // "file into / open with" target — give it a distinct ring.
+        let intoTarget = fileDropHere && (item.kind == .folder || item.kind == .application)
+        return inCellItem(item)
+            .padding(.vertical, 3)
+            .padding(.horizontal, 4)
+            .background(RoundedRectangle(cornerRadius: 8)
+                .fill(.white.opacity(fileDropHere ? 0.16 : 0)))
+            .overlay {
+                if intoTarget {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color(hexString: model.colorHex), lineWidth: 2)
+                }
+            }
+            .background(slotFrameReporter(item.slot))
     }
 
     private func gridSlot(_ slot: Int) -> some View {
@@ -383,7 +431,9 @@ struct DrawerView: View {
             iconNonce: model.iconNonce,
             onEject: item.kind == .disk ? { model.onEjectItem?(item) } : nil,
             onCustomizeIcon: { model.onCustomizeItemIcon?(item) },   // any item, any tab kind
-            runningBundleIDs: model.runningBundleIDs
+            runningBundleIDs: model.runningBundleIDs,
+            isEjecting: model.ejectingItemIDs.contains(item.id),
+            sparkle: model.sparklingItemIDs.contains(item.id)
         )
     }
 

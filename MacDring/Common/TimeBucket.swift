@@ -34,11 +34,19 @@ enum TimeBucket: Int, CaseIterable {
         return .older
     }
 
-    /// Groups `items` into ordered `(bucket, items)` sections by each item's date,
-    /// preserving the incoming order within a bucket and dropping empty buckets.
-    /// Items whose `date(_:)` is `nil` fall into `.older`.
+    /// One recency section: a bucket and the items that fell into it. `Identifiable`
+    /// (by its bucket) so a SwiftUI `ForEach` can iterate sections directly.
+    struct Section<Item>: Identifiable {
+        let bucket: TimeBucket
+        let items: [Item]
+        var id: TimeBucket { bucket }
+    }
+
+    /// Groups `items` into ordered sections by each item's date, preserving the
+    /// incoming order within a bucket and dropping empty buckets. Items whose
+    /// `date(_:)` is `nil` fall into `.older`.
     static func grouped<Item>(_ items: [Item], now: Date, calendar: Calendar = .current,
-                              date: (Item) -> Date?) -> [(bucket: TimeBucket, items: [Item])] {
+                              date: (Item) -> Date?) -> [Section<Item>] {
         var bins: [TimeBucket: [Item]] = [:]
         for item in items {
             let b = date(item).map { bucket(for: $0, now: now, calendar: calendar) } ?? .older
@@ -46,7 +54,7 @@ enum TimeBucket: Int, CaseIterable {
         }
         return TimeBucket.allCases.compactMap { bucket in
             guard let group = bins[bucket], !group.isEmpty else { return nil }
-            return (bucket, group)
+            return Section(bucket: bucket, items: group)
         }
     }
 }

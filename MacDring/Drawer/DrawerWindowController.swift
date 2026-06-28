@@ -225,6 +225,7 @@ final class DrawerWindowController {
     func updateLiveItems(_ items: [DrawerItem]) {
         guard isVisible, let screen = currentScreen else { return }
         model.items = items
+        if model.kind == .fresh { model.sparklingItemIDs = sparkleIDs(for: items) }
         openFrame = computeOpenFrame(in: screen.visibleFrame)
         panel.setFrame(openFrame, display: true)
     }
@@ -259,10 +260,23 @@ final class DrawerWindowController {
     /// Loads `tab` into the model. When `preserveLiveNotes` is true (a refresh of an
     /// already-open drawer), a notes tab's live `model.notes` is left untouched so a
     /// background reconcile can't clobber what the user is typing.
+    /// A Fresh item counts as "just landed" (and gets a sparkle) when its Date Added
+    /// is within this window of now.
+    private static let sparkleWindow: TimeInterval = 300
+
+    /// The IDs of `items` that landed within `sparkleWindow` of now — for the Fresh
+    /// tab's arrival sparkle.
+    private func sparkleIDs(for items: [DrawerItem], now: Date = Date()) -> Set<UUID> {
+        Set(items.filter { ($0.date.map { now.timeIntervalSince($0) } ?? .infinity) <= Self.sparkleWindow }
+            .map(\.id))
+    }
+
     private func apply(tab: Tab, preserveLiveNotes: Bool = false) {
         model.fileDropSlot = nil
         model.isDropTargeted = false
         model.slotFrames = [:]
+        model.itemsTruncated = false
+        model.sparklingItemIDs = []
         model.title = tab.title
         model.colorHex = tab.colorHex
         model.columns = max(1, tab.gridColumns)
@@ -280,7 +294,9 @@ final class DrawerWindowController {
             model.folderURL = nil
         case .folder:
             // Live listings re-apply the tab's per-target icon overrides each open.
-            model.items = FolderLister.contents(of: tab).applyingIconStyles(from: tab.iconStyles)
+            let listing = FolderLister.listing(of: tab)
+            model.items = listing.items.applyingIconStyles(from: tab.iconStyles)
+            model.itemsTruncated = listing.truncated
             model.notes = ""
             model.folderURL = FolderLister.resolveFolder(tab)
         case .disks:
@@ -309,6 +325,7 @@ final class DrawerWindowController {
             model.items = FreshLister.items(from: FreshScanner.results(scopes: FreshLister.scopes(),
                                                                        limit: FreshLister.limit))
                 .applyingIconStyles(from: tab.iconStyles)
+            model.sparklingItemIDs = sparkleIDs(for: model.items)
             model.notes = ""
             model.folderURL = nil
         case .notes:

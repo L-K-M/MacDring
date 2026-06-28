@@ -59,4 +59,25 @@ final class FileMoverTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: dst.appendingPathComponent("note.txt").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: dst.appendingPathComponent("note 2.txt").path))
     }
+
+    func testMovingFilesReportsMovesAndUndoRestoresThem() throws {
+        let fm = FileManager.default
+        let a = src.appendingPathComponent("a.txt")
+        let b = src.appendingPathComponent("b.txt")
+        try Data("a".utf8).write(to: a)
+        try Data("b".utf8).write(to: b)
+
+        let result = FileMover.movingFiles([a, b], into: dst)
+        XCTAssertTrue(result.allSucceeded)
+        XCTAssertEqual(result.moves.count, 2)
+        XCTAssertTrue(fm.fileExists(atPath: dst.appendingPathComponent("a.txt").path))
+        XCTAssertFalse(fm.fileExists(atPath: a.path))
+
+        XCTAssertTrue(FileMover.undo(result.moves))
+        // Each file is back at its original path; none left in the destination.
+        XCTAssertTrue(fm.fileExists(atPath: a.path))
+        XCTAssertTrue(fm.fileExists(atPath: b.path))
+        XCTAssertFalse(fm.fileExists(atPath: dst.appendingPathComponent("a.txt").path))
+        XCTAssertFalse(fm.fileExists(atPath: dst.appendingPathComponent("b.txt").path))
+    }
 }

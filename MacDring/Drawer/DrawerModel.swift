@@ -46,6 +46,18 @@ final class DrawerModel: ObservableObject {
     /// Whether the open `.recents` drawer has MacDring-owned history that the header
     /// clear button can actually remove. System Spotlight recents are read-only.
     @Published var canClearRecents = false
+    /// Whether the live listing was capped (a folder with more than `FolderLister.limit`
+    /// entries) — drives the header's "300+" truncation badge.
+    @Published var itemsTruncated = false
+
+    /// A transient "Moved N items — Undo" banner shown in the drawer header after a
+    /// drop moved files. `nil` when no toast is showing. Set/cleared by the controller.
+    @Published var undoToast: DrawerUndo?
+
+    /// Disk items currently being ejected (Eject All), shown with a per-item spinner.
+    @Published var ejectingItemIDs: Set<UUID> = []
+    /// Fresh items that just arrived this update, shown with a brief sparkle.
+    @Published var sparklingItemIDs: Set<UUID> = []
 
     /// Bumped to force drawer item icons to re-resolve in place even though the
     /// items are unchanged — e.g. the Trash icon (full → empty) after emptying.
@@ -110,6 +122,8 @@ final class DrawerModel: ObservableObject {
     var onCustomizeItemIcon: ((DrawerItem) -> Void)?
     /// Eject a `.disk` item's volume (Disks tab).
     var onEjectItem: ((DrawerItem) -> Void)?
+    /// Eject every ejectable volume (Disks tab header button).
+    var onEjectAll: (() -> Void)?
     /// Files were dropped on the drawer: `slot` is the target slot, or -1 for the
     /// background. The controller routes (open-with / move-into / add).
     var onDropFiles: ((_ urls: [URL], _ slot: Int) -> Void)?
@@ -132,4 +146,12 @@ final class DrawerModel: ObservableObject {
     func item(atSlot slot: Int) -> DrawerItem? {
         items.first { $0.slot == slot }
     }
+}
+
+/// A pending "Undo" action for the drawer's move toast: the message to show and the
+/// closure that reverses the move. Not `Equatable` (it carries a closure); the
+/// `@Published var undoToast` just swaps the whole value.
+struct DrawerUndo {
+    let message: String
+    let action: () -> Void
 }
