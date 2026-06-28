@@ -158,8 +158,6 @@ From the deep review:
 - **Eject All** header button on the Disks tab with per-item spinners.
 - **Display picker as a map** — a drag-on-a-diagram widget mirroring System Settings → Displays.
 - **Versioned export envelope** — wrap `exportData()` so import errors can say "made by a newer version".
-
-From the GPT audit:
 - **Spring-load countdown glow** — while a dragged item hovers a tab with the spring-open timer pending, animate a charging outline around the tab.
 - **URL favicons** — replace the generic globe for web links with cached favicons when feasible.
 - **Fresh sparkle** — briefly sparkle newly-arrived Fresh items, matching the tab's `sparkles` glyph.
