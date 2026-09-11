@@ -8,6 +8,14 @@
 :root {
   --td-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --td-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Crepe's theme files define these; we ship our own color scheme instead, so
+     the non-color tokens they also provide have to be defined here. */
+  --crepe-font-default: var(--td-font);
+  --crepe-font-title: var(--td-font);
+  --crepe-font-code: var(--td-mono);
+  --crepe-shadow-1: 0 4px 10px rgba(0, 0, 0, 0.16);
+  --default-cell-min-width: 2em;
 }
 
 :root[data-td-theme='light'] {
@@ -71,11 +79,24 @@ body {
   height: 100%;
 }
 
-.milkdown .ProseMirror {
+/* Two classes on the element so this beats Crepe's own `.milkdown .ProseMirror`
+   rule regardless of stylesheet order (58px horizontal gutters are wrong for a
+   drawer). */
+.milkdown .ProseMirror.ProseMirror {
   padding: 10px;
   outline: none;
   font-family: var(--td-font);
   min-height: calc(100% - 20px);
+}
+
+/* Crepe's reset removes every focus ring; restore one for interactive chrome
+   so keyboard users can see where they are (WCAG 2.4.7). */
+.milkdown .toolbar-item:focus-visible,
+.milkdown .top-bar-item:focus-visible,
+.milkdown button:focus-visible,
+.milkdown input:focus-visible {
+  outline: 2px solid var(--crepe-color-primary);
+  outline-offset: -2px;
 }
 
 .milkdown .ProseMirror-focused {

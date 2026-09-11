@@ -4,7 +4,13 @@ import { parseHostMessage, PROTOCOL_VERSION } from '../src/bridge';
 describe('parseHostMessage', () => {
   it('accepts a well-formed initialize', () => {
     expect(
-      parseHostMessage({ type: 'initialize', markdown: '# Hi', theme: 'dark', platform: 'macos', revision: 3 }),
+      parseHostMessage({
+        type: 'initialize',
+        markdown: '# Hi',
+        theme: 'dark',
+        platform: 'macos',
+        revision: 3,
+      }),
     ).toEqual({ type: 'initialize', markdown: '# Hi', theme: 'dark', platform: 'macos', revision: 3 });
   });
 
@@ -15,14 +21,38 @@ describe('parseHostMessage', () => {
     expect(parseHostMessage({ type: 'replaceDocument', markdown: 'x' })).toBeNull();
   });
 
-  it('defaults unknown theme/platform to safe values', () => {
-    expect(parseHostMessage({ type: 'setTheme', theme: 'purple' })).toEqual({
-      type: 'setTheme',
-      theme: 'light',
-    });
+  it('rejects invalid theme/platform instead of coercing them', () => {
     expect(
-      parseHostMessage({ type: 'initialize', markdown: '', theme: 'light', platform: 'plan9', revision: 0 }),
-    ).toMatchObject({ platform: 'harness' });
+      parseHostMessage({
+        type: 'initialize',
+        markdown: '',
+        theme: 'Dark',
+        platform: 'macos',
+        revision: 0,
+      }),
+    ).toBeNull();
+    expect(
+      parseHostMessage({
+        type: 'initialize',
+        markdown: '',
+        theme: 'light',
+        platform: 'macOS',
+        revision: 0,
+      }),
+    ).toBeNull();
+    expect(parseHostMessage({ type: 'setTheme', theme: 'purple' })).toBeNull();
+  });
+
+  it('requires an integer revision', () => {
+    const base = { type: 'replaceDocument', markdown: 'x' };
+    expect(parseHostMessage({ ...base, revision: NaN })).toBeNull();
+    expect(parseHostMessage({ ...base, revision: 1.5 })).toBeNull();
+    expect(parseHostMessage({ ...base, revision: '1' })).toBeNull();
+    expect(parseHostMessage({ ...base, revision: 1 })).toEqual({
+      type: 'replaceDocument',
+      markdown: 'x',
+      revision: 1,
+    });
   });
 
   it('rejects unknown commands', () => {

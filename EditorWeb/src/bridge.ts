@@ -70,24 +70,43 @@ export function detectTransport(sink?: (message: EditorMessage) => void): Transp
   return new HarnessTransport(sink);
 }
 
-/** Validates an incoming raw host message. Returns null when malformed. */
+const THEMES: readonly string[] = ['light', 'dark'];
+const PLATFORMS: readonly string[] = ['macos', 'linux', 'harness'];
+
+function isTheme(value: unknown): value is Theme {
+  return typeof value === 'string' && THEMES.includes(value);
+}
+
+function isPlatform(value: unknown): value is Platform {
+  return typeof value === 'string' && PLATFORMS.includes(value);
+}
+
+/**
+ * Validates an incoming raw host message. Returns null when malformed.
+ *
+ * Deliberately strict: an unknown theme, platform or revision is a host bug,
+ * and silently coercing it (wrong theme, missing platform bindings, NaN
+ * revision comparisons) hides the bug instead of surfacing it.
+ */
 export function parseHostMessage(raw: unknown): HostMessage | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const msg = raw as Record<string, unknown>;
   switch (msg.type) {
     case 'initialize':
-      if (typeof msg.markdown !== 'string' || typeof msg.revision !== 'number') return null;
+      if (typeof msg.markdown !== 'string') return null;
+      if (!Number.isInteger(msg.revision) || !isTheme(msg.theme) || !isPlatform(msg.platform)) {
+        return null;
+      }
       return {
         type: 'initialize',
         markdown: msg.markdown,
-        theme: msg.theme === 'dark' ? 'dark' : 'light',
-        platform:
-          msg.platform === 'macos' || msg.platform === 'linux' ? msg.platform : 'harness',
-        revision: msg.revision,
+        theme: msg.theme,
+        platform: msg.platform,
+        revision: msg.revision as number,
       };
     case 'replaceDocument':
-      if (typeof msg.markdown !== 'string' || typeof msg.revision !== 'number') return null;
-      return { type: 'replaceDocument', markdown: msg.markdown, revision: msg.revision };
+      if (typeof msg.markdown !== 'string' || !Number.isInteger(msg.revision)) return null;
+      return { type: 'replaceDocument', markdown: msg.markdown, revision: msg.revision as number };
     case 'focus':
       return { type: 'focus' };
     case 'command':
@@ -96,7 +115,8 @@ export function parseHostMessage(raw: unknown): HostMessage | null {
       }
       return null;
     case 'setTheme':
-      return { type: 'setTheme', theme: msg.theme === 'dark' ? 'dark' : 'light' };
+      if (!isTheme(msg.theme)) return null;
+      return { type: 'setTheme', theme: msg.theme };
     default:
       return null;
   }

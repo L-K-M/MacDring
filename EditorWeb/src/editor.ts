@@ -7,6 +7,9 @@ import { linkTooltip } from '@milkdown/crepe/feature/link-tooltip';
 import { listItem } from '@milkdown/crepe/feature/list-item';
 import { placeholder } from '@milkdown/crepe/feature/placeholder';
 import { table } from '@milkdown/crepe/feature/table';
+import { editorViewCtx } from '@milkdown/kit/core';
+import { undo, redo } from 'prosemirror-history';
+import type { Command } from 'prosemirror-state';
 
 // Only the CSS for enabled features; the monolithic style.css would drag in
 // KaTeX fonts, the AI panel, image upload and slash-menu chrome.
@@ -37,6 +40,11 @@ export interface RichEditorOptions {
  * handle) are tree-shaken out of the bundle entirely. Markdown in, Markdown
  * out. Serialization only ever happens in response to a local change reported
  * by the listener, so a view-only open/close cycle cannot normalize the source.
+ *
+ * Raw HTML in a note stays inert: the CommonMark preset parses HTML blocks as
+ * text (no HTML nodes are created) and is deliberately NOT sanitized on the way
+ * in, because rewriting the source on load would damage the user's bytes. The
+ * shipped page additionally runs under a strict CSP; see the harness README.
  */
 export class RichEditor {
   private state = { destroyed: false };
@@ -67,11 +75,66 @@ export class RichEditor {
     });
 
     await builder.create();
+    editor.wireLinks(options.onOpenLink);
+    editor.wireFocus(options.onFocusChanged);
     return editor;
+  }
+
+  /**
+   * Anchors inside the document must never navigate the web view (that would
+   * destroy the session). Intercept the default and hand the URL to the host.
+   */
+  private wireLinks(onOpenLink: (url: string) => void): void {
+    this.root.addEventListener('click', (event) => {
+      const anchor = (event.target as Element | null)?.closest('a[href]');
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      event.preventDefault();
+      onOpenLink(anchor.href);
+    });
+  }
+
+  /**
+   * Report focus transitions. `focusout` also fires when focus moves between
+   * elements inside the editor (toolbar, tooltip), so only a `relatedTarget`
+   * outside the subtree counts as leaving; the session flushes on blur.
+   */
+  private wireFocus(onFocusChanged?: (isFocused: boolean) => void): void {
+    if (!onFocusChanged) return;
+    let focused = false;
+
+    this.root.addEventListener('focusin', () => {
+      if (focused) return;
+      focused = true;
+      onFocusChanged(true);
+    });
+    this.root.addEventListener('focusout', (event) => {
+      if (!focused) return;
+      const next = event.relatedTarget as Node | null;
+      if (next && this.root.contains(next)) return;
+      focused = false;
+      onFocusChanged(false);
+    });
   }
 
   getMarkdown(): string {
     return this.builder.getMarkdown();
+  }
+
+  undo(): void {
+    this.run(undo);
+  }
+
+  redo(): void {
+    this.run(redo);
+  }
+
+  /** Dispatches a ProseMirror command against the live editor view. */
+  private run(command: Command): void {
+    if (this.state.destroyed) return;
+    this.builder.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      command(view.state, view.dispatch, view);
+    });
   }
 
   focus(): void {

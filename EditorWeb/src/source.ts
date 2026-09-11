@@ -1,12 +1,15 @@
 import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { Compartment } from '@codemirror/state';
 import {
-  defaultHighlightStyle,
-  syntaxHighlighting,
-  HighlightStyle,
-} from '@codemirror/language';
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+  undo,
+  redo,
+} from '@codemirror/commands';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { defaultHighlightStyle, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { tags } from '@lezer/highlight';
 import type { Theme } from './bridge';
@@ -23,9 +26,14 @@ export interface SourceEditorOptions {
  * Source mode: raw Markdown in CodeMirror 6. The document stays plain text, so
  * this mode is byte-exact by construction and doubles as the recovery path for
  * documents rich mode cannot represent safely.
+ *
+ * Theme-dependent extensions live in compartments so a host theme switch
+ * reconfigures in place instead of destroying undo history and the cursor.
  */
 export class SourceEditor {
   private view: EditorView;
+  private themeCompartment = new Compartment();
+  private highlightCompartment = new Compartment();
 
   constructor(root: HTMLElement, options: SourceEditorOptions) {
     const dark = options.theme === 'dark';
@@ -39,9 +47,9 @@ export class SourceEditor {
         cmPlaceholder(options.placeholder),
         highlightSelectionMatches(),
         keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
-        syntaxHighlighting(dark ? darkHighlight : defaultHighlightStyle),
+        this.highlightCompartment.of(SourceEditor.highlighting(dark)),
         baseTheme,
-        ...(dark ? [darkEditorTheme] : []),
+        this.themeCompartment.of(dark ? [darkEditorTheme] : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) options.onChange(this.view.state.doc.toString());
         }),
@@ -57,12 +65,35 @@ export class SourceEditor {
     return this.view.state.doc.toString();
   }
 
+  undo(): void {
+    undo(this.view);
+  }
+
+  redo(): void {
+    redo(this.view);
+  }
+
+  /** Reconfigures colors in place; document, selection and history survive. */
+  setTheme(theme: Theme): void {
+    const dark = theme === 'dark';
+    this.view.dispatch({
+      effects: [
+        this.themeCompartment.reconfigure(dark ? [darkEditorTheme] : []),
+        this.highlightCompartment.reconfigure(SourceEditor.highlighting(dark)),
+      ],
+    });
+  }
+
   focus(): void {
     this.view.focus();
   }
 
   destroy(): void {
     this.view.destroy();
+  }
+
+  private static highlighting(dark: boolean) {
+    return syntaxHighlighting(dark ? darkHighlight : defaultHighlightStyle);
   }
 }
 
@@ -94,6 +125,8 @@ const darkHighlight = HighlightStyle.define([
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strong, fontWeight: '700' },
   { tag: tags.link, color: '#7cb3f7' },
+  { tag: tags.url, color: '#7cb3f7' },
   { tag: tags.monospace, color: '#ffb4ab' },
   { tag: tags.quote, color: '#a8c7a0' },
+  { tag: tags.processingInstruction, color: '#c9b8a8' },
 ]);

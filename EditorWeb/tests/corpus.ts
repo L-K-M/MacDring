@@ -95,6 +95,14 @@ export const CORPUS: CorpusFixture[] = [
     expect: 'exact',
   },
   {
+    // Payloads that must render inertly: no DOM element, no attribute handler,
+    // no javascript: navigation. Covered by the hostile-rendering test.
+    name: 'malicious-payloads',
+    input:
+      '<script>alert(1)</script>\n\n[xss](javascript:alert(1))\n\n![img](https://evil.example/x.png)\n\n<img src=x onerror="alert(2)">\n',
+    expect: 'normalized',
+  },
+  {
     name: 'reference-link',
     input: '[ref link][1]\n\n[1]: https://example.com/page\n',
     expect: 'normalized',

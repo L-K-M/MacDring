@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it } from 'vitest';
 import { RichEditor } from '../src/editor';
 import { CORPUS } from './corpus';
@@ -43,6 +45,6 @@ describe('support table generation', () => {
     }
     lines.push('');
 
-    writeFileSync('SUPPORT.md', lines.join('\n'));
+    writeFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'SUPPORT.md'), lines.join('\n'));
   });
 });

@@ -9,10 +9,23 @@ import { chromium } from 'playwright';
  * one debounced `changed`, theme/mode commands work, and zero cross-origin
  * network requests. Run: `npm run smoke`.
  */
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const MIME = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.css': 'text/css',
+};
 
 const server = createServer(async (req, res) => {
-  const path = normalize(join('.', req.url === '/' ? '/harness/index.html' : req.url ?? ''));
+  const urlPath = (req.url ?? '/').split('?')[0];
+  const path = normalize(join('.', urlPath === '/' ? '/harness/index.html' : urlPath));
+
+  // This is a dev server on localhost; still, never serve outside the package.
+  if (path.startsWith('..')) {
+    res.writeHead(403).end('forbidden');
+    return;
+  }
+
   try {
     const body = await readFile(path);
     res.writeHead(200, { 'content-type': MIME[extname(path)] ?? 'application/octet-stream' });
