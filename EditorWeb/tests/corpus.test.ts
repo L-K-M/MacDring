@@ -1,0 +1,90 @@
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from 'vitest';
+import { RichEditor } from '../src/editor';
+import { CORPUS } from './corpus';
+
+/**
+ * Round-trip gates against the real Crepe build running in happy-dom:
+ *
+ * 1. Loading a document never fires onChange (no silent normalization).
+ * 2. getMarkdown() round-trips the supported corpus per the expectation table.
+ * 3. Hostile markup renders inertly (no script/img elements reach the DOM).
+ *
+ * End-to-end typing coverage (one debounced `changed` per edit) lives in
+ * tests/smoke.mjs, which drives a real browser engine.
+ */
+async function mount(input: string, onChange: () => void = () => {}) {
+  const root = document.createElement('div');
+  document.body.appendChild(root);
+  const editor = await RichEditor.mount(root, {
+    markdown: input,
+    placeholder: 'Write a note…',
+    onChange,
+    onOpenLink: () => {},
+  });
+  return { root, editor };
+}
+
+describe('rich mode corpus', () => {
+  for (const fixture of CORPUS) {
+    it(`loads without emitting changes: ${fixture.name}`, async () => {
+      const onChange = vi.fn();
+      const { root, editor } = await mount(fixture.input, onChange);
+
+      // Give listener plugins a tick to (wrongly) fire on load.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(onChange, 'load must not emit a local change').not.toHaveBeenCalled();
+
+      await editor.destroy();
+      root.remove();
+    });
+  }
+
+  for (const fixture of CORPUS.filter((f) => f.expect === 'exact')) {
+    it(`round-trips exactly: ${fixture.name}`, async () => {
+      const { root, editor } = await mount(fixture.input);
+      expect(editor.getMarkdown()).toBe(fixture.input);
+      await editor.destroy();
+      root.remove();
+    });
+  }
+
+  for (const fixture of CORPUS.filter((f) => f.expect === 'normalized')) {
+    it(`normalizes to a stable fixpoint: ${fixture.name}`, async () => {
+      // Semantics must survive even when bytes don't: serialize once (as a real
+      // edit would), then require that the output is a fixpoint of itself.
+      const first = await mount(fixture.input);
+      const out = first.editor.getMarkdown();
+      await first.editor.destroy();
+      first.root.remove();
+
+      const second = await mount(out);
+      expect(second.editor.getMarkdown()).toBe(out);
+      await second.editor.destroy();
+      second.root.remove();
+    });
+  }
+
+  it('mounts a ProseMirror surface and returns loaded markdown unchanged', async () => {
+    const { root, editor } = await mount('start\n');
+    expect(root.querySelector('.ProseMirror')).toBeTruthy();
+    expect(editor.getMarkdown()).toBe('start\n');
+    await editor.destroy();
+    root.remove();
+  });
+
+  it('renders hostile markdown inertly', async () => {
+    const hostile = CORPUS.find((f) => f.name === 'raw-html' || f.name === 'malicious-payloads');
+    expect(hostile, 'corpus needs a hostile fixture').toBeTruthy();
+    const { root, editor } = await mount(hostile!.input);
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(root.querySelector('script')).toBeNull();
+    expect(root.querySelector('img')).toBeNull();
+    expect(root.querySelector('[onerror]')).toBeNull();
+    expect(root.querySelector('iframe')).toBeNull();
+
+    await editor.destroy();
+    root.remove();
+  });
+});
