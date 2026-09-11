@@ -1,0 +1,116 @@
+<!doctype html>
+<!--
+  Standalone spike harness: simulates the native host so the editor bundle can
+  be exercised in any browser (or WebKitGTK) without the Swift app. The right
+  column is the "host": it loads corpus documents, toggles theme/mode, logs all
+  bridge traffic, and counts network requests (there must be none).
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <!-- Spike CSP: everything local, no network. The harness itself is a dev
+       tool; the shipped WKWebView/WebKitGTK page gets the strict CSP. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; font-src 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Top Drawer editor spike harness</title>
+  <link rel="stylesheet" href="../dist/editor.css" />
+  <style>
+    body { display: flex; gap: 12px; padding: 12px; font: 13px/1.4 system-ui, sans-serif; height: 100vh; box-sizing: border-box; }
+    #editor-pane { flex: 1; min-width: 0; border: 1px solid #9996; border-radius: 10px; overflow: hidden; background: #fdfcf9; }
+    :root[data-td-theme='dark'] #editor-pane { background: #232019; }
+    #host-pane { width: 340px; display: flex; flex-direction: column; gap: 8px; }
+    #host-pane textarea { height: 110px; font-family: ui-monospace, monospace; font-size: 11px; }
+    #host-pane .row { display: flex; gap: 6px; flex-wrap: wrap; }
+    #bridge-log { flex: 1; overflow: auto; border: 1px solid #9996; border-radius: 8px; padding: 6px; font: 10px/1.35 ui-monospace, monospace; white-space: pre-wrap; }
+    #bridge-log .in { color: #7a4; } #bridge-log .out { color: #47a; }
+    button, select { font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="editor-pane"><div id="editor"></div></div>
+
+  <div id="host-pane">
+    <strong>Host simulator</strong>
+    <div class="row">
+      <select id="corpus"></select>
+      <button id="load">Load (initialize)</button>
+    </div>
+    <textarea id="markdown" spellcheck="false"></textarea>
+    <div class="row">
+      <button id="theme">Toggle theme</button>
+      <button id="mode">Toggle rich/source</button>
+      <button id="replace">replaceDocument</button>
+      <button id="focus">focus()</button>
+    </div>
+    <div>Network requests: <b id="net-count">0</b> (must stay 0)</div>
+    <div>Bridge traffic (green = host&rarr;editor, blue = editor&rarr;host):</div>
+    <div id="bridge-log"></div>
+  </div>
+
+  <script>
+    // Count every resource fetch; any non-zero number fails the offline gate.
+    let netCount = 0;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (entry.entryType === 'resource' && !entry.name.startsWith(location.origin)) netCount++;
+      }
+      document.getElementById('net-count').textContent = String(netCount);
+    }).observe({ entryTypes: ['resource'] });
+
+    window.topdrawerHarness = {
+      log(direction, message) {
+        const el = document.createElement('div');
+        el.className = direction;
+        el.textContent = `${direction === 'in' ? '→' : '←'} ${JSON.stringify(message)}`;
+        const log = document.getElementById('bridge-log');
+        log.appendChild(el);
+        log.scrollTop = log.scrollHeight;
+      },
+    };
+
+    const CORPUS = {
+      empty: '',
+      welcome: '# Welcome\n\n- [ ] Try a task\n- [x] Done task\n\nSome **bold** and *italic* and `code`.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n',
+      nested: '- a\n  - b\n    - c\n\n1. one\n2. two\n   - sub\n',
+      edge: '> quote with **bold**\n\n---\n\n```js\nconst x = 1;\n```\n\nAutolink https://example.com and [a link](https://example.com "title").\n',
+      hostile: '<script>alert(1)</script>\n\n[xss](javascript:alert(1))\n\n![img](https://evil.example/x.png)\n',
+      crlf: 'line one\r\nline two\r\n- [ ] task\r\n',
+      unicode: '# Héllo 世界\n\nעברית וערבית mixed with english text.\n\nEmoji 🍼 in a paragraph.\n',
+    };
+
+    const select = document.getElementById('corpus');
+    for (const name of Object.keys(CORPUS)) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    }
+    const ta = document.getElementById('markdown');
+    ta.value = CORPUS.welcome;
+    select.onchange = () => { ta.value = CORPUS[select.value]; };
+
+    let revision = 0;
+    let theme = 'light';
+    const send = (msg) => window.topdrawerEditor.handleMessage(JSON.stringify(msg));
+
+    document.getElementById('load').onclick = () =>
+      send({ type: 'initialize', markdown: ta.value, theme, platform: 'harness', revision: ++revision });
+    document.getElementById('replace').onclick = () =>
+      send({ type: 'replaceDocument', markdown: ta.value, revision: ++revision });
+    document.getElementById('theme').onclick = () => {
+      theme = theme === 'light' ? 'dark' : 'light';
+      send({ type: 'setTheme', theme });
+    };
+    document.getElementById('mode').onclick = () => send({ type: 'command', name: 'toggleMode' });
+    document.getElementById('focus').onclick = () => send({ type: 'focus' });
+  </script>
+  <script src="../dist/editor.js"></script>
+  <script>
+    // Boot the host side once the editor reports ready.
+    window.addEventListener('load', () => {
+      setTimeout(() => document.getElementById('load').click(), 50);
+    });
+  </script>
+</body>
+</html>
